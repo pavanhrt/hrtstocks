@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import type { Database } from "@/lib/database.types";
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from "@/lib/env";
 
 // Server Components can only read cookies (Next.js forbids setting them there),
 // so setAll is wrapped in a try/catch. Any session refresh that would need to
@@ -9,8 +10,8 @@ export async function createClient() {
   const cookieStore = await cookies();
 
   return createServerClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    SUPABASE_URL,
+    SUPABASE_ANON_KEY,
     {
       cookies: {
         getAll() {
