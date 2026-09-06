@@ -1,0 +1,6 @@
+# The deployable Next.js app lives in app/, not the repo root. Declaring
+# `base` here means Netlify finds this correctly regardless of what's set
+# (or not set) in the site's UI build settings -- it then reads
+# app/netlify.toml for the actual command/publish/plugin config.
+[build]
+  base = "app"
