@@ -1,0 +1,80 @@
+
+===== PAGE 1 =====
+BECOME A PRO
+MONEY WILL FLOW
+FOCUS =  
+SUCCESS!
+PAPA
+CONCEPTS
+Part 3
+===== PAGE 2 =====
+2
+PAPA
+by 
+Avadhut Sathe
+
+===== PAGE 3 =====
+PAPA Concept Part 3
+INDEX
+Introduction to Heiken Ashi…………………….......................4
+Decisive and Indecisive HA candles……….………………….5
+Buy Signal………………………….......…….………………….6
+Sell Signal…………………………………….………………….7
+Trends using HA……………………………..………………….8
+BB with 3 Std. Deviation......………..……...………………….10
+Mother Candle………………………..…..….………………….11
+3
+
+===== PAGE 4 =====
+Introduction
+4
+HEIKEN ASHI:
+Heikin-Ashi charts was developed by Munehisa Homma in the 
+1700s.
+Heikin-Ashi technique uses a modified formula shown below:
+> HA Open = [Open of previous HA + Close of previous HA] divided by 2
+> HA Close = (Open + High + Low + Close) divided by 4
+> HA High = High of normal Candle OR Open of HA Candle, whichever is 
+higher.
+> HA Low = Low of normal Candle OR Open of HA Candle, whichever is 
+lower.
+
+===== PAGE 5 =====
+Decisive Candles (Weapons):
+5
+> Bullish when there is NO LOWER WICK (Leg)
+> Bearish when there is NO UPPER WICK (Leg)
+Indecisive Candles:
+Whenever there are wicks on both sides, as shown below:
+
+===== PAGE 6 =====
+Buy Signal:
+6
+A strong buy/sell signal is when HA changes colour without giving 
+any neutral candle at some support / resistance.
+
+===== PAGE 7 =====
+7
+Sell Signal:
+
+===== PAGE 8 =====
+8
+Trends seen in HA
+Below is an example of how noise-free trends look using HA candles:
+
+===== PAGE 9 =====
+9
+Normal candle v/s HA candle chart:
+Example given below shows how HA helps reducing unwanted noise:
+
+===== PAGE 10 =====
+10
+Bollinger Band – 3 Std. Deviation
+Chart with both – “BB with a 2-standard deviation” and “BB with 
+a 3-standard deviation”:
+
+===== PAGE 11 =====
+11
+Mother Candle
+Mother candle is a bigger candle where the next few candles trade with-in 
+the HIGH and LOW of the mother candle, shown below:

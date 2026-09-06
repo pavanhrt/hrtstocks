@@ -1,0 +1,41 @@
+
+===== SHEET PAPA Decision Sheet NEW (visible) 39x11 =====
+C1=Example 1 | D1=Example 2 | E1=Example 3 | F1=Example 4 | G1=Example 5 | H1=Example 6 | I1=Example 7 | J1=Example 8 | K1=Example 9
+A2=Date
+A3=Wave
+A4=Scrip / Stock
+A5=Close of the day / week
+C6=Conclusion | D6=Conclusion | E6=Conclusion | F6=Conclusion | G6=Conclusion | H6=Conclusion | I6=Conclusion | J6=Conclusion | K6=Conclusion
+A7=ASTA - PAPA Story Decision (CONTEXT) / Based on current price action w.r.t overall context | C7=Buy
+A8=ASTA - PAPA Trade Setup (CONCEPT) / Refer to PAPA Guidance Sheet 
+A9=Volume
+A10=AMAR 
+A11=AKBAR
+A12=ANTHONY 
+A13=EMAs (only if applicable) / for Bulls : Support at Rising EMAs / for Bears : Resistance at Declining EMAs
+A14=ASTA - Double Screen Method  / Decision
+A15=CVECp FIB DIV
+A16=Immediate Support (for Bulls for SL)
+A17=Immediate Resistance (for Bears for SL)
+A18=Major Support (Bear ka Target)
+A19=Major Resistance (Bull ka Target)
+A20=Stop Loss Price (SL)
+A21=Target Price  / Based on Price Pattern OR / Major Support for Bears / Major Resistance for Bulls | B21=Min.
+B22=Max.
+A23=Reward (Min ) / for Bulls : Target min - Cost / for Bears : Cost - Target min | C23==IF(C7="","",IF(C7="Buy",C21-C5,C5-C21)) [cached=0]
+A24=Reward  (Max) / for Bulls : Target - Cost / for Bears : Cost - Target max | C24==IF(C7="","",IF(C7="Buy",C22-C5,C5-C22)) [cached=0]
+A25=Risk  / for Bulls : (Cost - SL) / for Bears : (SL - Cost) | C25==IF(C7="","",IF(C7="Buy",C5-C20,C20-C5)) [cached=0]
+A26=Reward / Risk ratio | B26=Min. | C26==C23/C25 [cached='#DIV/0!']
+B27=Max. | C27==C24/C25 [cached='#DIV/0!']
+A28=Total Capital | C28=100000
+A29=Investment per Trade
+A30=Max. Allowed Risk / Trade of Total Capital | B30=0.02 | C30==$B$30*C28 [cached=2000]
+A31=Max No. of Shares allowed  / to Buy / Sell | C31==INT(C30/C25) [cached='#DIV/0!']
+A32=Trade Decision
+A33=Trade Investement | C33=20000
+A34=Shares | C34==INT(C33/C5) [cached='#DIV/0!']
+A35=Risk involved | C35==C34*C25 [cached='#DIV/0!']
+A36=Min Profit potential | C36==C34*C23 [cached='#DIV/0!']
+A37=Max Profit Potential | C37==C34*C24 [cached='#DIV/0!']
+A38=Min ROI% | C38==C36/C33 [cached='#DIV/0!']
+A39=Max ROI% | C39==C37/C33 [cached='#DIV/0!']

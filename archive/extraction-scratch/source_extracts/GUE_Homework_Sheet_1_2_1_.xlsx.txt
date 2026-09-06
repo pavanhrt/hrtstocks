@@ -1,0 +1,20 @@
+
+===== SHEET Decision Sheet (visible) 19x8 =====
+B2=Input Data | C2=Input Data | D2=Input Data | E2=Input Data | F2=Input Data | G2=Input Data | H2=Input Data
+A3=Date
+A4=Scrip / Stock
+A5=Close of the day
+B6=Conclusion | C6=Conclusion | D6=Conclusion | E6=Conclusion | F6=Conclusion | G6=Conclusion | H6=Conclusion
+A7=Impulse / Corrective?
+A8=ASTA System Decision
+A9=Trade Setup 
+A10=Target Price : / Channeling technique based
+A11=Target Price :  / Fib Relationship based
+A12=Target Price :  / Elliot Guidelines based
+A13=Stop Loss Price (SL) : / Elliot Rules/Guidelines based
+A14=Stop Loss Price (SL) : / support / resistance based
+A15=Reward  / for Bulls : Target - Cost / for Bears : Cost - Target
+A16=Risk  / for Bulls : (Cost - SL) / for Bears : (SL - Cost)
+A17=Reward / Risk ratio
+A18=Trade Decision
+A19=Option Strategy

@@ -1,0 +1,196 @@
+
+===== PAGE 1 =====
+BECOME A PRO
+MONEY WILL FLOW
+FOCUS =  
+SUCCESS!
+FOME
+CONCEPTS Part 1
+FUTURES
+===== PAGE 2 =====
+FOME Concepts Part 1 - FUTURES
+INDEX
+Derivatives Introduction..…………………………………………………….......................3
+Types of Derivatives…………………………..……………………………………………………..4
+Why Derivatives?……………………………………………………………………...................5
+Equity v/s Derivative Market….………………………………………….........................7
+Futures………………………………..…………………….................................................9
+Futures Terminologies……………………………………………………….......................11
+2
+
+===== PAGE 3 =====
+What are Derivatives?
+➢ It is a financial product/contract which does not have its own value.
+➢ It derives its value from an underlying asset. These underlying asset could
+be stocks, indices, commodities, currencies, exchange rates, or the rate of
+interest.
+➢ E.g. INFOSYS ticker traded in Futures market is a “DERIVATIVE” of INFY
+stock from the Equity (Spot) market.
+➢ These financial instruments help you make profits by betting on the
+future value (Both Up and Down side) of the underlying asset.
+➢ In the Indian markets, FUTURES and OPTIONS are standardized contracts,
+which can be freely traded on exchanges.
+3
+
+===== PAGE 4 =====
+Types of Derivatives
+4
+DERIVATIVES
+FUTURES
+STOCKS INDEX
+COMMODITIES CURRENCIES
+OPTIONS
+STOCKS INDEX
+CURRENCIESCOMMODITIES
+[L&T, HDFC]
+[CRUDE, NATGAS]
+[NIFTY , BANKNIFTY]
+[USD/INR,GBP/INR, 
+EUR/INR, JPY/INR]
+[L&T, HDFC] [NIFTY , BANKNIFTY]
+[only in Crude Oil 
+and Gold for now]
+[USDINR]
+
+===== PAGE 5 =====
+Why Derivatives?
+➢ Less Money required to invest.
+➢ Example:
+• 500 RIL shares @1780 in cash market = Rs. 8.9 L
+• 1 Lot (500 shares) of RIL in futures (@20% margin) = Rs. 1.78 L
+• 1 Lot of RIL – 1800 Call Option @ Rs. 25 premium = Rs. 12,500
+➢ Hedging against Investments
+➢ Speculating Market or Stock Moves
+➢ Earning Rent on Stock Investments
+➢ Arbitrage Trading
+5
+
+===== PAGE 6 =====
+Fact about Derivatives Market
+6
+BITTER  FACT
+:
+95 % LOSE MONEY
+&
+5 % MAKE MONEY
+INTERESTING  FACT
+:
+5 % MAKE MONEY THAT 95% HAVE LOST
+
+===== PAGE 7 =====
+Equity v/s Derivatives Market
+7
+PARAMETERS EQUITY MARKET DERIVATIVES MARKET
+OWNERSHIP
+When you buy a share in Equity
+market, you actually own those
+many units of the company.
+In Derivatives market, contracts are
+traded of underlying assets, hence
+you don’t actually own the units of
+company.
+INVESTMENT Total Cost of Shares Margin Cost for Futures (15-20%),
+Premium & Margin Cost for Options
+SHARE QUANTITY No restriction, can trade/invest
+even single share
+As per standard Lot size. E.g. Reliance
+– 1 Lot (1000 shares)
+DURATION OF 
+HOLDING No Specified Duration
+One/Two/Three Months contracts
+expire at last Thursday of each
+Month
+SHORT SELLING Only Intra-day Intra-day as well as Positional
+ROI (Eg.: 10% 
+MOVE IN STOCK 
+PRICE)
+10% Futures: 50-60%,
+Options: 100-500% approx.
+PRICE
+DENOMINATION Spot Price Futures Price (Premium or Discount),
+Options Price
+
+===== PAGE 8 =====
+8
+FUTURES
+
+===== PAGE 9 =====
+What are Futures?
+➢ It is an agreement or a contract between two parties to buy or sell
+specified quantity of the underlying asset at a price agreed upon by
+the Buyer and Seller on or before a specified time.
+➢ Both Buyer and Seller of the contract are “Obligated” to Buy or Sell
+the Underlying Asset.
+➢ Risk and Reward are “UNLIMITED” for both Buyer and Seller.
+➢ Limit your Risk by following STOP LOSS!
+9
+
+===== PAGE 10 =====
+Futures Contracts
+10
+
+===== PAGE 11 =====
+Futures Terminologies
+➢ Long: It is another name for buying but into Future market.
+➢ Short: It is another name for selling in Future market. It is also known as
+Short selling. It helps traders to make profit from declining stock and index
+prices. Simply put, you first sell at a high and then buy at a low.
+➢ Spot Price: Price of the underlying asset in the spot market. In Derivative
+market, all the open positions are squared off at spot price on F&O Expiry
+day.
+➢ Future Price: Price of future contract of underlying asset in Derivative
+market.
+• Premium: When future price is more than spot value, it is said that
+future is at premium, indicating high demand and bullishness.
+• Discount: When future price is less than spot value, it is said that future
+is at discount, indicating high supply and bearishness.
+11
+
+===== PAGE 12 =====
+Futures Terminologies
+➢ Contract/Lot Size: In the Derivatives market, contracts cannot be traded for a
+single share. Instead, every stock futures contract consists of a fixed lot of the
+underlying share. E.g. Reliance F&O contract has a lot of 500 RIL shares.
+➢ Contract Month:
+• Current or Near Month – Mostly Liquid
+• Next or Mid Month (2nd Month) – Mostly Illiquid
+• Far Month (3rd Month) – Almost zero liquidity in Indian Markets
+➢ Contract Expiry:
+• Last Thursday of every month for Monthly Expiry. E.g. NIFTY
+➢ Roll Over: It refers to carrying forward of futures positions from one series
+which is nearing expiry date, to the next one.
+➢ Cost of Carry: Premium over the spot price in futures.
+12
+
+===== PAGE 13 =====
+Futures Terminologies
+➢ Open Interest (OI): Total outstanding positions in the futures market at a
+given point of time.
+➢ Volume: Number of contracts traded during a period.
+➢ Initial Margin: Deposit required to pay to the broker to take a position in
+F&O market.
+➢ Maintenance Margin: To ensure that the balance in the margin account
+never becomes negative. If the balance in the margin account falls below
+the maintenance margin, the investor receives a margin call and is
+expected to top up the margin account to the initial margin level before
+trading commences on the next day.
+➢ MTM [Mark-To-Market]: At the end of each trading day, the margin
+account is adjusted to reflect the investors gain or loss depending upon the
+futures closing price.
+13
+
+===== PAGE 14 =====
+Mark To Market
+14
+
+===== PAGE 15 =====
+Ready for Question & Answers…!!??
+15
+
+===== PAGE 16 =====
+Our Motto
+ALL-FOR-ONE 
+ONE-FOR-ALL
+DEVELOPING CHARACTER THAT DESERVES SUCCESS!
+www.avadhutsathe.com
+at

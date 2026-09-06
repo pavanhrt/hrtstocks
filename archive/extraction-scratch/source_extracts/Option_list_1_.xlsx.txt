@@ -1,0 +1,267 @@
+
+===== SHEET OPTIONS LIST (visible) 199x4 =====
+A1=S.NO | B1=Name | C1=Symbol | D1=Lot Size (Dec-22)
+A2=1 | B2=Nifty 50 | C2=NIFTY | D2=50
+A3=2 | B3=Nifty Bank | C3=BANKNIFTY | D3=25
+A4=3 | B4=Nifty Financial | C4=NIFTY FIN SERVICE | D4=40
+A5=4 | B5=Aarti Industries Ltd | C5=AARTIIND | D5=850
+A6=5 | B6=Abb Ltd | C6=ABB | D6=250
+A7=6 | B7=Abbott India Ltd | C7=ABBOTINDIA | D7=40
+A8=7 | B8=Acc Ltd | C8=ACC | D8=250
+A9=8 | B9=Adani Enterprises Ltd | C9=ADANIENT | D9=500
+A10=9 | B10=Adani Ports Sez Ltd | C10=ADANIPORTS | D10=1250
+A11=10 | B11=Aditya Birla Capital Ltd | C11=ABCAPITAL | D11=5400
+A12=11 | B12=Aditya Birla Fashion Ltd | C12=ABFRL | D12=2600
+A13=12 | B13=Amara Raja Batteries Ltd | C13=AMARAJABAT | D13=1000
+A14=13 | B14=Ambuja Cements Ltd | C14=AMBUJACEM | D14=1800
+A15=14 | B15=Apollo Hospitals Ltd | C15=APOLLOHOSP | D15=125
+A16=15 | B16=Apollo Tyres Ltd | C16=APOLLOTYRE | D16=3500
+A17=16 | B17=Ashok Leyland Ltd | C17=ASHOKLEY | D17=5000
+A18=17 | B18=Asian Paints Ltd | C18=ASIANPAINT | D18=200
+A19=18 | B19=Astral Poly Technik Ltd | C19=ASTRAL | D19=275
+A20=19 | B20=Atul Ltd | C20=ATUL | D20=75
+A21=20 | B21=Aurobindo Pharma Ltd | C21=AUROPHARMA | D21=1000
+A22=21 | B22=Au Small Finance Bank Ltd | C22=AUBANK | D22=1000
+A23=22 | B23=Axis Bank Ltd | C23=AXISBANK | D23=1200
+A24=23 | B24=Bajaj Auto Ltd | C24=BAJAJ-AUTO | D24=250
+A25=24 | B25=Bajaj Finance Ltd | C25=BAJFINANCE | D25=125
+A26=25 | B26=Bajaj Finserv Ltd | C26=BAJAJFINSV | D26=50
+A27=26 | B27=Balkrishna Industries Ltd | C27=BALKRISIND | D27=300
+A28=27 | B28=Balrampur Chini Mills Ltd | C28=BALRAMCHIN | D28=1600
+A29=28 | B29=Bandhan Bank Ltd | C29=BANDHANBNK | D29=1800
+A30=29 | B30=Bank Of Baroda Ltd | C30=BANKBARODA | D30=5850
+A31=30 | B31=Bata India Ltd | C31=BATAINDIA | D31=275
+A32=31 | B32=Berger Paints Ltd | C32=BERGEPAINT | D32=1100
+A33=32 | B33=Bharat Electronics Ltd | C33=BEL | D33=3800
+A34=33 | B34=Bharat Forge Ltd | C34=BHARATFORG | D34=1000
+A35=34 | B35=Bharat Petroleum Ltd | C35=BPCL | D35=1800
+A36=35 | B36=Bharti Airtel Ltd | C36=BHARTIARTL | D36=950
+A37=36 | B37=Bharti Infratel Ltd | C37=BHARTIARTL | D37=950
+A38=37 | B38=Bhel Bharat Heavy Electricals Ltd | C38=BHEL | D38=10500
+A39=38 | B39=Biocon Ltd | C39=BIOCON | D39=2300
+A40=39 | B40=Birlasoft Ltd | C40=BSOFT | D40=1300
+A41=40 | B41=Bosch Ltd | C41=BOSCHLTD | D41=50
+A42=41 | B42=Britannia Industries Ltd | C42=BRITANNIA | D42=200
+A43=42 | B43=Canara Bank Ltd | C43=CANBK | D43=2700
+A44=43 | B44=Can Fin Homes Ltd | C44=CANFINHOME | D44=975
+A45=44 | B45=Chambal Fertilisers Chemicals Ltd | C45=CHAMBLFERT | D45=1500
+A46=45 | B46=Cholamandalam Investment Ltd | C46=CHOLAFIN | D46=1250
+A47=46 | B47=Cipla Ltd | C47=CIPLA | D47=650
+A48=47 | B48=City Union Bank Ltd | C48=CUB | D48=5000
+A49=48 | B49=Coal India Ltd | C49=COALINDIA | D49=4200
+A50=49 | B50=Coforge Ltd | C50=COFORGE | D50=150
+A51=50 | B51=Colgate Palmolive Ltd | C51=COLPAL | D51=350
+A52=51 | B52=Coromandel International Ltd | C52=COROMANDEL | D52=700
+A53=52 | B53=Crompton Greaves Consumer Electricals Ltd | C53=CROMPTON | D53=1500
+A54=53 | B54=Cummins India Ltd | C54=CUMMINSIND | D54=600
+A55=54 | B55=Dabur India Ltd | C55=DABUR | D55=1250
+A56=55 | B56=Dalmia Bharat Sugar Industries Ltd | C56=DALMIASUG | D56=500
+A57=56 | B57=Deepak Nitrite Ltd | C57=DEEPAKNTR | D57=250
+A58=57 | B58=Delta Corp Ltd | C58=DELTACORP | D58=2300
+A59=58 | B59=Divis Laboratories Ltd | C59=DIVISLAB | D59=150
+A60=59 | B60=Dixon Technologies Ltd | C60=DIXON | D60=125
+A61=60 | B61=Dlf Ltd | C61=DLF | D61=1650
+A62=61 | B62=Dr Lal Pathlabs Ltd | C62=LALPATHLAB | D62=250
+A63=62 | B63=Dr Reddys Laboratories Ltd | C63=DRREDDY | D63=125
+A64=63 | B64=Eicher Motors Ltd | C64=EICHERMOT | D64=350
+A65=64 | B65=Escorts Ltd | C65=ESCORTS | D65=550
+A66=65 | B66=Exide Industries Ltd | C66=EXIDEIND | D66=3600
+A67=66 | B67=Federal Bank Ltd | C67=FEDERALBNK | D67=10000
+A68=67 | B68=Firstsource Solutions Ltd | C68=FSL | D68=5200
+A69=68 | B69=Gail Ltd | C69=GAIL | D69=6100
+A70=69 | B70=Glenmark Pharmaceuticals Ltd | C70=GLENMARK | D70=1150
+A71=70 | B71=Gmr Infrastructure Ltd | C71=GMRINFRA | D71=22500
+A72=71 | B72=Gnfc Ltd | C72=GNFC | D72=1300
+A73=72 | B73=Godrej Consumer Products Ltd | C73=GODREJCP | D73=1000
+A74=73 | B74=Godrej Properties Ltd | C74=GODREJPROP | D74=325
+A75=74 | B75=Granules India Ltd | C75=GRANULES | D75=2000
+A76=75 | B76=Grasim Industries Ltd | C76=GRASIM | D76=475
+A77=76 | B77=Gujarat Gas Ltd | C77=GUJGASLTD | D77=1250
+A78=77 | B78=Gujarat State Petronet Ltd | C78=GSPL | D78=2500
+A79=78 | B79=Hal Hindustan Aeronautics Ltd | C79=HAL | D79=475
+A80=79 | B80=Havells India Ltd | C80=HAVELLS | D80=500
+A81=80 | B81=Hcl Technologies Ltd | C81=HCLTECH | D81=700
+A82=81 | B82=Hdfc Asset Management Company Ltd | C82=HDFCAMC | D82=300
+A83=82 | B83=Hdfc Bank Ltd | C83=HDFCBANK | D83=550
+A84=83 | B84=Hdfc Life Insurance Ltd | C84=HDFCLIFE | D84=1100
+A85=84 | B85=Hdfc Ltd | C85=HDFC | D85=300
+A86=85 | B86=Hero Motocorp Ltd | C86=HEROMOTOCO | D86=300
+A87=86 | B87=Hindalco Industries Ltd | C87=HINDALCO | D87=1075
+A88=87 | B88=Hindustan Copper Ltd | C88=HINDCOPPER | D88=4300
+A89=88 | B89=Hindustan Petroleum Ltd | C89=HINDPETRO | D89=2700
+A90=89 | B90=Hindustan Unilever Ltd | C90=HINDUNILVR | D90=300
+A91=90 | B91=Honeywell Automation Ltd | C91=HONAUT | D91=15
+A92=91 | B92=Icici Bank Ltd | C92=ICICIBANK | D92=1375
+A93=92 | B93=Icici Lombard General Insurance Ltd | C93=ICICIGI | D93=425
+A94=93 | B94=Icici Prudential Life Insurance Ltd | C94=ICICIPRULI | D94=1500
+A95=94 | B95=Idfc First Bank Ltd | C95=IDFCFIRSTB | D95=15000
+A96=95 | B96=Idfc Ltd | C96=IDFC | D96=10000
+A97=96 | B97=Indiabulls Housing Finance Ltd | C97=IBULHSGFIN | D97=4000
+A98=97 | B98=India Cements Ltd | C98=INDIACEM | D98=2900
+A99=98 | B99=Indiamart Intermesh Ltd | C99=INDIAMART | D99=150
+A100=99 | B100=Indian Energy Exchange Ltd | C100=INDIACEM | D100=3750
+A101=100 | B101=Indian Hotels Company Ltd | C101=INDHOTEL | D101=4022
+A102=101 | B102=Indian Oil Corporation Ltd | C102=IOC | D102=9750
+A103=102 | B103=Indigo Interglobe Aviation Ltd | C103=INDIGO | D103=300
+A104=103 | B104=Indraprastha Gas Ltd | C104=IGL | D104=1375
+A105=104 | B105=Indusind Bank Ltd | C105=INDUSINDBK | D105=900
+A106=105 | B106=Infosys Ltd | C106=INFY | D106=300
+A107=106 | B107=Intellect Design Arena Ltd | C107=INTELLECT | D107=750
+A108=107 | B108=Ipca Laboratories Ltd | C108=IPCALAB | D108=650
+A109=108 | B109=Irctc Ltd | C109=IRCTC | D109=875
+A110=109 | B110=Itc Ltd | C110=ITC | D110=3200
+A111=110 | B111=Jindal Steel Ltd | C111=JINDALSTEL | D111=1250
+A112=111 | B112=Jk Cement Ltd | C112=JKCEMENT | D112=250
+A113=112 | B113=Jsw Steel Ltd | C113=JSWSTEEL | D113=1350
+A114=113 | B114=Jubilant Foodworks Ltd | C114=JUBLFOOD | D114=1250
+A115=114 | B115=Kotak Mahindra Bank Ltd | C115=KOTAKBANK | D115=400
+A116=115 | B116=Laurus Labs Ltd | C116=LAURUSLABS | D116=900
+A117=116 | B117=Lic Housing Finance Ltd | C117=LICHSGFIN | D117=2000
+A118=117 | B118=Lt Finance Holdings Ltd | C118=L&TFH | D118=8924
+A119=118 | B119=Lti Larsen Toubro Infotech Ltd | C119=LTI | D119=150
+A120=119 | B120=Lt Larsen Toubro Ltd | C120=LT | D120=300
+A121=120 | B121=Lt Technology Services Ltd | C121=LTTS | D121=200
+A122=121 | B122=Lupin Ltd | C122=LUPIN | D122=850
+A123=122 | B123=Mahanagar Gas Ltd | C123=MGL | D123=800
+A124=123 | B124=Mahindra Mahindra Financial Services Ltd | C124=M&MFIN | D124=4000
+A125=124 | B125=Mahindra Mahindra Ltd | C125=M&M | D125=700
+A126=125 | B126=Manappuram Finance Ltd | C126=MANAPPURAM | D126=6000
+A127=126 | B127=Marico Ltd | C127=MARICO | D127=1200
+A128=127 | B128=Maruti Suzuki Ltd | C128=MARUTI | D128=100
+A129=128 | B129=Max Financial Services Ltd | C129=MFSL | D129=650
+A130=129 | B130=Metropolis Healthcare Ltd | C130=METROPOLIS | D130=300
+A131=130 | B131=Mindtree Ltd | C131=MINDTREE | D131=200
+A132=131 | B132=Motherson Sumi Systems Ltd | C132=MOTHERSON | D132=4500
+A133=132 | B133=Mphasis Ltd | C133=MPHASIS | D133=175
+A134=133 | B134=Mrf Ltd | C134=MRF | D134=10
+A135=134 | B135=Multi Commodity Exchange Ltd | C135=MCX | D135=400
+A136=135 | B136=Muthoot Finance Ltd | C136=MUTHOOTFIN | D136=375
+A137=136 | B137=National Aluminium Company Ltd | C137=NATIONALUM | D137=4250
+A138=137 | B138=Naukri Info Edge Ltd | C138=NAUKRI | D138=125
+A139=138 | B139=Navin Fluorine International Ltd | C139=NAVINFLUOR | D139=225
+A140=139 | B140=Nbcc Ltd | C140=NBCC | D140=15000
+A141=140 | B141=Nestle India Ltd | C141=NESTLEIND | D141=40
+A142=141 | B142=Nippon Life India Asset Management Ltd | C142=NAM-INDIA | D142=1600
+A143=142 | B143=Nmdc Ltd | C143=NMDC | D143=3350
+A144=143 | B144=Ntpc Ltd | C144=NTPC | D144=5700
+A145=144 | B145=Oberoi Realty Ltd | C145=OBEROIRLTY | D145=700
+A146=145 | B146=Oil Natural Gas Corporation Ltd | C146=ONGC | D146=3850
+A147=146 | B147=Oracle Financial Services Software Ltd | C147=OFSS | D147=200
+A148=147 | B148=Page Industries Ltd | C148=PAGEIND | D148=15
+A149=148 | B149=Persistent Systems Ltd | C149=PERSISTENT | D149=150
+A150=149 | B150=Petronet Lng Ltd | C150=PETRONET | D150=3000
+A151=150 | B151=Pidilite Industries Ltd | C151=PIDILITIND | D151=250
+A152=151 | B152=Pi Industries Ltd | C152=PIIND | D152=250
+A153=152 | B153=Piramal Enterprises Ltd | C153=PEL | D153=275
+A154=153 | B154=Polycab India Ltd | C154=POLYCAB | D154=300
+A155=154 | B155=Power Finance Corporation Ltd | C155=PFC | D155=6200
+A156=155 | B156=Power Grid Corporation Of India Ltd | C156=POWERGRID | D156=2700
+A157=156 | B157=Punjab National Bank Ltd | C157=PNB | D157=16000
+A158=157 | B158=Pvr Cinemas Ltd | C158=PVR | D158=407
+A159=158 | B159=Rain Industries Ltd | C159=RAIN | D159=3500
+A160=159 | B160=Ramco Cements Ltd | C160=RAMCOCEM | D160=850
+A161=160 | B161=Rbl Bank Ltd | C161=RBLBANK | D161=5000
+A162=161 | B162=Reliance Industries Ltd | C162=RELIANCE | D162=250
+A163=162 | B163=Rural Electrification Corporation Ltd | C163=RECLTD | D163=6000
+A164=163 | B164=Sbi Cards Ltd | C164=SBICARD | D164=800
+A165=164 | B165=Sbi Life Insurance Ltd | C165=SRTRANSFIN | D165=750
+A166=165 | B166=Shree Cement Ltd | C166=SHREECEM | D166=25
+A167=166 | B167=Shriram Transport Finance Company Ltd | C167=SBILIFE | D167=600
+A168=167 | B168=Siemens Ltd | C168=SIEMENS | D168=275
+A169=168 | B169=Srf Ltd | C169=SRF | D169=375
+A170=169 | B170=State Bank Of India Ltd | C170=SBIN | D170=1500
+A171=170 | B171=Steel Authority Of India Ltd | C171=SAIL | D171=6000
+A172=171 | B172=Sun Pharmaceutical Ltd | C172=SUNPHARMA | D172=700
+A173=172 | B173=Sun Tv Network Ltd | C173=SUNTV | D173=1500
+A174=173 | B174=Syngene International Ltd | C174=SYNGENE | D174=1000
+A175=174 | B175=Syngene International Ltd | C175=SYNGENE | D175=1000
+A176=175 | B176=Tata Chemicals Ltd | C176=TATACHEM | D176=1000
+A177=176 | B177=Tata Communications Ltd | C177=TATACOMM | D177=500
+A178=177 | B178=Tata Consumer Products Ltd | C178=TATACONSUM | D178=900
+A179=178 | B179=Tata Motors Ltd | C179=TATAMOTORS | D179=1425
+A180=179 | B180=Tata Power Ltd | C180=TATAPOWER | D180=3375
+A181=180 | B181=Tata Steel Ltd | C181=TATASTEEL | D181=425
+A182=181 | B182=Tcs Tata Consultancy Services Ltd | C182=TCS | D182=150
+A183=182 | B183=Tech Mahindra Ltd | C183=TECHM | D183=600
+A184=183 | B184=Titan Ltd | C184=TITAN | D184=375
+A185=184 | B185=Torrent Pharmaceuticals Ltd | C185=TORNTPHARM | D185=250
+A186=185 | B186=Torrent Power Ltd | C186=TORNTPOWER | D186=1500
+A187=186 | B187=Trent Ltd | C187=TRENT | D187=725
+A188=187 | B188=Tvs Motors Ltd | C188=TVSMOTOR | D188=1400
+A189=188 | B189=Ultratech Cement Ltd | C189=ULTRACEMCO | D189=100
+A190=189 | B190=United Breweries Ltd | C190=UBL | D190=400
+A191=190 | B191=United Spirits Ltd | C191=MCDOWELL-N | D191=625
+A192=191 | B192=Upl United Phosphorus Ltd | C192=UPL | D192=1300
+A193=192 | B193=Vedanta Ltd | C193=VEDL | D193=1550
+A194=193 | B194=Vodafone Idea Ltd | C194=IDEA | D194=70000
+A195=194 | B195=Voltas Ltd | C195=VOLTAS | D195=500
+A196=195 | B196=Whirlpool Of India Ltd | C196=WHIRLPOOL | D196=350
+A197=196 | B197=Wipro Ltd | C197=WIPRO | D197=1000
+A198=197 | B198=Zee Entertainment Ltd | C198=ZEEL | D198=3000
+A199=198 | B199=BS
+
+===== SHEET STOCKS (visible) 30x9 =====
+A2=S.NO | B2=DATE | C2=CATEGORY | D2=COMPANY | E2=CURRENT PRICE | F2=QTY | G2=BUY PRICE | H2=SELL PRICE | I2=PROFIT/LOSS
+A3=1 | B3=2023-09-10 00:00:00 | C3=BANK | D3=IDFC FIRST BANK | E3=90.05 | F3=500 | G3=90.05
+A4=2
+
+===== SHEET Sheet5 (visible) 168x9 =====
+A2=S.NO | B2=DATE | C2=CATEGORY | D2=COMPANY | E2=CURRENT PRICE | F2=QTY | G2=BUY PRICE | H2=SELL PRICE | I2=PROFIT/LOSS
+B3=JAN | C3=12 DIVIDEND STOCKS | D3=TCS
+B4=FEB | D4=CRISIL Ltd
+B5=MAR | D5=Coal India Ltd
+B6=APR | D6=HDFC Asset Management Company Ltd
+B7=MAY | D7=ITC Ltd
+B8=JUN | D8=ICICI Bank Ltd
+B9=JUL | D9=JSW Steel Ltd
+B10=AUG | D10=Indian Oil Corporation Ltd
+B11=SEP | D11=Hindustani Uniliver
+B12=OCT | D12=GNA Axles Ltd | E12=458.8
+B13=NOV | D13=Exide Industries | E13=258.8
+B14=DEC | D14=Oriental Aromatics Ltd | E14=367.9
+B15=2023-10-10 00:00:00 | C15=EV MANUFACTUREERS | D15=Tata Motors
+D16=Mahindra & Mahindra
+D17=Olecrra Greentech
+D18=Ashok Leyland
+D19=Bajaj Auto
+C20=EV CHARGING STATIONS | D20=Tata Power
+D21=Reliance Industries
+D22=Indian Oil Corp.
+D23=Bharat Petroleum Corp.
+D24=Hindustan Petroleum Corp
+C25=EV BATTERIES & CHEMICALS | D25=Exide Industries
+D26=Amara Raja Batteries
+D27=Tata Chemicals
+D28=Neogen Chemicals
+D29=Himadri Speciality Chemicals
+C30=EV COMPONENTS | D30=UNO MINDA
+D31=Pricol
+D32=Sona Comstar
+D33=Gabriel India
+D34=Samvardhana Motherson Ind
+C35=EV SOFTWARE | D35=Tata Elxsi
+D36=KPIT Technologies
+D37=Cyient
+D38=Axisxades Technologies
+C39=METAL SECTOR | D39=Steel Authority of India Ltd
+D40=JSW Steel Ltd.
+D41=Jindal Steel and Power Ltd
+D42=Tata Steel Ltd
+D43=Hindalco Industries Ltd
+D44=Hindustan Zinc Ltd
+D45=Vedanta Ltd
+D46=NMDC Ltd
+D47=National Aluminium Company Ltd
+D48=Hindustan Copper Ltd
+
+===== SHEET Sheet3 (visible) 8x9 =====
+B7=HDFC | C7=BUY PE | D7=29-03-23 | E7=1600PE | F7=1603 | G7=30.8 | H7=550 | I7==G7*H7 [cached=16940]
+C8=EXIT PE | E8=1600PE | F8=1590 | G8=35.1 | H8=550 | I8==G8*H8 [cached=19305]
+
+===== SHEET Sheet2 (visible) 16x11 =====
+E7=SL | F7=ENTRY | G7=TARGET
+B8=HDFC | D8=DOWN | E8=1614 | F8=1600 | G8=1560
+B9=INFOSYS | D9=DOWN | E9=1568 | F9=1552 | G9=1500 | H9=1363
+K14=1600
+K15=1614
+K16=1560

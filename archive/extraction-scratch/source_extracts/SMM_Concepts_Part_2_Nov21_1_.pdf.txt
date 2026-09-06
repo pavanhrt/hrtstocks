@@ -1,0 +1,133 @@
+
+===== PAGE 1 =====
+BECOME A PRO
+MONEY WILL FLOW
+FOCUS = 
+SUCCESS!
+SMM
+CONCEPTS
+Part 2
+===== PAGE 2 =====
+SMM Concept Part 2
+INDEX
+Moving Average.……………………………………………………………………3 
+Introduction to Fibonacci Numbers.………………………………………9 
+Fibonacci Retracement………………………………………………………….10 
+2
+
+===== PAGE 3 =====
+3
+Moving Average
+• Moving Averages are average values for a given tim e frame and they reflect the MOOD 
+of the market. They also give BUY or SELL signals. 
+• Values used are 5, 13, 26, 50, 100, and 200. 
+• There are 2 types of Moving Averages: 
+1. Simple Moving Average (SMA): 
+– It’s a simple average of the past closing prices 
+– e.g. 10 Day SMA is nothing but average of previous  10 Days’ closing prices. 
+2. Exponential Moving Average (EMA): 
+– Today’s close * 0.09 + yesterday’s moving average *0.91 
+– More weight is given to the latest data 
+– Typically used for short term averages i.e. 5, 10,  13, 50 
+
+===== PAGE 4 =====
+4
+EMA Example
+
+===== PAGE 5 =====
+5
+EMA Positive Crossover 
+HDFC Bank chart from Mar 2019 
+When lower MAs crosses higher MAs 
+upwards it is a POSITIVE Crossover and 
+considered a BUY signal. 
+
+===== PAGE 6 =====
+6
+EMA Cross-over Buy Signal 
+For long term investors, it was a 
+buy signal when 50 EMA did 
+positive crossover with 100 EMA 
+ICICI Bank chart from Apr 2017 
+
+===== PAGE 7 =====
+7
+EMA Negative Cross-over 
+SBI Chart from Feb 2020 
+When lower MAs crosses higher MAs 
+downwards, it is a NEGATIVE Crossover 
+and considered a SELL signal. 
+
+===== PAGE 8 =====
+8
+EMA Cross-over Sell Signal 
+In this example 50 EMA is 
+crossing 100 EMA 
+downwards When a lower MA crosses 
+higher MA downwards it is a 
+SELL signal. 
+LUPIN Chart from Mar 2017 
+
+===== PAGE 9 =====
+Introduction to Fibonacci Numbers
+• Fibonacci numbers are named after the Italian math ematician Leonardo of Pisa. 
+• The Fibonacci Sequence is the series of numbers st arting with 0, 1, 1, 2, 3, 5, 8, 13, 
+21, 34,....where the next number is found by adding up the two numbers before it. 
+• Example: 
+>   the 2 is found by adding the two numbers before it (1+1), 
+>   the 3 is found by adding the two numbers before it (1+2), 
+>   the 5 is (2+3), and so on! 
+• GOLDEN RATIO (1 .618 …):
+• When we take any two successive (one after the oth er) Fibonacci Numbers, their 
+ratio is very close to the Golden Ratio "φ" which is approximately 1.618034... 
+9
+
+===== PAGE 10 =====
+Fibonacci Retracement 
+• Nothing goes up (or down) straight! 
+• Exceptional stocks that goes up straight comes dow n straight. Example: WIPRO , GTL , 
+Himachal Futuristic, etc. 
+• After moving a leg in upward direction, the bulls get tired. This is when stock starts 
+falling. However, a strong trend ensures that a falling stock finds support. The same 
+principles apply for a falling stock! i.e. it bounces in between on the downward 
+journey. 
+• There’s no greater fool to pay the higher price…in  fact, some bulls turn bears! 
+• Fibonacci retracement levels are horizontal lines,  based on Fibonacci numbers, that 
+indicate where support and resistance are likely to occur. 
+Example : If a stock/instrument moves from Rs. 50 to 100 and slips back 50%, this 
+retracement would take it to Rs. 75 before it continues upward again. 
+• Fibonacci retracement levels are associated with a  percentage. The retracement 
+levels are 23.6%, 38.2%, 50%, 61.8%, and 78.6%. 
+10 
+
+===== PAGE 11 =====
+11 
+Fibonacci Retracement Uptrend
+Nifty 50 – Plotting price levels 
+
+===== PAGE 12 =====
+12 
+Fibonacci Retracement Uptrend
+Nifty 50 – Applying Fibonacci in Uptrend 
+
+===== PAGE 13 =====
+13 
+Fibonacci Retracement Downtrend
+BHEL – Plotting price levels 
+
+===== PAGE 14 =====
+14 
+Fibonacci Retracement Downtrend
+BHEL – Applying Fibonacci in Downtrend 
+
+===== PAGE 15 =====
+15 
+Ready for Question & Answers…!!??
+
+===== PAGE 16 =====
+Our Motto
+ALL-FOR-ONE 
+ONE-FOR-ALL
+DEVELOPING CHARACTER THAT DESERVES SUCCESS! 
+www.avadhutsathe.com 
+at

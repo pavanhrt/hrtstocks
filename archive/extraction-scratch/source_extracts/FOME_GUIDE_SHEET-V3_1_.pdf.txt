@@ -1,0 +1,82 @@
+
+===== PAGE 1 =====
+VIEW CHOICE MARGIN PREMIUM RISK / REWARD
+BULLISH
+Buy Futures High - Unlimited / Unlimited
+Buy Naked Call (NC) - Debit Limited / Unlimited
+Sell Naked Put (NP) High Credit Unlimited / Limited
+Covered Call Low Credit Unlimited / Limited
+Bull Call Spread (1:1) Low Debit Limited / Limited
+Bull Put Spread (1:1) Low Credit Limited / Limited
+Bull Put Ladder Low Credit
+Risk - Limited
+Reward - Limited in trade direction
+Reward - Unlimted in opposite direction
+Long Collar Low Debit Limited/Limited
+Long Iron Butterfly Low Debit Limited/Limited
+Long Iron Condor Low Debit Limited/Limited
+BEARISH
+Sell Futures High - Unlimited / Unlimited
+Buy Naked Put - Debit Limited / Unlimited
+Sell Naked Call High Credit Unlimited / Limited
+Covered Put Low Credit Unlimited / Limited
+Bear Put Spread (1:1) Low Debit Limited / Limited
+Bear Call Spread (1:1) Low Credit Limited / Limited
+Bear Call Ladder Low Credit
+Risk - Limited
+Reward - Limited in trade direction
+Reward - Unlimted in opposite direction
+Short Collar Low Debit Limited/Limited
+Long Iron Butterfly Low Debit Limited/Limited
+Long Iron Condor Low Debit Limited/Limited
+SIDEWAYS
+(Restricted Range)
+Covered Call (on declines to support level) Low Credit Limited / Limited
+Covered Put (on rallies to resistance level) Low Credit Limited / Limited
+Sell Straddle or Strangle High Credit Unlimited / Limited
+Short Iron Butterfly Low Credit Limited/Limited
+Short Iron Condor Low Credit Limited/Limited
+Wild move either way Buy Straddle or Strangle - Debit Limited / Unlimited
+www.avadhutsathe.com
+Futures & Options: Guide
+===== PAGE 2 =====
+ANALYSIS (AFTER TA + OI CHECK) DECISION
+TREND & TARGET
+TIDE MACD Rising and TLBO and Bullish Ungali Setup and RSI above 60 level  
+and Start of Bullish Impulsive move 
+Supportive: ATM PE building OI and ATM & ITM CE shedding OI and  
+Future Long Buildup
+Buy Futures or NC or Call 
+Ratio Spread 
+TIDE MACD Falling and TLBD and Bearish Ungali Setup and RSI below 40  
+and Start of Bearish Impulsive move
+Supportive: ATM & ITM PE shedding OI and ATM CE building OI and  
+Future Short Buildup
+Sell Futures or NP or Put 
+Ratio Spread 
+TIDE MACD is flat / Wave ADX is flat and below 12 or Falling (Sideways Trend) /  
+BB flat (BKP / BKT)
+Supportive: ATM CE / PE / both building OI
+Avoid Naked Options Buying.
+Go for Credit/ Covered 
+strategies
+COVERED STRATEGY
+Bullish view with moderate target till expiry e.g. DB, FBD with BKP Covered Call / Sell ITM Put
+Bearish view with moderate target till expiry e.g. DT, FBO with BKT Covered Put / Sell ITM Call
+SPREAD
+Premium difference is less than Half of Strike Spread Debit Spread
+Premium difference is more than Half of Strike Spread Credit Spread
+TIME VALUE &
+VOLATILITY
+Very High Credit Strategy (SELL)
+Moderate or Low Debit Strategy (BUY)
+CALENDER SPREAD You are in the last week of expiry and price target could be achieved  
+only next month Calender Spread
+RETURN ON INVESTMENT
+(ROI)
+% returns on Credit Strategy = Premium Credited vs Margin Deposited %
+% returns on Debit Strategy = Maxium Possible Returns vs (Premium Debited + 
+Margin Deposited, if any) %
+% returns on Futures Strategy = Maxium Possible Returns vs Margin Deposited %
+www.avadhutsathe.com
+Futures & Options: Guide

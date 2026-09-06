@@ -1,0 +1,25 @@
+
+===== SHEET Futures (visible) 42x33 =====
+C1=Input Data | F1=Input Data | I1=Input Data | L1=Input Data | O1=Input Data
+A2=Date
+A3=Scrip / Stock
+A4=Close of the day
+A5=Technical View
+C6=Conclusion | F6=Conclusion | I6=Conclusion | L6=Conclusion | O6=Conclusion
+A7=Trend Decision
+A8=Covered Strategy
+A9=Spread
+A10=Time Value & Volatility
+A11=Futures | B11=Futures : Entry / BEP
+B12=Futures Investment (FI) :  / Price * Margin %
+B13=Futures Target Gain (FG)
+B14=Futures RoI : (FG/FI)%
+A15=Options - Debit | B15=Options : Strike / Entry / BEP Price
+B16=Options Investment (OI): / Premium 
+B17=Options Target Gain (OG) 
+B18=Options RoI : (OG/OI) %
+A19=Options - Credit | B19=Options : Strike / Entry Price
+B20=Options Investment (OI): / Margin - Premium recvd.
+B21=Options Target Gain (OG) 
+B22=Options RoI : (OG/OI) %
+A23=Final Decision

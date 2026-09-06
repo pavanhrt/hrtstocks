@@ -1,0 +1,122 @@
+
+===== PAGE 1 =====
+BECOME A PRO
+MONEY WILL FLOW
+FOCUS = 
+SUCCESS!
+SMM
+CONCEPTS
+Part 4
+===== PAGE 2 =====
+SMM Concept Part 4
+2
+INDEX
+Technical Indicators………………………………………………………………..3 
+i. MACD……………………………………………………………………………….4 
+ii. Oscillators………………………………………………………………………...7 
+Divergence……………………………………………………………………………..10 
+
+===== PAGE 3 =====
+Technical Indicator 
+Introduction :
+• Technical indicators are tools made out of calculation of historical 
+price, volume, etc. and used to speculate the future price movement. 
+• They are plotted along with charts and mostly used as a supporting 
+tool for analysis. 
+• Below mentioned are few indicators that we will be using f or our 
+analysis: 
+1. Moving Average Convergence Divergence (MACD) 
+2. Stochastic 
+3. Relative Strength Index (RSI) 
+3
+
+===== PAGE 4 =====
+MACD
+4
+• Moving Average Convergence Divergence (MACD) is a trading indicator 
+used in technical analysis. It is also called a “Trend” indicator. 
+• MACD indicator has 3 components in it: 
+i. MACD Line - MACD line is the “Blue” line in the MACD indicator. It is a 
+calculation result of subtracting 26-period EMA from 12-period EMA. 
+ii. Signal Line – Signal line is the “Red” line which is plotted on top of the 
+MACD line. It is basically 9-period EMA of the MACD line. When MACD 
+line crosses the Signal line in upward direction it triggers a BUY signal 
+and MACD line crossing the Signal line in downward direction triggers 
+a SELL signal. 
+iii. Histogram – Histogram are vertical lines/bars which shows the 
+distance between MACD line and Signal line. 
+
+===== PAGE 5 =====
+5
+MACD Example
+Reliance Industries – Weekly chart with MACD 
+
+===== PAGE 6 =====
+6
+Sell signal Buy signal 
+Slope of MACD indicates who’s the stronger (bulls or bears) 
+Buy signal 
+MACD Example
+Nifty 50 – Weekly chart with MACD 
+
+===== PAGE 7 =====
+Oscillators
+• Oscillators help find turning points i.e. they identify emotional extremes 
+of market crowds i.e. “ Overbought” OR “ Oversold” conditions. 
+• They work extremely well in Trading Ranges (Sideways Trend): 
+― Buy on Positive Crossover (ready to turn from overso ld) 
+― Sell on Negative Crossover (ready to turn from overbo ught) 
+• There are 2 types of Oscillators: 
+i. Stochastic 
+ii. Relative Strength Index (RSI) 
+7
+
+===== PAGE 8 =====
+Stochastic Crossovers
+8
+Nifty Weekly Chart with Stochastic 
+
+===== PAGE 9 =====
+Relative Strength Index (RSI) 
+9
+Bank Nifty Weekly Chart with RSI 
+
+===== PAGE 10 =====
+Divergence
+• To “Diverge” means to drift apart OR go on a different route. Generally, 
+price and oscillators go hand-in-hand however, there are times when they 
+diverge from each other. 
+• Oscillators give best trading signals when they diverge from price. 
+• Divergences often help to identify market tops or bottoms. 
+• There are 2 different divergences: 
+i. Bullish Divergence - Bullish Divergence is where price chart will show 
+price making equal low or lower low while Stochastic/RSI will show price 
+making a higher low. In other words, bullish divergence occurs when 
+price fall to a new low but an oscillator refuses to decline to a new low. 
+ii. Bearish Divergence – Bearish Divergence is where price chart will show 
+price making equal OR higher high while Stochastic/RSI will show price 
+making a lower high. In other words, bearish divergence occurs when 
+price rise to a new high but oscillator refuses to rise to a new peak. 
+10 
+
+===== PAGE 11 =====
+Bullish Divergence
+11 
+TCS - Daily chart showing a bullish divergence 
+
+===== PAGE 12 =====
+Bearish Divergence
+12 
+Nifty 50 - Weekly chart showing bearish divergence 
+
+===== PAGE 13 =====
+13 
+Ready for Question & Answers…!!??
+
+===== PAGE 14 =====
+Our Motto
+ALL-FOR-ONE 
+ONE-FOR-ALL
+DEVELOPING CHARACTER THAT DESERVES SUCCESS! 
+www.avadhutsathe.com 
+at

@@ -1,0 +1,325 @@
+
+===== PAGE 1 =====
+BECOME A PRO
+MONEY WILL FLOW
+FOCUS =  
+SUCCESS!
+FOME
+CONCEPTS Part 2
+OPTIONS
+===== PAGE 2 =====
+FOME Concepts Part 2 – OPTIONS
+INDEX
+What are Options?..........……………………………………….…………….......................3
+Why Options?..........…………………………..……………………………………………………..4
+Futures v/s Options…………………………………………………………………...................5
+Option Terminologies………….….………………………………………….........................6
+Call (CE) Option..……….………..………………………...............................................11
+Put (PE) Option……..…..…………………………………………………..…........................14
+CE & PE Overview.…………………………………………………………………………………….17
+Break-even Point………………..…………………………..…………………………………..…..18
+Open Interest……………………………………………………………………………………........19
+Delta…………………………………………………………………………………………………….....20
+2
+
+===== PAGE 3 =====
+What are Options?
+➢ Options are contracts which provide the holder the right to sell or buy a 
+specified quantity of an underlying asset at a fixed price on or before the 
+expiration of the option date.
+➢ Options provide a right and not the obligation to buy or sell.
+➢ Developed for Hedging and Speculating!
+➢ There are two basic types of Options:
+• CALL Option: It is an option contract which provides the holder a right 
+to buy specified assets at specified price on or before a specified date.
+• PUT Option: It is an option contract which provides the holder a right 
+to sell specified assets at specified price on or before a specified date.
+3
+
+===== PAGE 4 =====
+Why Options?
+➢ Flexibility: It provides multiple execution strategies to implement 
+one view. E.g. If view is Bullish then one can either Buy Calls or Sell 
+Puts.
+➢ Leverage: It offers the highest leverage where one can invest very 
+minimal amount in the form of PREMIUM and take much greater 
+exposure of the underlying asset.
+➢ Incomparable Risk/Reward: It provides very large profit potential 
+with pre-known maximum risk for an option buyer.
+➢ Seller Profits: Selling options is like selling insurance so anyone who 
+feels like earning revenues by selling insurance can set himself up to 
+do so in the Options market.
+4
+
+===== PAGE 5 =====
+Futures v/s Options
+5
+PARAMETERS FUTURES OPTIONS
+INVESTMENT
+Need to pay Margin Cost (15-
+20%) for both Buying and 
+Selling Futures
+Option Buying - Need to pay complete 
+Premium Cost
+Option Selling - Need to pay Margin Cost (15-
+20%) but Receives Premium
+VIEW
+EXECUTION
+Bullish – Buy / Long
+Bearish – Sell / Short
+Bullish – Buy Call / Sell Put
+Bearish – Buy Put / Sell Call
+TIME IMPACT No Impact Significant as Option value constitutes of Time
+Value which becomes Zero at Expiry
+PLEDGING
+CAPITAL
+Allowed to use for both buying 
+and selling Futures Allowed to use only for selling Options
+PRICE
+DENOMINATION
+Futures Price
+(Premium or Discount) Options Price (Premium)
+BREAK-EVEN
+POINT
+Immediate similar to cash
+market Close or Far according to Option Price
+RISK REWARD Both buying and selling have 
+unlimited Risk and Reward
+Option Buying - Limited risk and potentially 
+higher reward than risk involved
+Option Selling - Limited reward and potentially 
+higher risk than premium received
+
+===== PAGE 6 =====
+Options Terminologies
+➢ American Options:
+• Currently not used in Indian Market
+• Can be exercised any time before expiration or on the expiration date.
+• CA: Call American, PA: Put American
+➢ European Options: 
+• Used for Index and Stocks in Indian Market
+• Can be exercised only on the expiry date and not before.
+• CE: Call European, PE: Put European
+➢ Option Buyer / Holder: The buyer of an option is the one who, by paying 
+the option premium, buys the right but not the obligation to exercise his 
+option on the seller/writer.
+➢ Option Seller / Writer: The seller of an option is the one who receives the 
+option premium and is, thereby, obliged to sell/buy the asset if the buyer 
+exercises on him.
+6
+
+===== PAGE 7 =====
+Options Terminologies
+➢ Option Price/Premium:
+• The upfront payment made by the buyer to the seller to enjoy the privileges of 
+an option contract.
+• Intrinsic Value + Time Value
+➢ Intrinsic Value:
+• The amount by which an Option is “In the Money”.
+• For a call option : Intrinsic value = Spot price – Strike price
+• For a put option : Intrinsic value = Strike price – Spot price
+• E.g. If RIL spot is 920 & RIL 900 call is at a premium of Rs. 25 then Intrinsic Value 
+is 20.
+➢ Time Value:
+• The amount by which the Option is “Out of the Money”.
+• The longer the time remaining until an option’s expiration, the higher its 
+premium will be.
+• Time Value becomes Zero at Expiry.
+• E.g. If RIL spot is 920 & RIL 900 call is at a premium of Rs. 25 then Time Value is 
+5.
+7
+
+===== PAGE 8 =====
+Options Terminologies
+➢ Strike Price / Exercise Price:
+• The pre-determined price at which the underlying asset can be 
+bought or sold.
+• E.g. Nifty strikes prices of 9500, 9550, 9600, 9650, etc.
+• Strikes which are closer to the spot price are more liquid and 
+expensive.
+➢ ATM - At the Money (Break-Even Point):
+• An option with strike price equivalent to the current spot price
+➢ ITM - In the Money (Profit Zone):
+• A Call option with strike price below the spot price
+• A Put option with strike price above the spot price
+➢ OTM - Out of the Money (Loss Zone):
+• A Call option with strike price above the spot price
+• A Put option with strike price below the spot price
+8
+
+===== PAGE 9 =====
+Options Terminologies
+➢ Open Interest (OI): It refers to the total number of outstanding positions on a 
+particular options contract across all participants in the market at any given 
+point of time. It becomes Zero past the expiration date for a particular contract.
+➢ Implied volatility (IV):
+• It is the estimated volatility of underlying asset price.
+• In general, implied volatility increases when the market isbearish and 
+decreases when the market is bullish. This is due to the common belief that 
+bearish markets are riskier than bullish markets.
+➢ Expiration Date: A day on which the option is no longer valid and ceases to 
+exist.
+• Last Thursday of every month for Monthly Expiry. E.g. Nifty, Bank Nifty, etc.
+• Every Thursday for Weekly Expiry. E.g. Nifty, Bank Nifty, etc.
+➢ Exercise Day: The date when the buyer/holder of an option exercises the 
+Option.
+9
+
+===== PAGE 10 =====
+Option Chain
+10
+
+===== PAGE 11 =====
+Call (CE) Option
+➢ It is an option contract which provides the holder a right to buy specified 
+assets at specified price on or before a specified date.
+➢ ITM: A CALL Option with strike price below the spot price.
+➢ OTM: A CALL Option with strike price above the spot price.
+➢ CE Premium = Intrinsic Value + Time Value
+➢ Intrinsic value of CE = Spot price – Strike price
+➢ Bullish View = Buy CE
+➢ Bearish View = Sell CE
+11
+
+===== PAGE 12 =====
+CE – Bullish Scenario
+12
+
+===== PAGE 13 =====
+CE – Bearish Scenario
+13
+
+===== PAGE 14 =====
+Put (PE) Option
+➢ It is an option contract which provides the holder a right to sell specified 
+assets at specified price on or before a specified date.
+➢ ITM: A Put option with strike price above the spot price.
+➢ OTM: A Put option with strike price below the spot price.
+➢ PE Premium = Intrinsic Value + Time Value
+➢ Intrinsic value of PE = Strike price – Spot price
+➢ Bearish View = Buy PE
+➢ Bullish View = Sell PE
+14
+
+===== PAGE 15 =====
+PE – Bullish Scenario
+15
+
+===== PAGE 16 =====
+PE – Bearish Scenario
+16
+
+===== PAGE 17 =====
+CE and PE Overview
+17
+CALL OPTION BUYER : LONG CALL CALL OPTION WRITER (Seller) : SHORT CALL
+• Pays premium
+• Right to exercise and buy the shares 
+• Profits from rising prices 
+• Limited risk and potentially higher 
+reward than risk involved 
+• Receives premium
+• Obligation to sell shares if exercised 
+• Profits from falling prices or remaining 
+neutral 
+• Limited reward and potentially higher risk 
+than premium received 
+PUT OPTION BUYER : LONG PUT PUT OPTION WRITER (Seller) : SHORT PUT
+• Pays premium
+• Right to exercise and sell shares 
+• Profits from falling prices 
+• Limited risk and potentially higher 
+reward than risk involved 
+• Receives premium
+• Obligation to buy shares if exercised 
+• Profits from rising prices or remaining 
+neutral 
+• Limited reward and potentially higher risk 
+than premium received 
+
+===== PAGE 18 =====
+Break-even Point (BEP)
+➢ Break-even point is the point where you are at “no profit, no loss”. In other 
+words, BEP is where you start making profit or loss.
+➢ BEP calculation:
+• Equity – BEP is the same price as you enter in your trade/investment. 
+Example: You buy or short (short on intra-day only) Reliance equity shares at 
+Rs. 1750, BEP will be 1750.
+• Futures – BEP is the same price as you enter in your trade.
+Example: You went long or short in Nifty Futures at Rs. 10,500, BEP will be 
+10,500.
+• Call (CE) Option – BEP formula for CE is “Strike Price + Premium”.
+Example: You went long or short in SBI 190 CE at Rs.5, BEP will be 190+5 = 
+195.
+• Put (PE) Option - BEP formula for PE is “Strike Price - Premium”.
+Example: You went long or short in SBI 190 PE at Rs.5, BEP will be 190-5 = 
+185.
+NOTE: For options, the BEP point is considering the settlement on the day of 
+expiry.
+18
+
+===== PAGE 19 =====
+Open Interest (OI)
+➢ Open Interest (OI) is the total number of outstanding positions in 
+options at a given point of time. This is inclusive of buyers and 
+sellers. In other words, Open Interest shows the total number of 
+buyers and sellers who are still in the trade.
+➢ Build-up – When the OI goes up, we say that there is “build-up” in 
+Open Interest. Basically, it means that traders are entering into fresh 
+contracts resulting in OI going up.
+➢ Covering – When the OI goes down, we say that there is “covering” 
+in Open Interest. In other words, it means that traders are squaring-
+off their existing positions resulting in OI going down.
+19
+
+===== PAGE 20 =====
+Delta
+➢ Generally, when the price of an asset moves by some amount its 
+corresponding derivative, options in this case, does not move with the 
+same value; there is always a difference. This difference in the ratio of 
+change in the spot price of an asset v/s option premium is shown by Delta.
+➢ Delta is the rate of change in option premium as compared to the change 
+in spot price.
+➢ Formula for calculating Delta:
+Delta = Change in premium / Change in Spot
+➢ Delta can be used to identify Stop Loss, Target, etc. when trading options.
+20
+
+===== PAGE 21 =====
+Delta Example
+21
+
+===== PAGE 22 =====
+Delta Example
+➢ Delta = Change in premium / Change in Spot 
+➢ In the example of Reliance:
+• Spot price on June 01, 2020 = 1480
+• Spot price on June 05, 2020 = 1600
+• Change in spot = 120 (i.e. 1600 – 1480)
+• 1480 CE premium on June 01, 2020 = 48
+• 1480 CE premium on June 05, 2020 = 134
+• Change in premium = 86 (134 – 48)
+• DELTA= 86 / 120
+• DELTA = 0.71
+22
+
+===== PAGE 23 =====
+IMPORTANT TIPS FOR OPTIONS TRADING
+➢ Don’t trade in options without proper understanding 
+and practice of Technical Analysis and Options Analysis.
+➢ Avoid Illiquid stock options.
+➢ Avoid deep OTM options.
+➢ Be aware of Time decay in options.
+23
+
+===== PAGE 24 =====
+Ready for Question & Answers…!!??
+24
+
+===== PAGE 25 =====
+Our Motto
+ALL-FOR-ONE 
+ONE-FOR-ALL
+DEVELOPING CHARACTER THAT DESERVES SUCCESS !
+www.avadhutsathe.com
+at

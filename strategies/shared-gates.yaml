@@ -1,0 +1,51 @@
+definition:
+  id: shared-gates-original
+  rule_version: 1.0.0
+  parameter_version: 1.0.0
+
+terminal_states: [PASS, WATCH, MANUAL_REVIEW, FAIL, NO_DATA]
+rule_states: [PASS, FAIL, WATCH, MANUAL_REVIEW, NO_DATA, NOT_APPLICABLE, CONFLICT]
+
+hard_gates:
+  - current_universe_membership_verified
+  - data_quality_pass
+  - minimum_liquidity_pass
+  - smm_tide_wave_direction_aligned
+  - papa_setup_and_trigger_confirmed
+  - valid_stop_exists
+  - conservative_target_exists
+  - reward_risk_at_least_minimum
+  - planned_position_risk_within_limit
+  - no_unresolved_required_rule_conflict
+
+tiers:
+  tier_a:
+    condition: all_hard_gates_pass_and_gue_confidence_acceptable_and_no_mandatory_manual_review
+  tier_b:
+    condition: smm_papa_data_and_risk_gates_pass_and_gue_uncertain_or_manual
+  watch:
+    condition: directional_context_exists_but_confirmation_volume_reward_risk_or_followup_pending
+  manual_review:
+    condition: required_subjective_or_unresolved_rule_prevents_deterministic_classification
+  rejected:
+    condition: one_or_more_hard_gates_fail
+  unavailable:
+    condition: required_data_stale_invalid_or_absent
+
+ranking:
+  total_points: 100
+  within_same_direction_and_tier_only: true
+  components:
+    smm_trend_and_timeframe_alignment: 25
+    papa_setup_quality_and_confirmation: 30
+    volume_momentum_and_divergence: 15
+    gue_wave_confidence_and_target_confluence: 15
+    reward_risk_and_stop_quality_above_minimum: 10
+    data_quality_and_liquidity: 5
+  derivative_fit_score_separate: true
+  non_derivative_fome_penalty: false
+
+coverage:
+  exactly_one_terminal_result_per_unique_stock: true
+  reconciliation: "unique_stock_count == tier_a + tier_b + watch + manual_review + rejected + unavailable"
+  publish_when_false: false

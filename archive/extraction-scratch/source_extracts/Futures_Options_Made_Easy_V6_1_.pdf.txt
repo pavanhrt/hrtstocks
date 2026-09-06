@@ -1,0 +1,1328 @@
+
+===== PAGE 1 =====
+BECOME A PRO
+MONEY WILL FLOW
+FOCUS =  
+SUCCESS!
+FUTURES
+& OPTIONS
+Made Easy
+===== PAGE 2 =====
+FOME
+Futures & Options Made Easy 
+by Avadhut Sathe
+2
+Optimize Reward
+Minimize Risk
+Uncover the Riches of Derivatives Market by Learning the Tricks of the Trade !
+===== PAGE 3 =====
+3
+
+===== PAGE 4 =====
+FUTURES & OPTIONS Made Easy
+INDEX
+Derivatives…………............……………………………………….…………….......................8
+Futures…………..........…………………………..…………………………………………………….10
+Futures Terminologies…..……………………..……………………………………................11
+Risk/Reward in Futures…….….….…………………………………………........................13
+Futures Trading Strategies.....……………………..................................................14
+Options……………….……..…………………………………..…………………........................17
+Options Terminologies………..………………………..…………………………………………..19
+Option Types…..…………………………………………………………………………………..…...24
+Option Buying..…………………………………………………………………………………..…....26
+Option Selling ..……………………………………………………………………………..…..…....27
+4
+
+===== PAGE 5 =====
+Options Premium............……………………………………….…………….......................28
+Options Margin.........………………………………..……………………………………………….31
+Selecting Strike Price……………………………….…………………….……….....................32
+OI Data Interpretation………….….…………………………………………........................34
+Naked Options – Buying / Selling.,………………………………………........................35
+Exits in Options...…………………..……………………................................................40
+Option Strategies:
+Covered Call………..…………………………………………………………………………………….42
+Covered Put………………………………………………………………………………………..…….48
+Vertical Spreads………………………………………………………………………………………..52
+Bull Call Spread………………………………………………………………………………………...53
+5
+INDEX
+
+===== PAGE 6 =====
+Bear Put Spread………………………………………………………………………………………..55
+Ratio Spread............……………………………………….……………...............................62
+Straddle…………..........………………………………..……………………………………………….63
+Strangle………………….……………………………….…………………….……….....................65
+Collar..………….….………………………………………….................................................70
+Bull Put Ladder....…………………..……………………................................................75
+Bear Call Ladder..……………………………………………………………………………………….78
+Long Iron Butterfly……………………………………………………………………………..……..81
+Short Iron Butterfly.…………………………………………………………………………………..83
+Long Iron Condor..……………………………………………………………………………..………85
+Short Iron Condor  .……………………………………………………………………………………87
+6
+INDEX
+
+===== PAGE 7 =====
+Calendar Spread..………………………………………..…………………………………………...89
+Trading Strategies……………………………………………………………………………………..92
+Factors to Keep in Mind…………………………………………………………………………….93
+7
+INDEX
+
+===== PAGE 8 =====
+What is a Derivative?
+➢ It’s a financial product / contract which does not 
+have it’s own value.
+➢ It derives it’s value from the underlying asset.
+➢ E.g. RELIANCE ticker traded in Futures market is a 
+“derivative” of RIL stock from the cash (spot) 
+market.
+➢ There are 2 such products available for trading on 
+NSE:
+• Stock Futures
+• Stock Options
+8
+
+===== PAGE 9 =====
+Why Derivates?
+➢ Less Money required to invest
+• Example:
+✓ 250 RIL shares @2250 in cash market = Rs. 5.62L 
+approx.
+✓ 1 lot (250 shares) of RIL in futures (@20% margin) 
+= Rs. 1,12,500 approx.
+✓ 1 lot of RIL - 2260 Call Option @ Rs. 50 premium = 
+Rs. 12,500.00
+➢ Hedging against Investments
+➢ Speculating market or stock moves!
+• Positional Trading
+• Day Trading
+➢ Earning Rent on Stock Investments
+9
+
+===== PAGE 10 =====
+Lets get started with Futures
+➢ Futures Contract
+• It’s an agreement or a contract to Buy or Sell 
+specified quantity of the underlying asset at a 
+price agreed upon by the buyer and seller on 
+or before a specified time.
+• Both buyer and seller of the contract are 
+“obligated” to Buy or Sell the underlying asset.
+• Contract constitutes:
+✓ Size / Lot 
+✓ Contract Month
+✓ Contract Expiry
+10
+
+===== PAGE 11 =====
+Futures Terminologies
+➢ Contract Size
+• Quantity of the particular stock / Market Lot
+➢ Contract Month
+• Current or Near month
+• Mid Month (2nd month)
+• Far Month (3rd month)
+➢ Contract Expiry - Last Thursday of every month
+➢ Open Interest - Total outstanding positions in the Futures market at a 
+given point of time
+➢ Volume- No. of contracts traded during a period
+➢ Spot - Price in the cash market
+➢ Margin- Deposit required to pay to the broker to take a position in F&O 
+market
+➢ Cost of Carry- Premium over the spot price in Futures 
+11
+
+===== PAGE 12 =====
+Futures – Position Trading
+12
+
+===== PAGE 13 =====
+Futures – Risk & Reward
+➢ Risk and Reward are unlimited for both Buyer and Seller.
+➢ Limit your Risk by following Stop Loss.
+➢ Hedging – Limited Risk & Reward
+• If you are hedging against the underlying cash position 
+then the risk and reward are both limited.
+• Example: If you own RIL shares and Sell RIL in futures 
+for equal quantity then your losses in spot position are 
+off-set by gains in Futures position.
+• You can get margin up to 80 % (depending on the 
+stock) against the pledged equity. This margin can be 
+used for futures trading and option selling. 
+13
+
+===== PAGE 14 =====
+Futures – Trading Strategies
+➢ Technical Analysis basis:
+• Arrive at Price Target
+• Use Money Management Rules to decide the contract size
+• Remember 2% (single trade loss) & 10% (max monthly loss) 
+Rule!
+➢ Open Interest basis:
+• Long (Bullish) : OI is UP and Price is UP
+• Short (Bearish) : OI is UP and Price is DOWN
+• Short Covering (Bullish) : OI is DOWN and Price is UP
+• Long Covering (Bearish) : OI is DOWN and Price is DOWN
+➢ Arbitrage:
+• Futures Price is LESS than the Spot Price
+✓ Buy Futures & Sell Cash
+• Futures Price is HIGER than the Spot Price
+✓ Sell Futures & Buy Cash
+14
+
+===== PAGE 15 =====
+Trading Platform - ODIN
+15
+
+===== PAGE 16 =====
+Futures – Recap
+➢ Limited investment in terms of margin payable to broker. 
+• Typically 15-25% of the total value
+• Depends on Market wide exposure / Open Interest
+➢ Risk and Reward are unlimited.
+➢ Position needs to be monitored on daily basis as risk 
+involved is unlimited.
+➢ Broker could square-off your position if margin 
+requirements shoots above the funds deposited with the 
+broker.
+➢ Deposited margin starts falling short rapidly if your trade 
+start going against you.
+16
+
+===== PAGE 17 =====
+17
+
+===== PAGE 18 =====
+Understanding Options
+➢ Was developed for Hedging and Speculating!
+➢ Option Contract is a ‘Right’ given by the Option Seller to the 
+Option Buyer to buy or sell a specific asset at a specific price 
+on or before a specific date.
+➢ Option Buyer or Holder:
+• Has the ‘Right’
+• May or may not Exercise the Right
+• Pays premium
+➢ Option Seller or Writer:
+• Has the ‘Obligation’
+• If Buyer decides to Exercise the Option, the Seller must 
+oblige (only applicable to American options, not applicable 
+in Indian option market)
+• Receives or Earns the Premium
+18
+
+===== PAGE 19 =====
+Options Terminologies
+➢ Call Option – Long position / bullish
+➢ Put Option – Short position / bearish
+➢ Market Lot:
+• Minimum number of units to be bought or sold
+• E.g. for Nifty the lot size is 75
+➢ Strike Price:
+• The price at which underlying stock can be bought or sold by the contract 
+buyer
+• E.g. for Nifty : 15000, 15050, 15100, 15150, 15200 and so on
+• Strikes which are closer to the underlying are more liquid
+➢ Expiration Date – Last Thursday of every month for monthly Option contracts, 
+Every Thursday for Weekly Option contracts:
+• The date when the term of an option contract terminates
+➢ Option Holder: Buyer of an option
+➢ Option Writer: Seller of an option
+➢ Exercise Day :
+• The date when the buyer / holder of an option exercises the Option 
+19
+
+===== PAGE 20 =====
+Options Terminologies
+➢ Option Value or Premium:
+• Price the Buyer pays to buy a Call or Put option
+• Intrinsic Value + Time Value
+➢ ATM – At the Money (break-even point):
+• An option with strike price nearest to the current stock 
+price
+➢ ITM – In the Money (profit zone):
+• A CALL option with strike price below the stock price
+• A PUT option with strike price above the stock price
+➢ OTM – Out of the Money (loss zone):
+• A CALL option with strike price above the stock price
+• A PUT option with strike price below the stock price
+20
+
+===== PAGE 21 =====
+Stock Options – Contracts
+21
+3 Contracts are open at a time for stocks:
+➢ Near or Current Month - most liquid.
+➢ Next or Mid Month (2nd month) -
+mostly illiquid.
+➢ Far Month (3rd month) - almost zero 
+liquidity in Indian Markets.
+For indices, in addition to these 3 contracts, 
+weekly option contracts and long term 
+monthly contracts are also available.
+
+===== PAGE 22 =====
+Currency Options – Contracts
+22
+For currency, weekly option contracts and 3 
+monthly option Contracts are open at a 
+time:
+➢ Near or Current Month - most liquid.
+➢ Next or Mid Month (2nd month) -
+mostly illiquid.
+➢ Far Month (3rd month) - almost zero 
+liquidity in Indian Markets.
+
+===== PAGE 23 =====
+Commodity Options – Contracts
+23
+For commodity, 3 monthly option Contracts 
+are open at a time:
+➢ Near or Current Month - most liquid.
+➢ Next or Mid Month (2nd month) -
+mostly illiquid.
+➢ Far Month (3rd month) - almost zero 
+liquidity in Indian Markets.
+For Gold and Silver, more than 3 monthly 
+option Contracts are open at a time.
+
+===== PAGE 24 =====
+Option – Types
+➢ Call Option
+➢ Put Option
+➢ American
+• Currently not used in Indian Market
+• Can be Exercised
+• CA: Call American
+• PA: Put American
+➢ European
+• Used for Index as well as Stocks, currencies and commodities
+• Cannot be Exercised
+• CE: Call European
+• PE: Put European
+24
+
+===== PAGE 25 =====
+Option – ODIN Screens 
+25
+
+===== PAGE 26 =====
+Option – Buying / Holding
+➢ Buyer has to pay Premium.
+➢ Has the Right to Exercise the Option.
+➢ Has no obligation of buying / selling the underlying 
+security. 
+➢ If a stock Call (Put) option expires deep ITM (more than 3 
+strikes), then the buyer must take (give) the delivery 
+under physical settlement. To avoid delivery, one can 
+adopt counter position through future or spreads.
+➢ All index options are cash settled.
+➢ Risk is limited to the extent of premium paid.
+➢ Reward could be unlimited.
+26
+
+===== PAGE 27 =====
+Option – Selling / Writing
+➢ Receives the Premium. 
+➢ Has to pay the margin for selling the option.
+➢ Margin is refundable at the end of the contract.
+➢ Has obligation to sell / buy the underlying security.
+➢ Reward is limited to the extent of premium received.
+➢ Risk is potentially higher than the premium received.
+➢ Risk could be controlled by employing various strategies.
+27
+
+===== PAGE 28 =====
+➢ Two Constituents:
+• Intrinsic Value -
+✓ The amount by which the Option is in the Money 
+• Time Value -
+✓ The amount by which the Option is out of the money
+Premium = Intrinsic Value + Time Value
+➢ Two Constituents:
+• If RIL spot is 2220 and RIL 2200 call (CE) is at a premium of 
+Rs. 50 then
+• Intrinsic Value       : 20
+• Time Value             : 30
+Option Value OR Premium
+28
+===== PAGE 29 =====
+Intrinsic Value & Time Value
+Market value
+100
+110
+90
+80
+120
+30
+40
+20
+10
+Market ValueMarket Value
+Underlying Stock
+Option
+Time value
+Intrinsic value
+Intrinsic value Intrinsic value Intrinsic value
+Time value
+Time value
+Time value
+Time value
+Time value
+Strike price = 100
+Time →
+Time →
+Expiry
+Expiry
+29
+
+===== PAGE 30 =====
+Option Premium
+Important Determinants:
+➢ Price of the Underlying.
+➢ Volatility of the Underlying:
+• It’s measure of the fluctuation in a stock or index’s price
+• It helps to identify underpriced and overpriced options
+➢ Strike Price of the Option.
+➢ Time Remaining until the Option Expires.
+➢ Prevalent risk free interest rate:
+• Typically 6 - 7% p.a. in India
+30
+
+===== PAGE 31 =====
+Margin
+➢ Margin is paid by the Option Seller to cover for the unlimited risk involved.
+➢ Varies from 15% to 60%
+➢ In case of Covered Calls / Puts the margin requirement is less i.e. 5% to 15% 
+because of the reduced / limited risk.
+➢ % margin requirement varies based on:
+• Volatility of the stock in the cash market
+• Market wide exposure limit in the Derivatives market
+➢ Market wide exposure:
+• Exchange Limit
+• Broker Limit (depending on the Open positions at the broker)
+➢ Typical margin requirement based on % OI (open interest) of the free Float 
+(tradable share capital of the company)
+% OI : Margin
+50% : 15% to 20%
+70% : 25%
+80% : 40%
+90% to 100% : 90%
+31
+
+===== PAGE 32 =====
+Selecting Strike Price
+➢ Select closest ITM / ATM strike or the next best OTM strike
+• They are more liquid
+• They give better ROI
+• Check Example of Nifty below
+32
+Nifty at Spot
+Strike Price 
+(Oct18) State
+Spot at Expiry 
+(assumption) Premium
+Intrinsic Value 
+at Expiry
+Time Value at 
+Expiry Gains ROI
+16-10-2017 A B C D=B-A E G=(D+E)-C G/C
+10740
+10650 ITM 10950 209 300 0 91 44%
+10700 ITM 10950 188 250 0 62 33%
+10750 ATM 10950 137 200 0 63 46%
+10800 OTM 10950 99 150 0 51 52%
+10850 OTM 10950 69 100 0 31 45%
+10900 OTM 10950 47 50 0 3 6%
+10950 OTM 10950 31 0 0 -31 -100%
+Note: this table assumes the Spot Nifty to be at 10950 at the closing of 30 Oct 2017
+
+===== PAGE 33 =====
+Speculation
+➢ Technical Analysis is necessary (at least partial 
+knowledge).
+➢ Find target for the stock price.
+➢ Identify Stop Loss (to manage Risk).
+➢ Bullish View:
+• Buy Call Option 
+• Write (Sell) Put Option (also called shorting Put)
+➢ Bearish View:
+• Buy Put Option
+• Write (Sell) Call Option (also called shorting Call)
+33
+
+===== PAGE 34 =====
+Option OI Data Interpretation
+34
+CALL
+CE OI CE PRICE INTERPRETATION
+UP UP BULLISH/WATCHFUL
+DOWN UP STRONG BULLISH
+DOWN DOWN BEARISH
+UP DOWN STRONG BEARISH
+PUT
+PE OI PE PRICE INTERPRETATION
+UP UP BEARISH/WATCHFUL
+DOWN UP STRONG BEARISH
+DOWN DOWN BULLISH
+UP DOWN STRONG BULLISH
+
+===== PAGE 35 =====
+Naked Options – Buying / Selling 
+Note:
+• Call Seller makes money as long as spot remains below the strike price.
+• Put Seller makes money as long as spot remains above the strike price.
+• Seller needs to keep margin with the broker.
+35
+
+===== PAGE 36 =====
+Pay-off Diagram (Call Buyer)
+Note:
+The Call buyer makes loss (limited to 20) as long as spot remains below 1130
+36
+BEP 
+=1150
+===== PAGE 37 =====
+Pay-off Diagram (Call Seller)
+Note:
+The Call Seller makes gains (limited to 20) as long as spot remains below 1130
+37
+BEP 
+=1150
+===== PAGE 38 =====
+Pay-off Diagram (Put Buyer)
+Note:
+The Put buyer makes loss (limited to 20) as long as spot remains above 1080
+38
+BEP 
+=1060
+===== PAGE 39 =====
+Pay-off Diagram (Put Seller)
+39
+Note:
+The Put seller makes profit (limited to 20) as long as spot remains above 1080, Loss 
+is unlimited below 1080
+BEP 
+=1060
+===== PAGE 40 =====
+Exits
+➢ Settlement
+• This is non-delivery based i.e. by payment of the 
+difference of the buy / sell price.
+➢ Exit Strategies
+• Wait till Expiry when the trade is going in your favor and 
+market is trending.
+• Square-off as soon as your exit criteria (based on TA) is 
+met.
+• Rolling (Sell the option and move to higher / lower 
+strike).
+• If there’s no liquidity in the ITM Call (Put) option, one 
+may short (go Long) the Futures to lock profits. One 
+may also trade in Futures as its risk-free trade.
+40
+
+===== PAGE 41 =====
+Option Strategies
+➢ Insurance against market fall (Protective Put buying)
+➢ Covered Call
+➢ Vertical Spreads
+➢ Straddle
+➢ Strangle 
+➢ Combinations – Butterfly, Collar, Ladder
+➢ Calendar Spread
+Note: Use Simple Strategies ONLY
+41
+
+===== PAGE 42 =====
+Covered Call
+➢ Buying (or holding) underlying security and writing (selling) the ATM 
+or next best OTM Call.
+➢ Good strategy in sideways (near support levels) and bullish markets.
+➢ It’s like earning Rent on your Property which is idle.
+➢ Why it makes sense?
+• Only liquid calls are near-month expiry i.e. at most 22 days for 
+expiry.
+• As volatility reduces the Seller makes the difference of volatility 
+premium.
+• As time reduces, the Seller makes money on the reducing time 
+value.
+• If price is exactly at or below the strike at the time of expiry, the 
+seller earns the entire premium.
+• Risk is minimized by owning the Underlying security e.g. write 
+RIL 2000 calls if you own RIL shares!
+42
+
+===== PAGE 43 =====
+Covered Call Example
+• Buy Reliance future @ Rs. 2210
+• Sell OTM Call of strike 2240 @40
+• Technical View is that Reliance will 
+not go below 2170
+• Upside may be limited as major 
+resistance is at 2240
+43
+
+===== PAGE 44 =====
+Pay-off Diagram - Naked Future Buying
+44
+BEP=
+2210
+
+===== PAGE 45 =====
+Pay-off Diagram - Covered Call Strategy
+45
+BEP=
+2170
+===== PAGE 46 =====
+Covered Call – Stock & Strike Selection
+➢ Selecting Stock:
+• Stocks which are either in up trend or sideways trend (range).
+• You have a partial technical view i.e. reasonable knowledge of 
+support and resistances based on past price history is good enough.
+• The stock has corrected to it’s support levels.
+➢ Avoid Stocks:
+• with Bearish Patterns
+• overbought stocks which may turn down sharply
+• Stocks which are operator driven
+• Higher volatility
+➢ Selecting Strike price:
+• If stock has rallied recently use nearest ITM strike to get better 
+premium and have more hedge against downside
+• If stock has corrected use best possible OTM
+• If stock is long term investment and you want to protect capital 
+gains then use ‘Deep OTM’ i.e. strike price further ahead from spot.
+46
+
+===== PAGE 47 =====
+Covered Call – Follow-up / Exit
+➢ Do nothing – (if stock rallies)
+➢ What if Stock rallies and Call is exercised against you:
+• No worries, you have already captured the entire gain 
+against the stock that you hold.
+• Write another ATM or OTM call if stock is still bullish.
+➢ Rolling Down:
+• If stock falls further, you may cover the call you sold and 
+Sell another lower ATM call.
+• This way you could maximize the premium earned.
+➢ Stop Loss:
+• If the stock breaks all important supports, you are better of 
+closing the entire position.
+47
+
+===== PAGE 48 =====
+Covered Put
+➢ Shorting the underlying security and writing (selling) the ATM or next best 
+OTM Put.
+➢ Selecting Stock:
+• Stocks which are either in down trend or sideways trend (range).
+• You have a partial technical view i.e. reasonable knowledge of support 
+and resistances based on past price history is good enough.
+• The stock has rallied to it’s resistance level.
+➢ Avoid Stocks:
+• With Bullish Patterns.
+• Oversold stocks which may turn up sharply.
+• Stocks which are operator driven.
+➢ Selecting Strike price:
+• If stock has dropped recently use nearest ITM strike to get better 
+premium and have more hedge against upside.
+• If stock has rallied use best possible OTM.
+• If market is extremely bearish and you want to maximize gains then 
+use ‘Deep OTM’ i.e. strike price further ahead from spot.
+48
+
+===== PAGE 49 =====
+Covered Put Example
+• Sell Reliance Future @ Rs. 2210
+• Sell OTM Put of strike 2180 @40
+• Technical View is that Reliance will 
+not go above 2250
+• Downside may be limited as major 
+support is at 2180
+49
+
+===== PAGE 50 =====
+Pay-off Diagram – Naked Future Selling
+50
+BEP=
+2210
+===== PAGE 51 =====
+Pay-off Diagram - Covered Put Strategy 
+51
+BEP=
+2250
+===== PAGE 52 =====
+Vertical Spreads
+➢ Going long (buying) and short (selling) at the same time for the same type 
+of option (i.e. both call or both put) with same expiry but different strike 
+price.
+• E.g. Buy RIL call of Strike 1000 & Sell RIL call of Strike 1050 
+➢ Bull Spread:
+• Buy Lower strike option (pay premium)
+• Sell Higher strike option (receive premium)
+➢ Bear Spread:
+• Sell Lower strike option (receive premium)
+• Buy higher strike option (pay premium)
+➢ Debit Spread:
+• When you pay the difference
+• Bull Call spread (you are bullish) - like covered call
+• Bear Put spread (you are bearish) – like covered put
+➢ Credit Spread:
+• When you receive the difference
+• Bear Call spread (you are bearish)
+• Bull Put Spread (you are bullish)
+52
+
+===== PAGE 53 =====
+Bull Call Spread (Like Covered Call)
+➢ Example : Nifty Call (spot : 15700)
+➢ Premiums
+• 15800 Call : Rs. 55
+• 15900 Call : Rs. 25
+➢ Investment
+• Buy 15800 Call = 75 x 55 = Rs. 4125 paid
+• Sell 15900 Call =  75 x 25 = Rs. 1875 received
+• Net Investment = Rs. 2250
+➢ Margin requirement for Selling the Call
+• Lower Margin because risk is covered by buying lower Strike call
+• SP x Lot x margin%
+• 15900 x 75 x 5% = Rs. 59625
+➢ Break-even point
+• Difference of premium to be added to lower SP
+• i.e. net debit is 55 – 25 = 30 
+• i.e. when Nifty goes above 15800 + 30 = 15830, you start making money!
+➢ Risk
+• Limited to 30 per unit if spot stays below 15800
+➢ Returns
+• Limited to max. 70 per unit, you start making money if spot starts moving 
+above 15830
+• When spot goes above 15900, the call option sold starts making loss thus 
+limiting net gains to 70
+53
+
+===== PAGE 54 =====
+Pay-off Diagram – Bull Call Spread
+54
+BEP=
+15830
+===== PAGE 55 =====
+Bear Call Spread
+➢ Example : Nifty Call (spot : 15700)
+➢ Premiums
+• 15600 Call : Rs. 170
+• 15500 Call : Rs. 240
+➢ Investment
+• Sell 15500 Call = 75 x 240 = Rs. 18000 received
+• Buy 15600 Call =  75 x 170 = Rs. 12750 paid
+• Net premium received = Rs. 5250
+➢ Margin requirement for Selling the Call
+• Lower Margin because risk is covered by buying higher Strike call
+• SP x Lot x margin%
+• 15500 x 75 x 5% = Rs. 58125
+➢ Break-even point
+• Difference of premium to be added to lower SP
+• i.e. net debit is 240 – 170 = 70 
+• i.e. when Nifty goes below 15500 + 70 = 15570, you start making money!
+➢ Risk
+• Limited to 30 per unit if spot stays above 15600
+➢ Returns
+• Limited to max. 70 per unit, you start making money if spot starts moving 
+down below 15570
+55
+
+===== PAGE 56 =====
+Pay-off Diagram – Bear Call Spread
+56
+BEP=
+15570
+===== PAGE 57 =====
+Bear Put Spread (Like Covered Put)
+➢ Example : Nifty Put (spot – 15700)
+➢ Premiums
+• 15600 : Rs. 80
+• 15500 : Rs. 55
+➢ Investment
+• Buy 15600 Put  = 75 x 80 = Rs. 6000 paid
+• Sell 15500 Put  =  75 x 55 = Rs. 4125 received
+• Net Investment = Rs. 1875
+➢ Margin requirement for Selling the Put
+• Lower Margin because risk is covered by buying higher Strike Put
+• SP x Lot x margin%
+• 15500 x 75 x 5% = Rs. 58125
+➢ Break-even point
+• Difference of premium to be deducted from higher strike
+• i.e. 80 – 55 = 25
+• i.e. when Nifty goes below 15600 – 25 = 15575 you start making money!
+➢ Risk
+• Limited to 25 per unit if spot stays above 15600
+➢ Returns
+• Limited to 75 per unit, you start making money if spot starts moving down 
+below 15575
+• When spot goes below 15500, the Put option sold starts making loss, thus 
+limiting the net gains to 75
+57
+
+===== PAGE 58 =====
+Pay-off Diagram – Bear Put Spread
+58
+BEP=
+15575
+===== PAGE 59 =====
+Bull Put Spread
+➢ Example : Nifty Put (spot – 15700)
+➢ Premiums
+• 15800 Put : Rs. 180
+• 15900 Put : Rs. 250
+➢ Investment
+• Buy 15800 Put  = 75 x 180 = Rs. 13500 paid
+• Sell 15900 Put  =  75 x 250 = Rs. 18750 received
+• Net Investment = Rs. 5250
+➢ Margin requirement for Selling the Put
+• Lower Margin because risk is covered by buying lower Strike Put
+• SP x Lot x margin%
+• 15900 x 75 x 5% = Rs. 59625
+➢ Break-even point
+• Difference of premium to be deducted from higher strike
+• i.e. 250 – 180 = 70
+• i.e. when Nifty goes above 15900 - 70 = 15830 you start making money!
+➢ Risk
+• Limited to 30 per unit if spot stays below 15800
+➢ Returns
+• Limited to 70 per unit, if spot starts moving up above 15830, you start 
+making money
+• Spot at 15900, you achieve the max. gain of Rs. 70, the gain will be limited 
+to Rs. 70 for any further increase in spot above 15900
+59
+
+===== PAGE 60 =====
+Pay-off Diagram – Bull Put Spread
+60
+BEP=
+15830
+===== PAGE 61 =====
+Understand the Concept ☺
+Let’s re-cap:
+➢ When you are Bullish you have 2 choices:
+• Buy a Call
+• Sell a Put
+➢ When you are bearish you have 2 choices:
+• Buy a Put
+• Sell a Call
+➢ Why use Spreads then?
+• This is to reduce the investment.
+• Limit the Risk of Selling an option : by buying another one of different 
+strike.
+• In the process you limit the Returns (but that’s ok when risk is limited).
+➢ We learnt Debit Spreads (covered call and covered put) in last slides.
+➢ Credit Spreads (do your own example):
+• Concept is to earn the premium and limit the risk.
+• Bull Put Spread (it’s like selling a put but minimizing the risk by buying 
+lower strike put).
+• Bear Call Spread (it’s like selling a call but minimizing the risk by buying 
+higher strike call).
+61
+
+===== PAGE 62 =====
+Ratio Spread
+➢ Buy and Sell calls/puts in the ratio of 2:1 or 3:2
+➢ You are expecting sharp move and want uncapped reward with reduced cost.
+➢ Very useful when the net debit is less than 25-30% of the spread.
+➢ E.g. Nifty Put Spreads in May series on 16th May
+➢ Buy 2 - 10600 puts : Rs. 52 x 2 = Rs. 104
+➢ Sell 1 – 10500 put  : Rs. 32 x 1 = Rs. 32
+➢ Net Debit : Rs. 72 for 2 puts i.e. 36 per put.
+➢ Break-even point : Rs 10600 - 36 = 10564
+➢ Below 10564, the second put will start giving uncapped returns.
+62
+
+===== PAGE 63 =====
+Straddle
+➢ Buy Call and Put of same strike price (ATM)
+➢ When to use this strategy? 
+➢ Expecting some news which will result in wild move in either direction!
+➢ You are at Major Turning Point in the Market and volatility is low.
+➢ High Investment + Limited Risk + High Returns
+➢ Example – Infosys 27th May 2021 series, buy Call & Put of strike 1300
+➢ Premiums:
+• 1300 Call : Rs. 35
+• 1300 Put : Rs. 25
+➢ Investment:
+• Call premium = 35 x 600 = 21000
+• Put premium = 25 x 600 = 15000
+• Total investment = 36000
+➢ Risk
+• Limited to the total premium i.e. Rs. 36,000 (or 60 per share)
+➢ Reward
+• Unlimited if spot goes beyond 1300 + 60 i.e. 1360
+• Unlimited if spot falls below 1300 – 60 i.e. 1240
+➢ Close on Expiry of May 2021 series : Rs. 1402 (gain of 42)
+63
+
+===== PAGE 64 =====
+Pay-off Diagram – Long Straddle
+64
+BEP=
+1360
+BEP=
+1240
+===== PAGE 65 =====
+Strangle (alternative to Straddle)
+➢ Buy Call of higher strike and Put of lower strike (both OTM)
+➢ When to use this strategy? 
+• Expecting wild move after range bound action
+• Either in up or down direction
+➢ Moderate Investment + Limited Risk + High Returns
+➢ Example: Nifty 27th May 2021 series, buy 15000 Call & 14800 Put
+➢ Premiums (14910 Nifty spot on 20th May 2021)
+• 15000 Call : Rs. 100
+• 14800 Put : Rs. 90
+➢ Investment:
+• Call premium = 100 x 75 = 7500
+• Put premium = 90 x 75  = 6750
+• Total investment = 14250
+➢ Risk
+• Limited to the total premium i.e. Rs. 14250 (or 190 per unit)
+➢ Reward
+• Unlimited if spot goes beyond 15000 + 190 i.e. 15190
+• Unlimited if spot falls below 14800 – 190 i.e. 14610
+➢ Nifty Close as on 27th May 2021 : 15338 (gain of 148)
+65
+
+===== PAGE 66 =====
+Pay-off Diagram – Long Strangle
+66
+BEP=
+15190
+BEP=
+14610
+===== PAGE 67 =====
+Range Bound Market
+➢ What to do if market is in a range?
+➢ We saw example of Strangle and Straddle in ‘long’ scenario i.e. you are buying 
+both Put and Call.
+➢ If you are sure of market or stock to be range bound then the same strategy 
+could be reversed 
+• E.g. low beta stocks like Powergrid, NTPC which usually trade in a range.
+➢ Short the Straddle:
+• Sell Call and Put of same strike
+• E.g. Sell Infosys 1300 Call and Put (premium Rs. 35 and Rs. 25 respectively) 
+and pocket premium of 60 in total
+➢ Short the Strangle:
+• Sell Call of higher strike and Put of lower strike
+• E.g. when Nifty spot is near 14910: Sell 15000 Nifty Call and Sell 14800 
+Nifty Put (premium Rs. 100 & Rs. 90 respectively each) to pocket the 
+premiums of 190 in total
+67
+
+===== PAGE 68 =====
+Pay-off Diagram – Short Straddle
+68
+BEP=
+1360
+BEP=
+1240
+===== PAGE 69 =====
+Pay-off Diagram – Short Strangle
+69
+BEP=
+15190
+BEP=
+14610
+===== PAGE 70 =====
+Collar
+➢ It’s a steady continuation of the Main Trend or choppy market.
+➢ You are fade up of getting stopped out while trying to ride the trend. 
+Hence, instead of keeping a stop loss, you buy protection and sell option to 
+earn the premium, which takes care of the cost of protection.
+➢ Collar – Long Position:
+• You are already long or looking to go long but wary of the stop loss as 
+market might be choppy.
+• Sell 1 OTM Call
+• Buy 1 ATM / OTM Put as Protection on downside (put will be relatively 
+cheap).
+• No Stop Loss!
+• Key is the Call will be expensive because of the trend and takes care of 
+the cost of put.
+➢ Collar – Short Position:
+• You are already Short or looking to go short but wary of the stop loss 
+as market might be choppy.
+• Sell 1 OTM Put
+• Buy 1 ATM / OTM Call as Protection on upside.
+• No Need to keep Stop Loss as you already have a protection.
+70
+
+===== PAGE 71 =====
+Long Collar Example
+• Bought Reliance @ Rs. 2190
+• When Reliance spot was in profit at 
+2200, converted to Long Collar by: 
+• Selling OTM Call of strike 2240 @ 40
+• Buying Put of strike 2200 @ 40 
+(invested the premium received by 
+OTM Call selling in Buying downside 
+protection by Put buying)
+71
+
+===== PAGE 72 =====
+Pay-off Diagram – Long Collar
+72
+
+===== PAGE 73 =====
+Short Collar Example
+• Shorted Reliance future @ Rs. 2210
+• When Reliance spot was in profit at 
+2190, converted to Short Collar by: 
+• Sell OTM Put of strike 2160 @ 40
+• Bought Call of strike 2200 @ 40 
+(invested premium received by OTM 
+Put selling in Buying downside 
+protection by Call buying)
+73
+
+===== PAGE 74 =====
+Pay-off Diagram – Short Collar
+74
+
+===== PAGE 75 =====
+Bull Put Ladder
+➢ Deeper Correction? or Sideways? or Continuation of main trend?
+➢ Bullish Market but possibility of a sharp fall
+➢ Should be Net Credit:
+➢ Sell 1 ATM put
+➢ Buy 1 OTM put
+➢ Buy 1 Further OTM put
+➢ In other words : use the premium of ATM put to buy 2 more OTM puts.
+➢ It’s like Bull Put Spread + Naked Put of Lower Strike for uncapped returns on 
+downside.
+➢ Works well in medium to low Volatile Market, as premiums are 
+comparatively low.
+➢ You will loose only when it goes sideways.
+➢ Max Risk: capped at difference first 2 strikes – net credit
+➢ Max Reward: Unlimited
+➢ Breakeven: Short Put strike – Net Credit
+➢ Breakeven: Lower Long Put strike – max risk amount
+75
+You are here
+gain
+gain
+loss
+
+===== PAGE 76 =====
+Bull Put Ladder Example
+76
+➢ Expiry 24th Jun 2021; Shorted Nifty 15700 ATM strike Put and bought Nifty OTM 
+strikes 15500 Put and 15400 Put
+➢ Premiums (15691 Nifty spot on 17th June 2021)
+• 15700 Put : Rs. 130
+• 15500 Put : Rs. 50
+• 15400 Put : Rs. 30
+➢ Investment
+• Sell 15700 Put  = 75 x 130 = Rs. 9750 received
+• Buy 15500 Put  =  75 x 50 = Rs. 3750 paid
+• Buy 15400 Put  =  75 x 30 = Rs. 2250 paid
+• Net premium received = Rs. 3750/-
+➢ Margin requirement for Selling the Put
+• Lower Margin because risk is covered by buying lower Strike Put
+• SP x Lot x margin%
+• 15700 x 75 x 5% = Rs. 58875
+➢ Risk
+• Maximum risk (in case Nifty remains sideways) will be limited to difference 
+of Put strike sold and higher put strike bought – Net premium received.
+• Maximum Risk = (15700 – 15500) – (130-50-30) = 150
+
+===== PAGE 77 =====
+Pay-off Diagram – Bull Put Ladder
+77
+BEP=
+15650
+BEP=
+15250
+===== PAGE 78 =====
+Bear Call Ladder
+➢ Deeper Correction? or Sideways? or Continuation of main trend?
+➢ Bearish Market but possibility of a sharp rally
+➢ Try Net Credit
+• Sell 1 ATM call
+• Buy 1 OTM call
+• Buy 1 Further OTM call
+• In other words : use the premium of ATM call to buy 2 more OTM calls.
+➢ It’s like Bear Call Spread + Naked Call for uncapped returns on upside.
+➢ Works well in medium to low Volatile Market.
+➢ You will loose only when it goes sideways and ends between the first two 
+strike.
+➢ Max Risk: Capped at difference first 2 strikes – net credit
+➢ Max Reward: Unlimited
+➢ Breakeven: Short Call strike – Net Credit
+➢ Breakeven: Lower Long Put strike – max risk amount
+78
+You are here
+gain
+gain
+loss
+
+===== PAGE 79 =====
+Bear Call Ladder Example
+79
+➢ Expiry 24th Jun 2021; Shorted Nifty 15700 ATM strike Call and bought Nifty OTM 
+strikes 15800 Call and 15900 Call
+➢ Premiums (15691 Nifty spot on 17th June 2021)
+• 15700 Call : Rs. 130
+• 15900 Call : Rs. 50
+• 16000 Call : Rs. 30
+➢ Investment
+• Sell 15700 Call  = 75 x 130 = Rs. 9750 received
+• Buy 15900 Call  =  75 x 50 = Rs. 3750 paid
+• Buy 16000 Call  =  75 x 30 = Rs. 2250 paid
+• Net premium received = Rs. 3750/-
+➢ Margin requirement for Selling the Call
+• Lower Margin because risk is covered by buying higher Strike Call
+• SP x Lot x margin%
+• 15700 x 75 x 5% = Rs. 58875
+➢ Risk
+• Maximum risk (in case Nifty remains sideways) will be limited to difference 
+of Call strike sold and lower Call strike bought – Net premium received.
+• Maximum Risk = (15900 – 15700) – (130-50-30) = 150
+
+===== PAGE 80 =====
+Pay-off Diagram – Bear Call Ladder
+80
+BEP=
+16150
+BEP=
+15750
+===== PAGE 81 =====
+Long Iron Butterfly
+➢ It’s a Volatile Market!
+➢ You are looking for a Sharp but Limited Moves in either direction (up or down).
+• Sell 1 OTM call
+• Buy 1 ATM call
+• Buy 1 ATM put
+• Sell 1 OTM put
+• In other words: Long Straddle + Short Strangle
+➢ Max Risk – Net debit
+➢ Max Reward – capped at difference in put or call spread minus net debit
+➢ Upper Breakeven : Long call strike + net debit
+➢ Lower Breakeven : Long put strike – net debit
+➢ Beauty is in maneuvering the trade!!!
+➢ Example : HDFC in June 2021 series (24th Jun 2021 Expiry)
+• HDFC Spot on 17th Jun 2021 : 2490
+• View is that HDFC may fall below 2450 or rally above 2550 or so
+• Sell 2550 call : Rs. 18
+• Buy 2500 call : Rs. 35
+• Buy 2500 put : Rs 42
+• Sell 2450 put : Rs 22
+• Total cost / debit : Rs. 17+20 = 37
+You are hereBull Call Spread
+Bear Put Spread
+81
+
+===== PAGE 82 =====
+Pay-off Diagram – Long Iron Butterfly
+82
+BEP=
+2537
+BEP=
+2463
+===== PAGE 83 =====
+Short Iron Butterfly
+➢ It’s a Sideways market and quite frustrating - You don’t have to give up!
+➢ Look to earn the time decay!!
+• Buy 1 OTM call
+• Sell 1 ATM call
+• Sell 1 ATM put
+• Buy 1 OTM put
+• In other words: Short Straddle + Long Strangle for protection
+• NET CREDIT!!!
+➢ Max Reward: Net Credit
+➢ Max Risk: capped at difference in put or call spread minus net credit.
+➢ Upper Breakeven : Short call strike + net credit
+➢ Lower Breakeven : Short put strike – net credit
+➢ Example: Reliance: Spot Closing is 2200 as on 17th Jun, 2021
+• Range: 2100 to 2300 (likely to remain within this range)
+• Buy 2300 call : Rs. 18  (paid)
+• Sell 2200 Call : Rs. 48 (earned)
+• Sell 2200 Put : Rs. 49 (earned)
+• Buy 2100  Put : Rs. 14 (paid)
+➢ Net Credit : Rs. 65/-
+You are here
+83
+
+===== PAGE 84 =====
+Pay-off Diagram – Short Iron Butterfly
+84
+BEP=
+2265
+BEP=
+2135
+===== PAGE 85 =====
+Long Iron Condor
+➢ It’s a Volatile Market!
+➢ You are looking for a Sharp but Limited Moves in either direction (up or down).
+• Sell 1 further OTM call
+• Buy 1 OTM call
+• Buy 1 OTM put
+• Sell 1 further OTM put
+• In other words: Long Strangle + Short Strangle
+➢ Max Risk – Net debit
+➢ Max Reward – capped at difference in put or call spread minus net debit
+➢ Upper Breakeven : Long call strike + net debit
+➢ Lower Breakeven : Long put strike – net debit
+➢ Beauty is in maneuvering the trade!!!
+➢ Example : HDFC in June 2021 series (24th Jun 2021 Expiry)
+• HDFC Spot on 17th Jun 2021 : 2490
+• View is that HDFC may fall below 2450 or rally above 2550 or so
+• Sell 2600 call : Rs. 8
+• Buy 2550 call : Rs. 18
+• Buy 2450 put : Rs 22
+• Sell 2400 put : Rs 10
+• Total cost / debit : Rs. 10+12 = 22
+You are hereBull Call Spread
+Bear Put Spread
+85
+
+===== PAGE 86 =====
+Pay-off Diagram – Long Iron Condor
+86
+BEP=
+2572
+BEP=
+2428
+===== PAGE 87 =====
+Short Iron Condor
+➢ It’s a Sideways market and quite frustrating - You don’t have to give up!
+➢ Look to earn the time decay!!
+• Buy 1 further OTM call
+• Sell 1 OTM call
+• Sell 1 OTM put
+• Buy 1 further OTM put
+• In other words: Short Strangle + Long Strangle for protection
+• NET CREDIT!!!
+➢ Max Reward: Net Credit
+➢ Max Risk: capped at difference in put or call spread minus net credit.
+➢ Upper Breakeven : Short call strike + net credit
+➢ Lower Breakeven : Short put strike – net credit
+➢ Example: Reliance: Spot Closing is 2200 as on 17th Jun, 2021
+• Range: 2100 to 2300 (likely to remain within this range)
+• Buy 2300 call : Rs. 18  (paid)
+• Sell 2250 Call : Rs. 35 (earned)
+• Sell 2150 Put : Rs. 37 (earned)
+• Buy 2100  Put : Rs. 14 (paid)
+➢ Net Credit : Rs. 40/-
+You are here
+87
+
+===== PAGE 88 =====
+Pay-off Diagram – Short Iron Condor
+88
+BEP=
+2290
+BEP=
+2110
+===== PAGE 89 =====
+Calendar Spread
+➢ Useful when Expiry is within a week.
+➢ Used to reduce the premium paid on the Option for the next month.
+➢ Your technical target might not be reached in the current  month / series 
+but you expect it to be achieved in next month.
+➢ Example : Nifty in 24th Jun 2021 Series
+• Nifty Spot on 17th Jun 2021 - 15690
+• Your view is bearish i.e. you expect Nifty to crack below 15400 (old 
+major support).
+• It may not be achieved in this weekly expiry as days left are very few.
+• So you sell 15600 PE of 24th Jun 2021 and buy 15600 PE of 1st Jul 21 
+(next weekly expiry).
+➢ Premium 
+• Jun 15600 PE : Rs.90 to be received
+• Jul 15600 PE : Rs.127 to be paid
+• Net investment : Rs.37
+89
+
+===== PAGE 90 =====
+Options Recap
+➢ Investment is minimal: 
+• Premium is less than the margin required to pay 
+while buying or selling in Futures.
+➢ Returns could be multi-bagger.
+➢ Risk is limited for the Buyer.
+➢ Excellent way to Hedge against your Cash Positions 
+and earn Rent!
+• Covered Calls
+➢ Use strategies as per the market situation to minimize 
+risk.
+90
+
+===== PAGE 91 =====
+Analysing Options Data
+➢ Use NSE website for Option Chain.
+➢ Key is analysing OI in ATM and Next-best OTM strikes- both Put & Call side:
+• Highest OI indicates major support (Put Strike) & resistance (Call strike). 
+• If OI declines in ATM Calls with premium moving up: Healthy.
+• If OI increases in ATM Calls with premium moving up: be watchful.
+91
+
+===== PAGE 92 =====
+Trading Strategies
+➢ Swing Trading:
+• ADX should be below 20 or Falling (ranging market).
+• Short rallies near resistances : preferably Covered Put.
+• Buy the dips near support levels : preferably Covered Call.
+• Best employed when time value / premium is high:
+✓ Typically during start of the series
+✓ Highly volatile market
+➢ Momentum Trading: 
+• Trade in the direction of trend.
+• ADX must be rising from 15 and above.
+• Stock must be in upper half of Bollinger Bands for long or 
+lower half for short with the Band in the direction of trade.
+• Ok to Buy naked options or ratio spread (to reduce cost).
+• Best employed when time value is moderate:
+✓ Typically during the middle of the series or towards end
+✓ Market is less volatile and volatility is expected to rise
+92
+
+===== PAGE 93 =====
+Factors To Keep In Mind When Buying Options
+➢ Usually buy Deep In-the-Money Options (ITM):
+• They suffer less from time decay
+• They gain equally or higher as underlying moves in the favored 
+direction (similar to future)
+➢ Always be ready to change positions – the last thing you should do is 
+to hope and pray
+➢ Reduce your net investment by Selling Options wherever possible
+➢ Keep Reasonable profit target (unless market is trending in one 
+direction)
+➢ Do not buy more naked options than is justified by your account size:
+• E.g. don’t invest more than 5 to 8% of your total account value in 
+naked option buying and use stop loss to limit the loss to 2%.
+➢ As far as possible use Credit Strategies:
+• Sell Deep OTM Naked options or 
+• Use Bull Put or Bear Call Spreads (this has minimum risk)
+93
+
+===== PAGE 94 =====
+Things Not To Forget Ever
+➢ In India, Options trading is almost impossible using fundamental analysis 
+because Time is always against you.
+➢ Options trading is a speculative game and heavily loaded “against” the 
+Option Buyer.
+➢ Over 80% of the Options expire worthless.
+➢ Option Writers are usually Big players having ability to control price 
+moves (not always though).
+➢ Never Buy Deep OTM options because usually they expire worthless.
+➢ Write Options when volatility is high and Trend is in your favor. Usually 
+high volatility is followed by lower one.
+➢ Market Trend only 30% of the time so employ strategies to capture range 
+bound moves as well.
+➢ Making Money using Options could be boring, but if you love your money 
+you will enjoy it!
+94
+
+===== PAGE 95 =====
+95
+===== PAGE 96 =====
+Our Motto
+ALL-FOR-ONE 
+ONE-FOR-ALL
+DEVELOPING CHARACTER THAT DESERVES SUCCESS !
+www.avadhutsathe.com
+at

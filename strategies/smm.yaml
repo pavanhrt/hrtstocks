@@ -1,0 +1,198 @@
+strategy:
+  id: smm-original
+  name: Secrets of Market Millionaires
+  framework: SMM
+  rule_version: 1.0.0
+  parameter_version: 1.0.0
+  status: extracted_original
+  scope: [index, equity]
+
+provenance:
+  source_register: ../references/source-register.md
+  source_group: SMM
+  locator_granularity: framework_level
+  production_rule_trace_ready: false
+  requirement: Complete exact page, sheet, or checklist-row mapping before production use.
+
+rules:
+  - id: SMM-TREND-001
+    name: Bullish trend structure
+    source_status: DOCUMENTED
+    timeframe: active
+    direction: bullish
+    inputs: [confirmed_higher_high, confirmed_higher_low]
+    expression: "confirmed_higher_high and confirmed_higher_low"
+    true_result: PASS
+    false_result: FAIL
+    missing_result: NO_DATA
+    hard_gate: false
+
+  - id: SMM-TREND-002
+    name: Bearish trend structure
+    source_status: DOCUMENTED
+    timeframe: active
+    direction: bearish
+    inputs: [confirmed_lower_high, confirmed_lower_low]
+    expression: "confirmed_lower_high and confirmed_lower_low"
+    true_result: PASS
+    false_result: FAIL
+    missing_result: NO_DATA
+    hard_gate: false
+
+  - id: SMM-EMA-001
+    name: Bullish EMA alignment
+    source_status: DOCUMENTED
+    timeframe: wave
+    direction: bullish
+    inputs: [ema_5, ema_13, ema_26, ema_50]
+    expression: "ema_5 > ema_13 and ema_13 > ema_26 and ema_26 > ema_50"
+    true_result: PASS
+    false_result: FAIL
+    missing_result: NO_DATA
+    hard_gate: false
+
+  - id: SMM-EMA-002
+    name: Bearish EMA alignment
+    source_status: DOCUMENTED
+    timeframe: wave
+    direction: bearish
+    inputs: [ema_5, ema_13, ema_26, ema_50]
+    expression: "ema_5 < ema_13 and ema_13 < ema_26 and ema_26 < ema_50"
+    true_result: PASS
+    false_result: FAIL
+    missing_result: NO_DATA
+    hard_gate: false
+
+  - id: SMM-TWR-001
+    name: Bullish Tide-Wave alignment
+    source_status: DOCUMENTED
+    timeframe: [tide, wave]
+    direction: bullish
+    inputs: [tide_macd_slope, tide_macd_transition, wave_bullish_oscillator_signal]
+    expression: "(tide_macd_slope == 'rising' or tide_macd_transition == 'flat_after_falling') and wave_bullish_oscillator_signal"
+    true_result: PASS
+    false_result: WATCH
+    missing_result: NO_DATA
+    hard_gate: true
+
+  - id: SMM-TWR-002
+    name: Bearish Tide-Wave alignment
+    source_status: DOCUMENTED
+    timeframe: [tide, wave]
+    direction: bearish
+    inputs: [tide_macd_slope, tide_macd_transition, wave_bearish_oscillator_signal]
+    expression: "(tide_macd_slope == 'falling' or tide_macd_transition == 'flat_after_rising') and wave_bearish_oscillator_signal"
+    true_result: PASS
+    false_result: WATCH
+    missing_result: NO_DATA
+    hard_gate: true
+
+  - id: SMM-VOL-001
+    name: Breakout volume confirmation
+    source_status: PROJECT_DEFAULT
+    timeframe: wave
+    direction: both
+    inputs: [trigger_volume, average_volume]
+    expression: "trigger_volume >= average_volume * volume_multiplier"
+    parameters: [volume_lookback, volume_multiplier]
+    true_result: PASS
+    false_result: WATCH
+    missing_result: NO_DATA
+    hard_gate: false
+    note: "Source says average of the last few days but does not fix lookback or multiplier."
+
+  - id: SMM-FIB-001
+    name: Healthy continuation retracement
+    source_status: DOCUMENTED
+    timeframe: wave
+    direction: both
+    inputs: [retracement_fraction]
+    expression: "retracement_fraction <= 0.50"
+    true_result: PASS
+    false_result: WATCH
+    missing_result: NO_DATA
+    hard_gate: false
+
+  - id: SMM-FIB-002
+    name: Watchful deep retracement
+    source_status: DOCUMENTED
+    timeframe: wave
+    direction: both
+    inputs: [retracement_fraction]
+    expression: "retracement_fraction >= 0.618"
+    true_result: WATCH
+    false_result: PASS
+    missing_result: NO_DATA
+    hard_gate: false
+
+  - id: SMM-RISK-001
+    name: Positive bullish reward and risk
+    source_status: DOCUMENTED
+    timeframe: decision
+    direction: bullish
+    inputs: [entry, stop, target]
+    expression: "target > entry and entry > stop"
+    true_result: PASS
+    false_result: FAIL
+    missing_result: NO_DATA
+    hard_gate: true
+
+  - id: SMM-RISK-002
+    name: Positive bearish reward and risk
+    source_status: DOCUMENTED
+    timeframe: decision
+    direction: bearish
+    inputs: [entry, stop, target]
+    expression: "stop > entry and entry > target"
+    true_result: PASS
+    false_result: FAIL
+    missing_result: NO_DATA
+    hard_gate: true
+
+  - id: SMM-RR-001
+    name: Minimum reward-risk
+    source_status: DOCUMENTED
+    timeframe: decision
+    direction: both
+    inputs: [reward, risk]
+    expression: "risk > 0 and reward / risk >= minimum_reward_risk"
+    parameters: [minimum_reward_risk]
+    true_result: PASS
+    false_result: FAIL
+    missing_result: NO_DATA
+    hard_gate: true
+
+  - id: SMM-SIZE-001
+    name: Position risk ceiling
+    source_status: DOCUMENTED
+    timeframe: portfolio
+    direction: both
+    inputs: [capital, entry, stop]
+    expression: "planned_loss <= capital * max_position_risk_fraction"
+    calculation: "risk_quantity = floor((capital * max_position_risk_fraction) / abs(entry - stop))"
+    parameters: [max_position_risk_fraction]
+    true_result: PASS
+    false_result: FAIL
+    missing_result: NO_DATA
+    hard_gate: true
+
+  - id: SMM-MONTHLY-001
+    name: Monthly loss stop
+    source_status: CONFLICT
+    timeframe: portfolio_month
+    direction: both
+    inputs: [monthly_loss_fraction]
+    expression: "monthly_loss_fraction < monthly_loss_stop_fraction"
+    parameters: [monthly_loss_stop_fraction]
+    provisional_value: 0.08
+    conflicting_value: 0.10
+    true_result: PASS
+    false_result: FAIL
+    missing_result: NO_DATA
+    hard_gate: true
+
+patterns:
+  bullish: [hammer_at_bottom, bullish_piercing, bullish_engulfing, morning_star, three_white_soldiers, inverse_head_shoulders, double_bottom, rounding_bottom, cup_handle, bullish_flag_breakout, fake_breakdown]
+  bearish: [shooting_star_at_top, inverted_hammer_at_top, bearish_piercing, bearish_engulfing, evening_star, hanging_man_with_followup, three_black_crows, head_shoulders, double_top, rounding_top, bearish_flag_breakdown, fake_breakout]
+  neutral: [doji, spinning_top, harami, high_wave]
+  context_required: true

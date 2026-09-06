@@ -1,0 +1,135 @@
+strategy:
+  id: papa-original
+  name: Pay Attention to Price Action
+  framework: PAPA
+  rule_version: 1.0.0
+  parameter_version: 1.0.0
+  status: extracted_original
+  scope: [index, equity]
+
+provenance:
+  source_register: ../references/source-register.md
+  source_group: PAPA
+  locator_granularity: framework_level
+  production_rule_trace_ready: false
+  requirement: Complete exact page, sheet, or checklist-row mapping before production use.
+
+canonical_states:
+  UBBC: {meaning: upper_band_challenge_expanding, bias: bullish}
+  LBBC: {meaning: lower_band_challenge_expanding, bias: bearish}
+  UBBCF: {aliases: [BKT, UBBFC], meaning: upper_band_challenge_failure, bias: bearish}
+  LBBCF: {aliases: [BKP, LBBFC], meaning: lower_band_challenge_failure, bias: bullish}
+
+rules:
+  - id: PAPA-CONTEXT-001
+    name: Reversal location required
+    source_status: DOCUMENTED
+    timeframe: wave
+    direction: both
+    inputs: [at_trend_extreme, at_major_support, at_major_resistance, at_exhaustion_area]
+    expression: "at_trend_extreme or at_major_support or at_major_resistance or at_exhaustion_area"
+    true_result: PASS
+    false_result: FAIL
+    missing_result: MANUAL_REVIEW
+    hard_gate: true
+
+  - id: PAPA-UNGALI-001
+    name: Bullish Ungali
+    source_status: DOCUMENTED
+    timeframe: wave
+    direction: bullish
+    inputs: [bullish_candle, trendline_breakout, breakout_volume, average_volume, bollinger_state, plus_di, minus_di, adx, rsi]
+    expression: "bullish_candle and trendline_breakout and breakout_volume >= average_volume * volume_multiplier and bollinger_state == 'UBBC' and plus_di > minus_di and adx > 14 and rsi > 60"
+    parameters: [volume_multiplier]
+    true_result: PASS
+    false_result: FAIL
+    missing_result: NO_DATA
+    hard_gate: false
+
+  - id: PAPA-UNGALI-002
+    name: Bearish Ungali
+    source_status: DOCUMENTED
+    timeframe: wave
+    direction: bearish
+    inputs: [bearish_candle, trendline_breakdown, breakdown_volume, average_volume, bollinger_state, plus_di, minus_di, adx, rsi]
+    expression: "bearish_candle and trendline_breakdown and breakdown_volume >= average_volume * volume_multiplier and bollinger_state == 'LBBC' and minus_di > plus_di and adx > 14 and rsi < 40"
+    parameters: [volume_multiplier]
+    true_result: PASS
+    false_result: FAIL
+    missing_result: NO_DATA
+    hard_gate: false
+
+  - id: PAPA-DOW-001
+    name: Advanced Dow bullish level 4
+    source_status: DOCUMENTED
+    timeframe: daily
+    direction: bullish
+    inputs: [stopped_lower_lows, bullish_close, prior_bearish_high, ema_5]
+    expression: "stopped_lower_lows and bullish_close > prior_bearish_high and bullish_close > ema_5"
+    true_result: PASS
+    false_result: WATCH
+    missing_result: NO_DATA
+    hard_gate: false
+
+  - id: PAPA-DOW-002
+    name: Advanced Dow bearish level 4
+    source_status: DOCUMENTED
+    timeframe: daily
+    direction: bearish
+    inputs: [stopped_higher_highs, bearish_close, prior_bullish_low, ema_5]
+    expression: "stopped_higher_highs and bearish_close < prior_bullish_low and bearish_close < ema_5"
+    true_result: PASS
+    false_result: WATCH
+    missing_result: NO_DATA
+    hard_gate: false
+
+  - id: PAPA-DOW-003
+    name: Advanced Dow intermediate levels
+    source_status: UNRESOLVED
+    timeframe: daily
+    direction: both
+    inputs: [source_comparison_sequence]
+    expression: manual_review
+    true_result: MANUAL_REVIEW
+    false_result: MANUAL_REVIEW
+    missing_result: MANUAL_REVIEW
+    hard_gate: false
+
+  - id: PAPA-HA-001
+    name: Heikin-Ashi calculation
+    source_status: DOCUMENTED
+    timeframe: any
+    direction: both
+    inputs: [open, high, low, close, previous_ha_open, previous_ha_close]
+    calculations:
+      ha_close: "(open + high + low + close) / 4"
+      ha_open: "(previous_ha_open + previous_ha_close) / 2"
+      ha_high: "max(high, ha_open, ha_close)"
+      ha_low: "min(low, ha_open, ha_close)"
+    result_usage: trailing_stop_evidence_only
+    hard_gate: false
+
+  - id: PAPA-EXTREME-001
+    name: Extreme Bollinger warning
+    source_status: DOCUMENTED
+    timeframe: wave
+    direction: both
+    inputs: [close, bollinger_upper_3sd, bollinger_lower_3sd]
+    expression: "close > bollinger_upper_3sd or close < bollinger_lower_3sd"
+    true_result: WATCH
+    false_result: PASS
+    missing_result: NO_DATA
+    hard_gate: false
+
+setups:
+  double_top: {direction: bearish, location: major_resistance, trigger: break_bull_weapon_support, stop: weapon_candle_high, confirmation: [bearish_divergence, UBBCF, heavy_volume]}
+  double_bottom: {direction: bullish, location: major_support, trigger: break_bear_weapon_resistance, stop: weapon_candle_low, confirmation: [bullish_divergence, LBBCF, heavy_volume]}
+  three_white_soldiers: {direction: bullish, trigger: renewed_bullish_action_after_pullback_to_second_soldier_range, stop: below_first_soldier}
+  three_black_crows: {direction: bearish, trigger: renewed_bearish_action_after_rally_to_second_crow_range, stop: above_first_crow}
+  bull_counterattack: {direction: bullish, trigger: reclaim_major_support_after_open_below, stop: counterattack_candle_low, confirmation: [LBBCF, heavy_volume]}
+  bear_counterattack: {direction: bearish, trigger: reject_major_resistance_after_open_above, stop: counterattack_candle_high, confirmation: [UBBCF, heavy_volume]}
+  sandwich: {direction: both, trigger: close_outside_range, stop: beyond_trigger_candle_opposite_extreme}
+  genuine_break: {direction: both, prerequisites: [shakeout, break, followup_close_beyond_level], stop: beyond_break_candle}
+  fake_break: {direction: both, prerequisites: [return_inside_level, opposite_followup_beyond_failed_break_candle], stop: beyond_failed_break_candle}
+  gap: {direction: both, prerequisites: [open_beyond_major_level, gap_sustained, followup], stop: beyond_trigger_or_gap_boundary}
+  mother_candle: {direction: both, trigger: break_mother_extreme, stop: opposite_mother_extreme}

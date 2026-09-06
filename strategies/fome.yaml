@@ -1,0 +1,102 @@
+strategy:
+  id: fome-original
+  aliases: [FOAM]
+  name: Futures and Options Made Easy
+  framework: FOME
+  rule_version: 1.0.0
+  parameter_version: 1.0.0
+  status: extracted_original
+  scope: [future, option]
+  applicability: current_derivative_eligibility_required
+  equity_score_effect_when_not_applicable: none
+
+provenance:
+  source_register: ../references/source-register.md
+  source_group: FOME
+  locator_granularity: framework_level
+  production_rule_trace_ready: false
+  requirement: Complete exact page, sheet, or checklist-row mapping before production use.
+
+calculations:
+  call_intrinsic: "max(spot - strike, 0)"
+  put_intrinsic: "max(strike - spot, 0)"
+  time_value: "premium - intrinsic_value"
+  call_break_even: "strike + premium"
+  put_break_even: "strike - premium"
+  delta_estimate: "change_in_premium / change_in_spot"
+  futures_break_even_before_costs: entry_futures_price
+
+futures_oi:
+  price_up_oi_up: {state: long_buildup, bias: bullish}
+  price_down_oi_up: {state: short_buildup, bias: bearish}
+  price_up_oi_down: {state: short_covering, bias: bullish}
+  price_down_oi_down: {state: long_covering, bias: bearish}
+
+call_oi:
+  premium_up_oi_up: bullish_watchful
+  premium_up_oi_down: strong_bullish
+  premium_down_oi_down: bearish
+  premium_down_oi_up: strong_bearish
+
+put_oi:
+  premium_up_oi_up: bearish_watchful
+  premium_up_oi_down: strong_bearish
+  premium_down_oi_down: bullish
+  premium_down_oi_up: strong_bullish
+
+strategy_mapping:
+  strong_bullish: [long_futures, buy_call, bullish_call_ratio_spread, defined_risk_bullish_spread]
+  strong_bearish: [short_futures, buy_put, bearish_put_ratio_spread, defined_risk_bearish_spread]
+  moderate_bullish_or_near_support: [covered_call, bull_call_spread, bull_put_spread, long_collar]
+  moderate_bearish_or_near_resistance: [covered_put, bear_put_spread, bear_call_spread, short_collar]
+  restricted_range: [protected_short_straddle, protected_short_strangle, short_iron_butterfly, short_iron_condor]
+  large_move_either_direction: [long_straddle, long_strangle, long_iron_butterfly, long_iron_condor]
+  target_after_current_expiry: [calendar_spread]
+
+rules:
+  - id: FOME-TREND-001
+    name: Bullish derivative qualification
+    source_status: DOCUMENTED
+    inputs: [tide_macd_slope, trendline_breakout, bullish_ungali, rsi, bullish_impulse, option_oi_supportive, futures_long_buildup]
+    expression: "tide_macd_slope == 'rising' and trendline_breakout and bullish_ungali and rsi > 60 and bullish_impulse and option_oi_supportive and futures_long_buildup"
+    true_result: PASS
+    false_result: FAIL
+    missing_result: NO_DATA
+
+  - id: FOME-TREND-002
+    name: Bearish derivative qualification
+    source_status: DOCUMENTED
+    inputs: [tide_macd_slope, trendline_breakdown, bearish_ungali, rsi, bearish_impulse, option_oi_supportive, futures_short_buildup]
+    expression: "tide_macd_slope == 'falling' and trendline_breakdown and bearish_ungali and rsi < 40 and bearish_impulse and option_oi_supportive and futures_short_buildup"
+    true_result: PASS
+    false_result: FAIL
+    missing_result: NO_DATA
+
+  - id: FOME-RANGE-001
+    name: Sideways market evidence
+    source_status: DOCUMENTED
+    inputs: [tide_macd_state, wave_adx_slope, wave_adx, bollinger_state]
+    expression: "tide_macd_state == 'flat' and wave_adx_slope in ['flat', 'falling'] and wave_adx < 12 and bollinger_state in ['flat', 'BKT', 'BKP']"
+    true_result: PASS
+    false_result: FAIL
+    missing_result: NO_DATA
+
+  - id: FOME-NP-001
+    name: Bearish guide naked-put row
+    source_status: CONFLICT
+    expression: manual_review
+    true_result: MANUAL_REVIEW
+    false_result: MANUAL_REVIEW
+    missing_result: MANUAL_REVIEW
+    automation_enabled: false
+
+constraints:
+  default_naked_option_selling: prohibited
+  defined_risk_alternative_required: true
+  current_contract_master_required: true
+  aligned_spot_derivative_timestamps_required: true
+  payoff_fields_required: [break_evens, max_profit, max_loss, net_debit_or_credit, margin, multiple_expiry_payoffs, estimated_costs, liquidity, expiry_sensitivity]
+  option_buying_allocation_fraction: {minimum: 0.05, maximum: 0.08, source_status: DOCUMENTED}
+  planned_loss_max_fraction: 0.02
+  debit_spread_test: "premium_difference < strike_width / 2"
+  credit_spread_test: "premium_difference > strike_width / 2"

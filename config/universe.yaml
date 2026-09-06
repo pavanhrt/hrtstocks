@@ -1,0 +1,27 @@
+universe_version: 1.0.0
+exchange_timezone: Asia/Kolkata
+default_mode: EOD
+
+indexes:
+  - id: nifty-50
+    name: NIFTY 50
+    analyze_index: true
+    analyze_all_current_constituents: true
+  - id: nifty-bank
+    name: NIFTY Bank
+    analyze_index: true
+    analyze_all_current_constituents: true
+  - id: nifty-100
+    name: NIFTY 100
+    analyze_index: true
+    analyze_all_current_constituents: true
+  - id: nifty-500
+    name: NIFTY 500
+    analyze_index: true
+    analyze_all_current_constituents: true
+
+deduplication_key: stable_instrument_id
+preserve_all_memberships: true
+refresh_membership: daily_or_on_official_change
+point_in_time_membership_for_backtests: preferred
+historical_training_spreadsheets_are_current_authority: false

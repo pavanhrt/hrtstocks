@@ -1,0 +1,39 @@
+
+===== SHEET Decision Sheet (visible) 38x11 =====
+D1=Example 1 | E1=Example 2 | F1=Example 3 | G1=Example 4 | H1=Example 5 | I1=Example 6 | J1=Example 7 | K1=Example 8
+A2=Date
+A3=Scrip / Stock
+A4=Close of the period | C4=269
+A6=Double Screen Decision | C6=BUY
+A7=Candlestick Pattern | C7=BULLISH - BUY
+A8=Volume | C8=HUGE - STRONG BUY
+A9=EMA | C9=PCO (positive cross over)  / BUY
+A10=Chart Pattern | C10=Double bottom Breakout
+A11=Fib Retrace | C11=NA
+A12=Divergence | C12=NA
+A13=Immediate Support (for Bulls for SL) | C13=266
+A14=Immediate Resistance (for Bears for SL) | C14=NA
+A15=Major Support (Bear ka Target) | C15=NA
+A16=Major Resistance (Bull ka Target)
+A17=Stop Loss Price (SL) | C17=266
+A18=Target Price  / Based on Price Pattern OR / Major Support for Bears / Major Resistance for Bulls | B18=Min. | C18=306
+B19=Max. | C19=308
+A20=Reward (Min ) / for Bulls : Target min - Cost / for Bears : Cost - Target min | C20==C18-C4 [cached=37] | D20==IF(D6="","",IF(D6="Buy",D18-D4,D4-D18)) [cached=None] | E20==IF(E6="","",IF(E6="Buy",E18-E4,E4-E18)) [cached=None] | F20==IF(F6="","",IF(F6="Buy",F18-F4,F4-F18)) [cached=None] | G20==IF(G6="","",IF(G6="Buy",G18-G4,G4-G18)) [cached=None] | H20==IF(H6="","",IF(H6="Buy",H18-H4,H4-H18)) [cached=None] | I20==IF(I6="","",IF(I6="Buy",I18-I4,I4-I18)) [cached=None] | J20==IF(J6="","",IF(J6="Buy",J18-J4,J4-J18)) [cached=None] | K20==IF(K6="","",IF(K6="Buy",K18-K4,K4-K18)) [cached=None]
+A21=Reward  (Max) / for Bulls : Target - Cost / for Bears : Cost - Target max | C21==C19-C4 [cached=39] | D21==IF(D6="","",IF(D6="Buy",D19-D4,D4-D19)) [cached=None] | E21==IF(E6="","",IF(E6="Buy",E19-E4,E4-E19)) [cached=None] | F21==IF(F6="","",IF(F6="Buy",F19-F4,F4-F19)) [cached=None] | G21==IF(G6="","",IF(G6="Buy",G19-G4,G4-G19)) [cached=None] | H21==IF(H6="","",IF(H6="Buy",H19-H4,H4-H19)) [cached=None] | I21==IF(I6="","",IF(I6="Buy",I19-I4,I4-I19)) [cached=None] | J21==IF(J6="","",IF(J6="Buy",J19-J4,J4-J19)) [cached=None] | K21==IF(K6="","",IF(K6="Buy",K19-K4,K4-K19)) [cached=None]
+A22=Risk  / for Bulls : (Cost - SL) / for Bears : (SL - Cost) | C22==C4-C17 [cached=3] | D22==IF(D6="","",IF(D6="Buy",D4-D17,D17-D4)) [cached=None] | E22==IF(E6="","",IF(E6="Buy",E4-E17,E17-E4)) [cached=None] | F22==IF(F6="","",IF(F6="Buy",F4-F17,F17-F4)) [cached=None] | G22==IF(G6="","",IF(G6="Buy",G4-G17,G17-G4)) [cached=None] | H22==IF(H6="","",IF(H6="Buy",H4-H17,H17-H4)) [cached=None] | I22==IF(I6="","",IF(I6="Buy",I4-I17,I17-I4)) [cached=None] | J22==IF(J6="","",IF(J6="Buy",J4-J17,J17-J4)) [cached=None] | K22==IF(K6="","",IF(K6="Buy",K4-K17,K17-K4)) [cached=None]
+A23=Reward / Risk ratio | B23=Min. | C23==C20/C22 [cached=12.333333333333334] | D23==D20/D22 [cached='#VALUE!'] | E23==E20/E22 [cached='#VALUE!'] | F23==F20/F22 [cached='#VALUE!'] | G23==G20/G22 [cached='#VALUE!'] | H23==H20/H22 [cached='#VALUE!'] | I23==I20/I22 [cached='#VALUE!'] | J23==J20/J22 [cached='#VALUE!'] | K23==K20/K22 [cached='#VALUE!']
+B24=Max. | C24==C21/C22 [cached=13] | D24==D21/D22 [cached='#VALUE!'] | E24==E21/E22 [cached='#VALUE!'] | F24==F21/F22 [cached='#VALUE!'] | G24==G21/G22 [cached='#VALUE!'] | H24==H21/H22 [cached='#VALUE!'] | I24==I21/I22 [cached='#VALUE!'] | J24==J21/J22 [cached='#VALUE!'] | K24==K21/K22 [cached='#VALUE!']
+A25=Trade Decision | C25=BUY | D25=BUY | E25=Buy | F25=Strong BUY | G25=Strong Sell | H25=Strong Sell | I25=Strong Sell | J25=Strong Sell
+A26=Total Capital | C26=10000 | D26=100000 | E26=100000 | F26=100001 | G26=100000 | H26=100000 | I26=100000 | J26=100000 | K26=100000
+A27=Investment per Trade | D27=100000
+A28=Max. Allowed Risk / Trade of Total Capital | B28=0.02 | C28=200 | D28==$B$28*D26 [cached=2000] | E28==$B$28*E26 [cached=2000] | F28==$B$28*F26 [cached=2000.02] | G28==$B$28*G26 [cached=2000] | H28==$B$28*H26 [cached=2000] | I28==$B$28*I26 [cached=2000] | J28==$B$28*J26 [cached=2000] | K28==$B$28*K26 [cached=2000]
+A29=Max No. of Shares allowed  / to Buy / Sell | C29==C26/270 [cached=37.03703703703704] | D29==INT(D28/D22) [cached='#VALUE!'] | E29==INT(E28/E22) [cached='#VALUE!'] | F29==INT(F28/F22) [cached='#VALUE!'] | G29==INT(G28/G22) [cached='#VALUE!'] | H29==INT(H28/H22) [cached='#VALUE!'] | I29==INT(I28/I22) [cached='#VALUE!'] | J29==INT(J28/J22) [cached='#VALUE!'] | K29==INT(K28/K22) [cached='#VALUE!']
+A31=Trade Investement
+A32=Shares | C32==C29*C22 [cached=111.11111111111111] | D32==INT(D31/D4) [cached='#DIV/0!'] | E32==E31/E4 [cached='#DIV/0!'] | F32==F31/F4 [cached='#DIV/0!'] | G32==INT(G31/G4) [cached='#DIV/0!'] | H32==INT(H31/H4) [cached='#DIV/0!'] | I32==INT(I31/I4) [cached='#DIV/0!'] | J32==INT(J31/J4) [cached='#DIV/0!'] | K32==INT(K31/K4) [cached='#DIV/0!']
+A33=Risk involved | D33==D32*D22 [cached='#DIV/0!'] | E33==E32*E22 [cached='#DIV/0!'] | F33==F32*F22 [cached='#DIV/0!'] | G33==G32*G22 [cached='#DIV/0!'] | H33==H32*H22 [cached='#DIV/0!'] | I33==I32*I22 [cached='#DIV/0!'] | J33==J32*J22 [cached='#DIV/0!'] | K33==K32*K22 [cached='#DIV/0!']
+A34=Min Profit potential | C34==C29*C20 [cached=1370.3703703703704] | D34==D32*D20 [cached='#DIV/0!'] | E34==E32*E20 [cached='#DIV/0!'] | F34==F32*F20 [cached='#DIV/0!'] | G34==G32*G20 [cached='#DIV/0!'] | H34==H32*H20 [cached='#DIV/0!'] | I34==I32*I20 [cached='#DIV/0!'] | J34==J32*J20 [cached='#DIV/0!'] | K34==K32*K20 [cached='#DIV/0!']
+A35=Max Profit Potential | D35==D32*D21 [cached='#DIV/0!'] | E35==E32*E21 [cached='#DIV/0!'] | F35==F32*F21 [cached='#DIV/0!'] | G35==G32*G21 [cached='#DIV/0!'] | H35==H32*H21 [cached='#DIV/0!'] | I35==I32*I21 [cached='#DIV/0!'] | J35==J32*J21 [cached='#DIV/0!'] | K35==K32*K21 [cached='#DIV/0!']
+A36=Min ROI% | D36==D34/D31 [cached='#DIV/0!'] | E36==E34/E31 [cached='#DIV/0!'] | F36==F34/F31 [cached='#DIV/0!'] | G36==G34/G31 [cached='#DIV/0!'] | H36==H34/H31 [cached='#DIV/0!'] | I36==I34/I31 [cached='#DIV/0!'] | J36==J34/J31 [cached='#DIV/0!'] | K36==K34/K31 [cached='#DIV/0!']
+A37=Max ROI% | D37==D35/D31 [cached='#DIV/0!'] | E37==E35/E31 [cached='#DIV/0!'] | F37==F35/F31 [cached='#DIV/0!'] | G37==G35/G31 [cached='#DIV/0!'] | H37==H35/H31 [cached='#DIV/0!'] | I37==I35/I31 [cached='#DIV/0!'] | J37==J35/J31 [cached='#DIV/0!'] | K37==K35/K31 [cached='#DIV/0!']
+
+===== SHEET Sheet1 (visible) 1x1 =====

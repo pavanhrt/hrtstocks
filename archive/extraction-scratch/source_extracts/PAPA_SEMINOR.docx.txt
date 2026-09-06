@@ -1,0 +1,15 @@
+[P:Normal] Wait for Bearish close will be bullish low.
+[P:Normal] Fake Breakdown change the trend low to high bullish reversal.
+[P:Normal] Mother candle: Fake breakdown, Consider mother candles  High and low as support and resistance lines.
+[P:Normal] When ever Breakdown/Up happens It will change the trend.
+[P:Normal] 5 EMA is above  But 4th point rule is not yet match so wait for the confirmation
+[P:Normal] HA Chart
+[P:Normal] Part-2
+[P:Normal] Trendline 
+[P:Normal] Price action 
+[P:Normal] BB
+[P:List Paragraph] Dow Theory for daily chart
+[P:List Paragraph] Posibilities for Dow theory trends
+[P:List Paragraph] Mark the gaps
+[P:List Paragraph] Draw the maximum and minimum trend lines Voilate color
+[P:List Paragraph] Mark the trend lines

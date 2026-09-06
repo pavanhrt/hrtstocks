@@ -1,0 +1,96 @@
+strategy:
+  id: gue-original
+  name: Get Ultimate Edge
+  framework: GUE
+  rule_version: 1.0.0
+  parameter_version: 1.0.0
+  status: extracted_original
+  scope: [index, equity]
+
+provenance:
+  source_register: ../references/source-register.md
+  source_group: GUE
+  locator_granularity: framework_level
+  production_rule_trace_ready: false
+  requirement: Complete exact page, sheet, or checklist-row mapping before production use.
+
+impulse_rules:
+  - id: GUE-IMPULSE-001
+    name: Wave 2 retracement limit
+    source_status: DOCUMENTED
+    expression: "wave_2_retracement_fraction < 1.0"
+    true_result: PASS
+    false_result: FAIL
+    missing_result: MANUAL_REVIEW
+    hard_gate_for_count: true
+
+  - id: GUE-IMPULSE-002
+    name: Wave 4 non-overlap
+    source_status: DOCUMENTED
+    expression: "not wave_4_enters_wave_1_territory"
+    exception: diagonal
+    true_result: PASS
+    false_result: FAIL
+    missing_result: MANUAL_REVIEW
+    hard_gate_for_count: true
+
+  - id: GUE-IMPULSE-003
+    name: Wave 3 not shortest
+    source_status: DOCUMENTED
+    expression: "wave_3_length >= min(wave_1_length, wave_5_length)"
+    true_result: PASS
+    false_result: FAIL
+    missing_result: MANUAL_REVIEW
+    hard_gate_for_count: true
+
+structures:
+  impulse: five_wave_motive
+  extension: elongated_wave_1_3_or_5
+  truncation: wave_5_fails_to_exceed_wave_3_with_required_substructure
+  ending_diagonal: wedge_at_wave_5_or_c_with_possible_wave_1_4_overlap
+  zigzag: 5-3-5
+  flat: 3-3-5
+  expanded_flat: b_exceeds_a_origin_and_c_exceeds_a_end
+  triangle: 3-3-3-3-3
+  combination: corrections_joined_by_x_wave
+
+output_requirements:
+  primary_count: required
+  alternative_counts: required
+  confidence: required
+  invalidation: required
+  low_confidence_result: MANUAL_REVIEW
+
+projection_guidelines:
+  source_status: DOCUMENTED
+  wave_2_of_wave_1: [0.50, 0.618]
+  wave_3_of_wave_1: [1.62, 2.62, 4.25]
+  wave_4_of_wave_3_common: [0.236, 0.382]
+  wave_4_of_wave_3_possible: [0.50, 0.62]
+  zigzag_c_of_a: [1.0, 1.62, 2.62]
+  expanded_flat_b_of_a: [1.15, 1.25]
+  expanded_flat_c_of_a: [1.62, 2.62]
+  semantics: target_candidates_not_elliott_rules
+
+setups:
+  third_wave:
+    direction: both
+    documented_required: [tide_direction, two_wave_pivots, trendline_break, ungali, double_screen, above_average_break_volume, stop_beyond_break_candle]
+    target_candidates: [wave_3_equals_wave_1, wave_3_equals_1_62_wave_1]
+    unresolved_inputs: [BBNC_DN, BBNC_UP, BBC, P_above_50, P_below_50]
+    unresolved_result: MANUAL_REVIEW
+
+  triangle_breakout:
+    direction: both
+    documented_required: [abcde_triangle, tide_macd_alignment, double_screen_alignment, trendline_break, above_average_break_volume]
+    supporting: [ungali, histogram_reversal_near_zero, reverse_divergence]
+    stop: beyond_break_or_bbc_candle
+    target_candidates: [triangle_height, configured_0_62_post_triangle_thrust]
+    unresolved_inputs: [AZ, BZ, BBNC, BBC]
+
+  ending_diagonal:
+    direction: both
+    documented_required: [ending_diagonal_at_wave_5_or_c, diagonal_break, divergence, above_average_break_volume]
+    supporting: [favorable_tide, ungali, double_screen, macd_confirmation, histogram_convergence]
+    stop: beyond_break_or_bbc_candle
+    target_candidates: [diagonal_origin, prior_lower_degree_fourth_wave]
