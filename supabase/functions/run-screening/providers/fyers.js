@@ -14,9 +14,30 @@
 // confirmed against the official SDK source
 // (github.com/skr91k/fyers_apiv3_py, fyers_apiv3/fyersModel.py) and a live
 // smoke test on 2026-09-07, not just documentation.
+//
+// Rate limits (confirmed via a real run and Fyers' own community docs):
+// 10 req/s, 200 req/min, 100k req/day -- and breaching the per-minute cap
+// more than 3 times in a day gets the account blocked for the rest of the
+// day, so this throttles conservatively rather than racing the limit.
+// MIN_INTERVAL_MS paces every call from this module through a single
+// shared cursor, regardless of caller.
 
 const APP_ID = "5QIFNACBI4-100";
 const DATA_BASE_URL = "https://api-t1.fyers.in/data";
+const MIN_INTERVAL_MS = 350; // ~171 req/min, ~15% under the 200/min cap
+const MAX_RETRIES = 2;
+
+let nextAvailableAt = 0;
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function throttle() {
+  const wait = nextAvailableAt - Date.now();
+  nextAvailableAt = Math.max(Date.now(), nextAvailableAt) + MIN_INTERVAL_MS;
+  if (wait > 0) await sleep(wait);
+}
 
 function authHeader() {
   const accessToken = Deno.env.get("FYERS_ACCESS_TOKEN");
@@ -57,8 +78,21 @@ export async function fetchOHLCV(instrumentId, symbol, days) {
   url.searchParams.set("range_to", fmtDate(to));
   url.searchParams.set("cont_flag", "1");
 
-  const res = await fetch(url, { headers: { Authorization: authHeader() } });
-  const body = await res.json().catch(() => null);
+  let res, body;
+  for (let attempt = 0; ; attempt++) {
+    await throttle();
+    res = await fetch(url, { headers: { Authorization: authHeader() } });
+    if (res.status !== 429) break;
+    if (attempt >= MAX_RETRIES) {
+      throw new Error(`Fyers history request failed for ${symbol}: 429 rate-limited after ${MAX_RETRIES} retries`);
+    }
+    // Back off well beyond the steady-state interval -- a 429 means the
+    // shared pacing wasn't enough this time (e.g. another process sharing
+    // the same app), so wait longer before trying again rather than
+    // hammering straight back into the limit.
+    await sleep(MIN_INTERVAL_MS * 4 * (attempt + 1));
+  }
+  body = await res.json().catch(() => null);
 
   if (!res.ok || !body || body.s !== "ok") {
     throw new Error(
