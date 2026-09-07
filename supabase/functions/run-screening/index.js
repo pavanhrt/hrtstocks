@@ -12,12 +12,20 @@
 // NOTE: written and unit-tested at the module level under Node (see the
 // sibling *.test.js files, run via `npm test` from stock-platform/), but
 // this entrypoint itself requires the Deno runtime (Deno.serve, npm: import
-// specifiers) and has not been exercised end-to-end against a deployed
-// function yet -- do that once as a smoke test right after first deploy,
-// against a single small index, before relying on the scheduled run.
+// specifiers).
+//
+// Data sources (as of 2026-09-07): index constituent lists come from NSE's
+// static archive CSVs (providers/nse-archives.js); OHLCV comes from Fyers'
+// licensed data API (providers/fyers.js). The original all-in-one NSE public
+// endpoint scraper (providers/nse-public.js) is retired from this pipeline --
+// its interactive API blocked Supabase's egress IPs with a 403 on every
+// index, confirmed via a real deployed run (see pipeline_audit_log for run
+// 8b6cb557-a990-4b72-8ba5-d8f99ea2dece). The file is kept for reference/in
+// case a future environment isn't blocked, but nothing here imports it.
 
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { nsePublicProvider } from "./providers/nse-public.js";
+import { fetchIndexConstituents } from "./providers/nse-archives.js";
+import { fetchOHLCV } from "./providers/fyers.js";
 import { validateBars } from "./quality.js";
 import { buildFeatureContext } from "./features/context.js";
 import { evaluateRules } from "./rules/evaluate.js";
@@ -72,7 +80,7 @@ Deno.serve(async (req) => {
     universe_version: UNIVERSE_VERSION,
     parameter_version_id: parameterVersion?.id ?? null,
     strategy_version_ids: strategyVersionIds,
-    providers: { market_data: "nse_public_unofficial" },
+    providers: { universe: "nse_archives", ohlcv: "fyers" },
     trigger_type: triggerType,
     triggered_by: triggeredBy,
     started_at: new Date().toISOString(),
@@ -107,7 +115,8 @@ Deno.serve(async (req) => {
       });
 
       if (!instrument.isIndex) stockResults.push(resultRow);
-      if (resultRow.tier === "tier_a" || resultRow.tier === "tier_b") {
+      // Indexes are contextual evidence, never ranked candidates (AGENTS.md).
+      if (!instrument.isIndex && (resultRow.tier === "tier_a" || resultRow.tier === "tier_b")) {
         rankingInputs.push({
           instrumentId: instrument.instrumentId,
           direction: resultRow.direction,
@@ -172,7 +181,7 @@ async function buildUniverse(supabase, runId, runDate) {
 
   for (const indexId of INDEX_IDS) {
     try {
-      const { data: constituents } = await nsePublicProvider.getIndexConstituents(indexId);
+      const { data: constituents } = await fetchIndexConstituents(indexId);
       for (const c of constituents) {
         if (!membership.has(c.instrumentId)) {
           membership.set(c.instrumentId, { symbol: c.symbol, name: c.name, indexIds: new Set() });
@@ -219,36 +228,18 @@ async function buildUniverse(supabase, runId, runDate) {
 }
 
 async function evaluateInstrument({ supabase, runId, instrument, ruleDefinitions, parameterValues, ruleDirectionById }) {
-  if (instrument.isIndex) {
-    // Index OHLCV uses a different NSE endpoint than equities; not
-    // implemented in Phase 1 -- see providers/nse-public.js. An index's
-    // result is honestly NO_DATA until that adapter exists, not a guess.
-    const resultRow = {
-      run_id: runId,
-      instrument_id: instrument.instrumentId,
-      is_index: true,
-      terminal_state: "NO_DATA",
-      tier: null,
-      direction: null,
-      score: null,
-      failed_gates: [],
-      data_quality: "NO_DATA",
-    };
-    await supabase.from("instrument_run_results").insert(resultRow);
-    await supabase.from("data_quality_results").insert({
-      run_id: runId,
-      instrument_id: instrument.instrumentId,
-      check_name: "ohlcv_ingestion",
-      result: "NO_DATA",
-      details: { note: "Index OHLCV ingestion is not implemented in Phase 1" },
-    });
-    return { resultRow, componentScores: {} };
-  }
-
+  // SMM/PAPA/GUE all declare `scope: [index, equity]` at the strategy level
+  // (strategies/*.yaml), so indexes run through the same OHLCV -> quality ->
+  // rule-evaluation -> classify pipeline as stocks, using Fyers' index
+  // symbols (providers/fyers.js). Indexes are still excluded from coverage
+  // reconciliation and rankings below (AGENTS.md: "Index state is
+  // contextual evidence and must never be copied into a member stock's own
+  // result") -- they get a real terminal_state/tier for the index-analysis
+  // page, they just never compete as a ranked candidate.
   let bars = [];
   let dataQuality = "NO_DATA";
   try {
-    const ohlcv = await nsePublicProvider.getOHLCV(instrument.instrumentId, instrument.symbol, OHLCV_LOOKBACK_DAYS);
+    const ohlcv = await fetchOHLCV(instrument.instrumentId, instrument.symbol, OHLCV_LOOKBACK_DAYS);
     bars = ohlcv.data;
     const validation = validateBars(bars);
     dataQuality = validation.result;
@@ -275,7 +266,7 @@ async function evaluateInstrument({ supabase, runId, instrument, ruleDefinitions
     const resultRow = {
       run_id: runId,
       instrument_id: instrument.instrumentId,
-      is_index: false,
+      is_index: instrument.isIndex,
       terminal_state: "NO_DATA",
       tier: "unavailable",
       direction: null,
@@ -297,7 +288,7 @@ async function evaluateInstrument({ supabase, runId, instrument, ruleDefinitions
       low: b.low,
       close: b.close,
       volume: b.volume,
-      provider: "nse_public_unofficial",
+      provider: "fyers",
       freshness: "EOD",
     })),
     { onConflict: "instrument_id,session_date,provider" }
@@ -320,7 +311,7 @@ async function evaluateInstrument({ supabase, runId, instrument, ruleDefinitions
   const resultRow = {
     run_id: runId,
     instrument_id: instrument.instrumentId,
-    is_index: false,
+    is_index: instrument.isIndex,
     terminal_state: terminalState,
     tier,
     direction,
