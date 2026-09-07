@@ -36,7 +36,12 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const INDEX_IDS = ["nifty-50", "nifty-bank", "nifty-100", "nifty-500"];
 const UNIVERSE_VERSION = "1.0.0";
-const OHLCV_LOOKBACK_DAYS = 400;
+// Fyers caps a single daily-resolution history request at 366 days
+// ("Date range cannot exceed 366 days for 1D, 1W, and 1M resolutions" --
+// confirmed via a live 422 response); 365 stays safely under that while
+// still covering a full year (documented ema_periods needs at most 200
+// bars, so ~250 trading days in a year is comfortably enough).
+const OHLCV_LOOKBACK_DAYS = 365;
 
 Deno.serve(async (req) => {
   const authHeader = req.headers.get("Authorization") ?? "";
