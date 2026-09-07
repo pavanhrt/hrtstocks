@@ -43,7 +43,19 @@ const UNIVERSE_VERSION = "1.0.0";
 // bars, so ~250 trading days in a year is comfortably enough).
 const OHLCV_LOOKBACK_DAYS = 365;
 
+// Supabase Edge Functions have a wall-clock limit (150s free tier, 400s
+// paid) that is tighter than the time needed to fetch ~500 instruments
+// while respecting Fyers' 200/min rate limit (~152s minimum in the ideal
+// case -- see providers/fyers.js). Rather than risk a hard kill mid-run
+// (which would leave the row stuck in "running" forever), this stops
+// attempting new fetches once the budget is spent and gives every
+// remaining instrument an honest "unavailable" result instead of silently
+// omitting it -- coverage_reconciliation still balances, and a rerun
+// (manual or the next scheduled one) picks up where this one left off.
+const TIME_BUDGET_MS = 125_000;
+
 Deno.serve(async (req) => {
+  const startedAtMs = Date.now();
   const authHeader = req.headers.get("Authorization") ?? "";
   if (authHeader !== `Bearer ${SERVICE_ROLE_KEY}`) {
     return json({ error: "Unauthorized" }, 401);
@@ -108,16 +120,22 @@ Deno.serve(async (req) => {
 
     const stockResults = [];
     const rankingInputs = [];
+    let budgetExceededCount = 0;
 
     for (const instrument of allInstruments) {
-      const { resultRow, componentScores } = await evaluateInstrument({
-        supabase,
-        runId,
-        instrument,
-        ruleDefinitions: ruleDefinitions ?? [],
-        parameterValues,
-        ruleDirectionById,
-      });
+      const overBudget = Date.now() - startedAtMs > TIME_BUDGET_MS;
+      if (overBudget) budgetExceededCount++;
+
+      const { resultRow, componentScores } = overBudget
+        ? await recordSkippedForTimeBudget({ supabase, runId, instrument })
+        : await evaluateInstrument({
+            supabase,
+            runId,
+            instrument,
+            ruleDefinitions: ruleDefinitions ?? [],
+            parameterValues,
+            ruleDirectionById,
+          });
 
       if (!instrument.isIndex) stockResults.push(resultRow);
       // Indexes are contextual evidence, never ranked candidates (AGENTS.md).
@@ -130,6 +148,16 @@ Deno.serve(async (req) => {
           componentScores,
         });
       }
+    }
+
+    if (budgetExceededCount > 0) {
+      await logStage(
+        supabase,
+        runId,
+        "time_budget",
+        "warning",
+        `${budgetExceededCount} instrument(s) skipped (marked unavailable) after the ${TIME_BUDGET_MS / 1000}s ingestion time budget was reached -- rerun to pick them up`
+      );
     }
 
     const ranked = rankWithinTiers(rankingInputs);
@@ -230,6 +258,30 @@ async function buildUniverse(supabase, runId, runDate) {
   }
 
   return membership;
+}
+
+/** Cheap path used once TIME_BUDGET_MS is spent -- no Fyers call, just an honest terminal result so coverage stays complete. */
+async function recordSkippedForTimeBudget({ supabase, runId, instrument }) {
+  const resultRow = {
+    run_id: runId,
+    instrument_id: instrument.instrumentId,
+    is_index: instrument.isIndex,
+    terminal_state: "NO_DATA",
+    tier: "unavailable",
+    direction: null,
+    score: null,
+    failed_gates: [],
+    data_quality: "NO_DATA",
+  };
+  await supabase.from("instrument_run_results").insert(resultRow);
+  await supabase.from("data_quality_results").insert({
+    run_id: runId,
+    instrument_id: instrument.instrumentId,
+    check_name: "ingestion",
+    result: "NO_DATA",
+    details: { note: "Skipped: run's ingestion time budget was already spent when this instrument's turn came up" },
+  });
+  return { resultRow, componentScores: {} };
 }
 
 async function evaluateInstrument({ supabase, runId, instrument, ruleDefinitions, parameterValues, ruleDirectionById }) {
