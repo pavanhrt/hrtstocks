@@ -73,14 +73,15 @@ function isBeforeMonthClose(dateStr) {
 }
 
 /**
- * Standard zigzag: confirms a pivot once price retraces `thresholdPct` from
- * the running extreme, alternating high/low. Deterministic and re-runnable;
- * the only free parameter is the threshold itself, which comes from
- * config/parameters.yaml's zigzag_* values (playbook-documented ranges).
- * @returns {{type: "high"|"low", index: number, price: number, date: string}[]}
+ * Standard zigzag walk, shared by zigzagPivots (confirmed pivots only, the
+ * long-standing public shape) and zigzagPivotsWithUnconfirmedLeg (which also
+ * exposes the still-forming extreme at the end of the series). Confirms a
+ * pivot once price retraces `thresholdPct` from the running extreme,
+ * alternating high/low. Deterministic and re-runnable; the only free
+ * parameter is the threshold itself, from config/parameters.yaml's zigzag_*
+ * values (playbook-documented ranges).
  */
-export function zigzagPivots(bars, thresholdPct) {
-  if (bars.length < 2) return [];
+function walkZigzag(bars, thresholdPct) {
   const pivots = [];
   let trendDir = null; // 'up' | 'down'
   let extremeHigh = bars[0].high;
@@ -136,7 +137,45 @@ export function zigzagPivots(bars, thresholdPct) {
       }
     }
   }
-  return pivots;
+  return { pivots, trendDir, extremeHigh, extremeHighIdx, extremeLow, extremeLowIdx };
+}
+
+/**
+ * @returns {{type: "high"|"low", index: number, price: number, date: string}[]}
+ */
+export function zigzagPivots(bars, thresholdPct) {
+  if (bars.length < 2) return [];
+  return walkZigzag(bars, thresholdPct).pivots;
+}
+
+/**
+ * Same confirmed pivots as zigzagPivots, plus the current *unconfirmed*
+ * leg -- the extreme price since the last confirmed pivot that has not yet
+ * retraced far enough to be confirmed itself. Required so a chart/direction
+ * classification can show "price is currently making a new high, but it
+ * isn't a confirmed HH yet" without that unconfirmed move being allowed to
+ * change the confirmed trend state (classifyDowStructure only ever sees
+ * `.confirmed`).
+ * @returns {{confirmed: {type: "high"|"low", index: number, price: number, date: string}[], unconfirmedLeg: {type: "high"|"low", price: number, date: string}|null}}
+ */
+export function zigzagPivotsWithUnconfirmedLeg(bars, thresholdPct) {
+  if (bars.length < 2) return { confirmed: [], unconfirmedLeg: null };
+  const walk = walkZigzag(bars, thresholdPct);
+  if (walk.trendDir === null) {
+    // Not even the first pivot has confirmed yet -- there's a running
+    // extreme in both directions, but no established trend to call either
+    // one "the" unconfirmed leg of, so this is honestly not computable yet.
+    return { confirmed: walk.pivots, unconfirmedLeg: null };
+  }
+  // Mirrors classifyDowStructure's own convention (see rangeBreakoutWithVolume's
+  // callers): while trendDir is "up", the pipeline is looking for the next
+  // HIGH to confirm, so the unconfirmed leg is the running high; symmetric
+  // for "down".
+  const unconfirmedLeg =
+    walk.trendDir === "up"
+      ? { type: "high", price: walk.extremeHigh, date: bars[walk.extremeHighIdx].date }
+      : { type: "low", price: walk.extremeLow, date: bars[walk.extremeLowIdx].date };
+  return { confirmed: walk.pivots, unconfirmedLeg };
 }
 
 /**
@@ -219,13 +258,14 @@ export function rangeBreakoutWithVolume(structure, bars, volumeLookback, volumeM
  * compared to the prior low) -- the Dow-theory labeling the BUY/SELL Signal
  * Playbooks describe as a visual exercise, made mechanical. The first high
  * and first low in the series have no predecessor to compare against and are
- * labeled "H"/"L" (sequence origin) rather than guessed. Uses the same 0.5%
- * tolerance as classifyDowStructure so "roughly equal" means the same thing
- * everywhere in this module. Unlike classifyDowStructure (which has a third
- * "ambiguous" bucket for near-equal pairs), every swing here must get one of
- * two labels, so a within-tolerance repeat is labeled HH/HL (not LH/LL) --
- * disclosed here since the source playbooks don't give a tie-breaker.
- * @returns {{type: "HH"|"HL"|"LH"|"LL"|"H"|"L", price: number, date: string}[]} oldest-first
+ * labeled "H"/"L" (sequence origin) rather than guessed. A within-tolerance
+ * repeat is its own explicit EH/EL (equal-high/equal-low) label -- a range,
+ * not a manufactured HH/HL. (Earlier versions of this function folded an
+ * equal pivot into HH/HL, biasing structure toward "bullish" whenever price
+ * merely retested a level; that was wrong and is what this fixes.) Uses the
+ * same 0.5% tolerance as classifyDowStructure so "roughly equal" means the
+ * same thing everywhere in this module.
+ * @returns {{type: "HH"|"HL"|"LH"|"LL"|"EH"|"EL"|"H"|"L", price: number, date: string}[]} oldest-first
  */
 export function labelPivotSequence(pivots, tolerancePct = 0.005) {
   let prevHigh = null;
@@ -233,11 +273,21 @@ export function labelPivotSequence(pivots, tolerancePct = 0.005) {
   const labeled = [];
   for (const pivot of pivots) {
     if (pivot.type === "high") {
-      const label = prevHigh == null ? "H" : compareLevel(pivot.price, prevHigh, tolerancePct) === "lower" ? "LH" : "HH";
+      let label;
+      if (prevHigh == null) label = "H";
+      else {
+        const cmp = compareLevel(pivot.price, prevHigh, tolerancePct);
+        label = cmp === "higher" ? "HH" : cmp === "lower" ? "LH" : "EH";
+      }
       labeled.push({ type: label, price: pivot.price, date: pivot.date });
       prevHigh = pivot.price;
     } else {
-      const label = prevLow == null ? "L" : compareLevel(pivot.price, prevLow, tolerancePct) === "lower" ? "LL" : "HL";
+      let label;
+      if (prevLow == null) label = "L";
+      else {
+        const cmp = compareLevel(pivot.price, prevLow, tolerancePct);
+        label = cmp === "higher" ? "HL" : cmp === "lower" ? "LL" : "EL";
+      }
       labeled.push({ type: label, price: pivot.price, date: pivot.date });
       prevLow = pivot.price;
     }

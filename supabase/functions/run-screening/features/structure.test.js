@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { aggregateBars, zigzagPivots, classifyDowStructure, rangeBreakoutWithVolume, labelPivotSequence } from "./structure.js";
+import { aggregateBars, zigzagPivots, zigzagPivotsWithUnconfirmedLeg, classifyDowStructure, rangeBreakoutWithVolume, labelPivotSequence } from "./structure.js";
 
 function bar(date, open, high, low, close, volume = 1000) {
   return { date, open, high, low, close, volume };
@@ -121,11 +121,53 @@ test("labelPivotSequence labels the first high/low as sequence origin, then HH/H
   assert.equal(labeled[0].date, "d0");
 });
 
-test("labelPivotSequence treats a within-tolerance repeat as HH/HL, not LH/LL", () => {
-  const pivots = [
+test("labelPivotSequence labels a within-tolerance repeat as an explicit EH/EL (equal), not a manufactured HH/HL", () => {
+  const highs = [
     { type: "high", index: 0, price: 100, date: "d0" },
     { type: "high", index: 1, price: 100.2, date: "d1" }, // within 0.5% tolerance
   ];
-  const labeled = labelPivotSequence(pivots, 0.005);
-  assert.equal(labeled[1].type, "HH");
+  assert.equal(labelPivotSequence(highs, 0.005)[1].type, "EH");
+
+  const lows = [
+    { type: "low", index: 0, price: 100, date: "d0" },
+    { type: "low", index: 1, price: 100.2, date: "d1" },
+  ];
+  assert.equal(labelPivotSequence(lows, 0.005)[1].type, "EL");
+});
+
+test("zigzagPivotsWithUnconfirmedLeg exposes the current forming leg without it becoming a confirmed pivot", () => {
+  const bars = [
+    bar("d0", 100, 101, 99, 100),
+    bar("d1", 102, 103, 101, 102),
+    bar("d2", 104, 108, 103, 104), // clears the 5% threshold from bars[0].low -> confirms a low pivot, trendDir='up'
+    bar("d3", 106, 112, 111, 112), // new high, but retrace from it is under 5% -- not confirmed yet
+  ];
+  const { confirmed, unconfirmedLeg } = zigzagPivotsWithUnconfirmedLeg(bars, 0.05);
+  assert.equal(confirmed.length, 1);
+  assert.equal(confirmed[0].type, "low");
+  assert.equal(confirmed[0].price, 99);
+  assert.deepEqual(unconfirmedLeg, { type: "high", price: 112, date: "d3" });
+
+  // zigzagPivots (the existing, unchanged export) must return exactly the same confirmed pivots.
+  assert.deepEqual(zigzagPivots(bars, 0.05), confirmed);
+});
+
+test("zigzagPivotsWithUnconfirmedLeg mirrors for a downtrend", () => {
+  const bars = [
+    bar("d0", 118, 119, 117, 118),
+    bar("d1", 116, 117, 115, 116),
+    bar("d2", 114, 115, 110, 111), // clears 5% down from bars[0].high -> confirms a high pivot, trendDir='down'
+    bar("d3", 109, 110, 106, 107), // new low, but retrace under 5% -- not confirmed yet
+  ];
+  const { confirmed, unconfirmedLeg } = zigzagPivotsWithUnconfirmedLeg(bars, 0.05);
+  assert.equal(confirmed.length, 1);
+  assert.equal(confirmed[0].type, "high");
+  assert.deepEqual(unconfirmedLeg, { type: "low", price: 106, date: "d3" });
+});
+
+test("zigzagPivotsWithUnconfirmedLeg returns unconfirmedLeg=null before any pivot has confirmed", () => {
+  const bars = [bar("d0", 100, 101, 99, 100), bar("d1", 100.2, 101.2, 99.2, 100.2)];
+  const { confirmed, unconfirmedLeg } = zigzagPivotsWithUnconfirmedLeg(bars, 0.05);
+  assert.equal(confirmed.length, 0);
+  assert.equal(unconfirmedLeg, null);
 });

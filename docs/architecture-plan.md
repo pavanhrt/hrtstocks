@@ -197,10 +197,39 @@ resolution between workstreams.
      multi-invocation resumability (today's loop is still one long sequential pass within a single
      invocation, just no longer timing out the caller), multi-request historical backfill (>365
      days, needed for monthly MACD/Primary-degree Elliott per problem #8).
-4. **Phase 3 — Direction intelligence rewrite.** Equal-pivot labels (#5), unconfirmed-leg
-   separation, real Elliott hypothesis engine (primary/alt, forming/completed, invalidation),
-   pattern detection (measurable patterns first, rest stay `MANUAL_REVIEW`), server-side
-   `final_alignment` (#1, #6). Depends on Phase 2's adjusted bars + run-scoped storage.
+4. **Phase 3 — Direction intelligence rewrite.**
+   - DONE: equal-pivot labels (#5) -- `labelPivotSequence` now emits explicit `EH`/`EL` for a
+     within-tolerance repeat instead of folding it into `HH`/`HL` (which biased structure toward
+     "bullish" on a mere retest). `direction_pivots.label`'s check constraint (migration 0006)
+     already anticipated this.
+   - DONE: unconfirmed-leg separation -- new `zigzagPivotsWithUnconfirmedLeg` (structure.js) exposes
+     the current forming extreme without it becoming a confirmed pivot or entering
+     `classifyDowStructure`'s input at all. Drawn distinctly on the chart (hollow, dashed, "H?"/"L?")
+     so it can never be mistaken for a confirmed swing -- `charts/render.js` `RENDER_VERSION` bumped
+     accordingly.
+   - DONE: Elliott hypothesis engine substantially rewritten (`features/wave.js`) to address every
+     specific defect the spec named: it now determines the actual current wave (forming vs.
+     completed) at any point in the sequence instead of only ever recognizing a finished 6-pivot
+     pattern and mislabeling it "wave 5 of 5"; a longer window failing a gate no longer hides a
+     valid shorter one (wave 3 being the shortest only invalidates a *wave-5-done* claim, not
+     waves 1-4); corrective (zigzag) readings now require a real structural shape check (B doesn't
+     retrace past the origin of A, C extends beyond A) instead of accepting almost any 4 alternating
+     pivots; output carries real rule arithmetic (actual computed numbers, not just booleans) and a
+     real invalidation price+condition for waves 2/4 forming (the two waves with a hard-rule-derived
+     invalidation -- 1/3/5 honestly have none documented); returns both a primary and, when
+     applicable, an alternative hypothesis. Explicitly still out of scope: sub-wave (5-3-5) internal
+     validation, flat/triangle/diagonal detection, multi-degree nesting -- these remain
+     `MANUAL_REVIEW`-by-design, not silently guessed.
+   - DONE: chart-hash completeness (#7) -- the hash now covers the full rendered bar window (not
+     just the latest bar), the zigzag parameter, the algorithm version, and the chart renderer
+     version, so a stored chart can no longer stay stale after an algorithm or renderer change with
+     unchanged underlying pivots.
+   - REMAINING: pattern detection (measurable patterns first, per spec -- not yet started), combining
+     SMM + GUE + pattern evidence into a server-side `final_alignment` (#1, #6 -- the biggest
+     remaining Phase 3 item), and actually persisting any of this into the new run-scoped schema
+     (`instrument_direction_runs`, `direction_pivots`, `elliott_hypotheses`, `pattern_detections`,
+     `instrument_alignment` -- migration 0006, still unapplied). Today's richer wave/unconfirmed-leg
+     data flows through to the existing `instrument_direction` table and the rendered chart only.
 5. **Phase 4 — Analysis engine.** Swing strategy YAML (from Phase 0's extraction) → indicators
    (DMI/ADX, EMA crossover series, Bollinger failure detection, divergence) → gates → routes →
    confirmations → BUY/WAIT, SELL/WAIT. Depends on Phase 3's `ALIGNED_BULLISH`/`ALIGNED_BEARISH`

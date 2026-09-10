@@ -60,6 +60,34 @@ test("renderChartSvg shows an 'unconfirmed' badge instead of fabricating a wave 
   assert.match(svg, /Wave: unconfirmed/);
 });
 
+test("renderChartSvg draws the unconfirmed leg distinctly (hollow, '?' suffixed) and never as a confirmed pivot label", () => {
+  const bars = makeBars(60);
+  const svg = renderChartSvg({
+    symbol: "NSE_TCS",
+    timeframe: "daily",
+    bars,
+    pivots: [{ type: "HL", price: bars[40].low, date: bars[40].date }],
+    unconfirmedLeg: { type: "high", price: bars[55].high, date: bars[55].date },
+    wave: { label: null, confidence: "unconfirmed" },
+    dowState: "uptrend_intact",
+  });
+  assert.match(svg, />H\?</);
+  assert.ok(!svg.includes(">H<"), "the forming leg must never render as a bare confirmed 'H' pivot label");
+});
+
+test("renderChartSvg omits the unconfirmed-leg marker when none is provided", () => {
+  const bars = makeBars(30);
+  const svg = renderChartSvg({
+    symbol: "NSE_TCS",
+    timeframe: "daily",
+    bars,
+    pivots: [],
+    wave: { label: null, confidence: "unconfirmed" },
+    dowState: "ambiguous",
+  });
+  assert.ok(!svg.includes("?<"));
+});
+
 test("renderChartSvg falls back to an empty-chart placeholder instead of throwing on too few bars", () => {
   const svg = renderChartSvg({
     symbol: "NSE_TCS",

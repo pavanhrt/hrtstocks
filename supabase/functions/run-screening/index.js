@@ -573,6 +573,7 @@ async function upsertDirectionAnalysis({ supabase, runId, instrument, bars, docu
         timeframe,
         bars: tf.bars,
         pivots: tf.pivots,
+        unconfirmedLeg: tf.unconfirmedLeg,
         wave: tf.wave,
         dowState: tf.dowState,
       });

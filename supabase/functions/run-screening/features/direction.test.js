@@ -73,3 +73,27 @@ test("buildDirectionAnalysis skips timeframes without enough bars instead of thr
   assert.equal(result.weekly, null);
   assert.equal(result.monthly, null);
 });
+
+test("buildDirectionAnalysis exposes the current unconfirmed leg and a wave hypothesis shape with primary/alternative fields", async () => {
+  const bars = makeDailyBars(400);
+  const result = await buildDirectionAnalysis(bars, DOCUMENTED);
+  for (const timeframe of ["daily", "weekly", "monthly"]) {
+    const tf = result[timeframe];
+    // unconfirmedLeg is either a real {type, price, date} or explicitly null -- never undefined/omitted.
+    assert.ok("unconfirmedLeg" in tf);
+    if (tf.unconfirmedLeg) {
+      assert.ok(["high", "low"].includes(tf.unconfirmedLeg.type));
+      assert.equal(typeof tf.unconfirmedLeg.price, "number");
+    }
+    assert.ok("waveAlternative" in tf);
+    assert.ok(tf.wave, "wave (primary hypothesis) should always be an object, even when unconfirmed");
+    assert.ok("confidence" in tf.wave);
+  }
+});
+
+test("buildDirectionAnalysis's hash changes when only the zigzag parameter changes, with pivots/bars held fixed", async () => {
+  const bars = makeDailyBars(400);
+  const withDefaultThreshold = await buildDirectionAnalysis(bars, DOCUMENTED);
+  const withDifferentThreshold = await buildDirectionAnalysis(bars, { ...DOCUMENTED, zigzag_daily_pct: 0.05 });
+  assert.notEqual(withDefaultThreshold.daily.inputHash, withDifferentThreshold.daily.inputHash);
+});

@@ -5,10 +5,19 @@
 // (see features/wave.js's header) -- function over the visual fidelity of a
 // hand-drawn TradingView chart.
 
+// Bump whenever the visual output of renderChartSvg changes in a way that
+// should invalidate a previously-cached chart even if the underlying pivots
+// didn't move (e.g. a new panel, a color change, a new marker type) --
+// direction.js's chart-input hash includes this (problem #7: the hash used
+// to exclude the renderer version entirely, so a renderer change couldn't
+// force a refresh of already-stored charts).
+export const RENDER_VERSION = "2.0.0";
+
+export const MAX_BARS = 120;
+
 const WIDTH = 960;
 const HEIGHT = 480;
 const MARGIN = { top: 48, right: 24, bottom: 28, left: 64 };
-const MAX_BARS = 120;
 const BG = "#0d1117";
 const GRID = "#21262d";
 const TEXT = "#c9d1d9";
@@ -17,6 +26,7 @@ const UP = "#3fb950";
 const DOWN = "#f85149";
 const PIVOT_HIGH = "#f0b429";
 const PIVOT_LOW = "#58a6ff";
+const UNCONFIRMED = "#8b6f2e";
 
 function esc(text) {
   return String(text).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -28,11 +38,14 @@ function esc(text) {
  * @param {"daily"|"weekly"|"monthly"} args.timeframe
  * @param {import("../providers/types.js").Bar[]} args.bars oldest-first
  * @param {{type: string, price: number, date: string}[]} args.pivots oldest-first, labeled
+ * @param {{type: "high"|"low", price: number, date: string}|null} [args.unconfirmedLeg] the
+ *   current forming leg -- drawn distinctly (dashed, muted) so it's visually
+ *   obvious it hasn't confirmed and can't be mistaken for a real pivot.
  * @param {{label: string|null, confidence: string}} args.wave
  * @param {string} args.dowState
  * @returns {string} SVG markup
  */
-export function renderChartSvg({ symbol, timeframe, bars, pivots, wave, dowState }) {
+export function renderChartSvg({ symbol, timeframe, bars, pivots, unconfirmedLeg = null, wave, dowState }) {
   const window = bars.slice(-MAX_BARS);
   const plotWidth = WIDTH - MARGIN.left - MARGIN.right;
   const plotHeight = HEIGHT - MARGIN.top - MARGIN.bottom;
@@ -86,6 +99,24 @@ export function renderChartSvg({ symbol, timeframe, bars, pivots, wave, dowState
     })
     .join("");
 
+  // The current forming leg (not yet a confirmed pivot) is drawn distinctly
+  // -- a hollow, dashed marker with a "?" suffix -- so it can never be
+  // mistaken for a confirmed HH/HL/LH/LL and cannot visually imply it has
+  // already changed the trend classification.
+  const unconfirmedMarker =
+    unconfirmedLeg && dateIndex.has(unconfirmedLeg.date)
+      ? (() => {
+          const cx = x(dateIndex.get(unconfirmedLeg.date));
+          const cy = y(unconfirmedLeg.price);
+          const isHighLeg = unconfirmedLeg.type === "high";
+          const labelY = isHighLeg ? cy - 10 : cy + 20;
+          return (
+            `<circle cx="${cx}" cy="${cy}" r="4" fill="none" stroke="${UNCONFIRMED}" stroke-width="1.5" stroke-dasharray="2 1"/>` +
+            `<text x="${cx}" y="${labelY}" fill="${UNCONFIRMED}" font-size="11" font-family="monospace" text-anchor="middle">${esc(isHighLeg ? "H?" : "L?")}</text>`
+          );
+        })()
+      : "";
+
   const gridLines = Array.from({ length: 4 }, (_, i) => {
     const price = yMin + ((yMax - yMin) / 4) * (i + 1);
     const gy = y(price);
@@ -106,6 +137,7 @@ export function renderChartSvg({ symbol, timeframe, bars, pivots, wave, dowState
   ${candles}
   ${zigzagLine}
   ${pivotMarkers}
+  ${unconfirmedMarker}
 </svg>`;
 }
 
