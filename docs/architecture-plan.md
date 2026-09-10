@@ -4,7 +4,9 @@ Status: **Phase 3 (Direction intelligence rewrite) — complete; Phase 2 (durabl
 bar ingestion built, gated behind Phase 4's direction lock; Phase 4 (Analysis engine) — weekly+daily
 direction lock (WBP-M1..M4/WSP-S1..S4) done and persisted, plus 2 of 10 hourly routes (BUY-1/SELL-3
 "Wave 3 Ignition", BUY-4/SELL-4 "Wave 2 Pullback"/"Bounce Failure") detected end-to-end; 6 remaining
-routes, the confirmation groups, most vetoes, and reward/risk are still REMAINING.** Phases 0-3
+routes, the confirmation groups, most vetoes, and reward/risk are still REMAINING; Phase 5 (UI) —
+the Analysis page, the Direction table rebuild, and the nav/login/accessibility pass are all done
+and live; Phase 6/7 (QA/integration, deploy) not started.** Phases 0-3
 (contracts, safe-redirect/error-handling/UI-copy fixes, durable pipeline/corporate-actions/
 rate-limiting/run-locking, and the Direction rewrite itself -- equal-pivot labels, unconfirmed-leg
 separation, the Elliott engine rewrite, pattern detection, server-side `final_alignment`, and
@@ -18,12 +20,31 @@ blocking reason disclosed in `pending_conditions` rather than a guessed BUY/SELL
 fetches and stores 1-hour bars (`providers/fyers.js`'s `fetchHourlyOHLCV`, `nse-calendar.js`'s
 `normalizeHourlyBars`, `index.js`'s `ingestHourlyBarsAndDetectRoutes`), gated on
 `directionLockPassed()` so it only spends request budget on instruments that have actually cleared
-M1-M4/S1-S4 -- real effect is still a no-op until `buy-swing.yaml`/`sell-swing.yaml` are seeded. All
-of the above is locally committed on `develop`; see each phase's DONE/REMAINING bullets in §6
-below. Nothing in this document has been
-applied to the database or deployed -- `supabase/migrations/` goes through
-`0007_provider_rate_limit_buckets.sql`, drafted and locally verified against the live schema's real
-constraint names, but not applied.
+M1-M4/S1-S4 -- no longer a no-op: `buy-swing.yaml`/`sell-swing.yaml` were seeded to the live project
+on 2026-09-10 (see below). All of the above is locally committed on `develop`; see each phase's
+DONE/REMAINING bullets in §6 below.
+
+**Live-application update (2026-09-10, superseding this document's original "nothing applied"
+status below and throughout §6/§4):** migrations `0006_durable_pipeline_and_swing_analysis.sql` and
+`0007_provider_rate_limit_buckets.sql` are both applied to the live project (`yqxpucjtzrmwjniruebt`);
+`buy-swing-playbook`/`sell-swing-playbook` (parameter version `1.2.0`) are seeded and active; the
+`run-screening` Edge Function is deployed (via the Supabase CLI, `index.js` renamed to `index.ts` for
+the CLI's hardcoded entrypoint convention) and has completed real runs against live Fyers data. Two
+real production bugs were found and fixed this way that no amount of local/mocked testing had
+caught: `screening_run_leases.run_id` had a foreign-key constraint that made every lease acquisition
+fail (acquireRunLease runs before its own run's `screening_runs` row exists by design -- constraint
+dropped, `run_id` is informational only); and the time-budget-skip path's ~490 sequential
+single-row inserts could themselves outlast the platform's own wall-clock kill, leaving a run stuck
+`running` forever with the lease never released (fixed: bulk-insert the skip path once the budget is
+first exceeded, since the clock only moves forward). Real, verified coverage today is still low --
+about 13-18 of 501 instruments get actual Fyers data per run, the rest hit the time budget and are
+recorded `NO_DATA`/`unavailable` -- root-caused to ~20 sequential per-instrument Supabase round trips
+in a single invocation; concurrency was added for the genuinely-independent ones (the 3 Direction
+timeframes, direction-analysis vs. rule-evaluation, raw vs. adjusted bars), cutting it to ~13-14 and
+improving coverage from 13 to 18, but the real ceiling fix -- `pipeline_batches` multi-invocation
+resumability (sketched in §4, never wired up) or instrument-level concurrency in the main loop -- is
+still REMAINING and deliberately not started (flagged to, and held back by, the project owner
+pending a decision on priority).
 
 Companion document (produced by the rules/provenance agent, separately): `docs/swing-strategy-extraction.md`
 — full extraction of the Weekly→Daily→1H BUY/SELL playbooks with source locators. Read that before
@@ -568,8 +589,51 @@ resolution between workstreams.
      `PROJECT_DEFAULT` (§10, `HOURLY_STUB_POLICY` already resolved this for chart rendering, not
      yet cross-checked against this route-detection use), and DMI/ADX (still uncomputed -- no gate
      needs it yet).
-6. **Phase 5 — UI.** Direction table rebuild (server pagination, filters, lazy charts — #25),
-   Analysis pages + multi-panel charts, nav/login/accessibility pass.
+6. **Phase 5 — UI. DONE (2026-09-10), all three items:**
+   - DONE: **Analysis page** (`app/src/app/(app)/analysis/page.tsx`, `lib/data/swing-analysis.ts`)
+     -- the `/analysis` page this section's own §5 note anticipated ("a future `/analysis` page
+     (Phase 5) must read `WBP-*`/`WSP-*` traces directly and apply the AND of M1-M4 itself"). Reads
+     `swing_analysis_results` directly rather than re-deriving from pooled `rule_traces` the way
+     `buy-signals`/`sell-signals` must for `BSP-*`/`SSP-*` -- `evaluateSwingHypothesis()` already
+     applied that AND server-side when the row was written, since WBP-/WSP- rows are never pooled
+     (problem #15 doesn't apply to them). One page, Bullish and Bearish sections: real M1-M4
+     direction-lock results, M5-M8 honestly labeled `MANUAL_REVIEW`, any detected route, and
+     `final_action` -- always `WAIT` today (Phase 4's M5-M8/routes/confirmations/vetoes/reward-risk
+     are still REMAINING per §6.5 above), with a per-stock expandable list of exactly which
+     `pending_conditions` are still open rather than a bare unexplained WAIT.
+   - DONE: **Direction table rebuild** (server pagination, filters, lazy charts — #25), plus closing
+     #1 and #6 in the same pass. `lib/data/direction.ts`'s `getDirectionPage()` reads
+     `instrument_alignment.final_alignment` (server-computed by `features/alignment.js`, closing #1
+     -- no confluence logic left in the browser) joined to `instrument_direction` **scoped to the
+     same single `run_id`** throughout (closing #6 -- the old query had no run_id filter at all, so a
+     stale timeframe row from an older run could silently mix with fresh ones). Real server-side
+     pagination (25/page, `.range()` + exact count), search (`symbol`/`name` `ilike` via `.or()` with
+     `referencedTable`), and confluence filtering, all pushed into the query -- chart signed URLs are
+     now only ever requested for the current page's rows, closing #25 as a direct consequence rather
+     than a separate mechanism. New `DirectionControls.tsx` (client) drives `?q=`/`?alignment=` on the
+     URL. The stock detail page's existing 3-panel timeframe view (chart + dow_state + wave label per
+     timeframe -- this section's own "multi-panel charts" item, already built pre-Phase-5) was
+     switched onto the same run_id-scoped `getDirectionForInstrument()` and now also shows
+     `final_alignment`.
+   - DONE: **nav/login/accessibility pass** (#29, #30). New `Nav.tsx` (client, needs `usePathname`)
+     replaces the flat `<Link>` row: `aria-current="page"` + an active-link underline, and a
+     hamburger toggle collapsing the links into a dropdown under 860px (#29). #30 was flagged as
+     "needs a real browser pass," not confirmed broken -- that pass found contrast already passes
+     WCAG AA everywhere measured (input text 21:1, dim text 5.8:1, placeholder ~4.6:1), so no color
+     changes were needed; the real gap was labeling (`placeholder` as the only label, which
+     disappears once the user types) -- added a real `<label htmlFor>` above every field across all
+     three login forms, plus `role="status" aria-live="polite"` around the error/notice region.
+     Noticed but deliberately not touched: a pre-existing dev-console warning telling `LoginForm` to
+     use `React.useActionState` -- that API doesn't exist in the installed React 18.3.1 (confirmed
+     directly, `'useActionState' in require('react')` is `false`); a real fix means a React 19
+     upgrade, out of scope for an accessibility pass.
+   - Verification caveat, all three: build (`npm run build`) and the full test suite (206/206) pass
+     for all of Phase 5, and the Direction rebuild's exact PostgREST query semantics were
+     cross-checked against live data plus the installed `@supabase/postgrest-js` 2.115.0 `.d.ts`
+     (confirming `referencedTable`, not the deprecated `foreignTable`). The one thing that could not
+     be verified directly is the actual rendered, authenticated page in a browser -- this project
+     deliberately keeps no login credentials available for that. Still owed a real look once someone
+     can log in.
 7. **Phase 6 — QA/integration.** The full test list from the spec, run against Phases 2-5's real
    code (not written against stubs).
 8. **Phase 7 — Single verified push + live validation**, per the deployment authorization, only
