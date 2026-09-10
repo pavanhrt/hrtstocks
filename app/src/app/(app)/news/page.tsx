@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getLatestRun, getStockLedger } from "@/lib/data/runs";
+import { getLatestPublishedRun, getStockLedger } from "@/lib/data/runs";
 import { fetchNewsArticles } from "@/lib/news/rss";
 import { matchArticlesToLedger, type LedgerInstrument } from "@/lib/news/match";
 import { NEWS_FEEDS } from "@/lib/news/feeds";
@@ -16,7 +16,7 @@ function timeAgo(iso: string | null): string {
 }
 
 export default async function NewsPage() {
-  const run = await getLatestRun();
+  const run = await getLatestPublishedRun();
   const ledgerRows = run ? await getStockLedger(run.id) : [];
 
   const instruments: LedgerInstrument[] = ledgerRows.map((r: any) => ({

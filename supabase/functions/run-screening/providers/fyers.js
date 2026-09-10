@@ -20,11 +20,20 @@
 // more than 3 times in a day gets the account blocked for the rest of the
 // day, so this throttles conservatively rather than racing the limit.
 // MIN_INTERVAL_MS paces every call from this module through a single
-// shared cursor, regardless of caller.
+// shared cursor, regardless of caller -- but that cursor is an in-memory
+// module-level variable, reset every cold isolate and invisible to any
+// other concurrent invocation (problem #10, confirmed the direct cause of
+// this session's incident: 5 concurrent runs each pacing independently,
+// collectively exceeding the cap). It stays as a cheap first line of
+// defense (avoids a DB round trip for the common single-invocation case),
+// but `waitForRateLimitSlot` below -- backed by provider_rate_limit_buckets,
+// migration 0007 -- is the authoritative, cross-invocation guard.
+import { waitForRateLimitSlot } from "./rate-limiter.js";
 
 const APP_ID = "5QIFNACBI4-100";
 const DATA_BASE_URL = "https://api-t1.fyers.in/data";
 const MIN_INTERVAL_MS = 350; // ~171 req/min, ~15% under the 200/min cap
+const SHARED_RATE_LIMIT_PER_MINUTE = 180; // cross-invocation cap, same safety margin as MIN_INTERVAL_MS
 const MAX_RETRIES = 2;
 
 let nextAvailableAt = 0;
@@ -66,7 +75,16 @@ function fmtDate(d) {
   return d.toISOString().slice(0, 10);
 }
 
-export async function fetchOHLCV(instrumentId, symbol, days) {
+/**
+ * @param {string} instrumentId
+ * @param {string} symbol
+ * @param {number} days
+ * @param {import("@supabase/supabase-js").SupabaseClient} [supabase] when
+ *   provided, also claims a slot in the cross-invocation rate-limit bucket
+ *   before calling Fyers -- omit only for tests/local scripts that don't
+ *   have a Supabase client handy; production callers must pass it.
+ */
+export async function fetchOHLCV(instrumentId, symbol, days, supabase = null) {
   const to = new Date();
   const from = new Date(to.getTime() - days * 24 * 60 * 60 * 1000);
 
@@ -81,6 +99,12 @@ export async function fetchOHLCV(instrumentId, symbol, days) {
   let res, body;
   for (let attempt = 0; ; attempt++) {
     await throttle();
+    if (supabase) {
+      const gotSlot = await waitForRateLimitSlot(supabase, "fyers", SHARED_RATE_LIMIT_PER_MINUTE);
+      if (!gotSlot) {
+        throw new Error(`Fyers history request for ${symbol}: cross-invocation rate limit bucket stayed full past the wait budget`);
+      }
+    }
     res = await fetch(url, { headers: { Authorization: authHeader() } });
     if (res.status !== 429) break;
     if (attempt >= MAX_RETRIES) {

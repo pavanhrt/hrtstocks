@@ -1,8 +1,8 @@
-import { getLatestRun, getStockLedger } from "@/lib/data/runs";
+import { getLatestPublishedRun, getStockLedger } from "@/lib/data/runs";
 import StockLedgerTable from "./StockLedgerTable";
 
 export default async function StocksPage() {
-  const run = await getLatestRun();
+  const run = await getLatestPublishedRun();
   if (!run) {
     return (
       <div className="card">

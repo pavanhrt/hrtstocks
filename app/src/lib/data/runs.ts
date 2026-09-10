@@ -1,11 +1,46 @@
 import { createClient } from "@/lib/supabase/server";
 
-/** Most recent run visible to the caller's role (RLS already restricts Viewers to completed runs). */
+/**
+ * Most recent run of ANY status, visible to the caller's role. RLS already
+ * restricts a plain Viewer to completed runs (see `screening_runs_read` in
+ * 0002_rls.sql), so this only ever returns a running/partial/failed run for
+ * Researcher+ roles.
+ *
+ * Deliberately for operational pages only (Dashboard, Data health) that
+ * display the run's status prominently, so an in-progress or failed run is
+ * never presented as if it were normal current data. Every other page that
+ * shows analysis results (Buy/Sell signals, the stock ledger, a stock's
+ * detail page, Indexes, News) must use `getLatestPublishedRun()` instead --
+ * closes the bug where a Researcher+ user's dashboard, ledger, etc. would
+ * silently show numbers from an incomplete run with no indication anything
+ * was off.
+ */
 export async function getLatestRun() {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("screening_runs")
     .select("*")
+    .order("run_date", { ascending: false })
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Most recent COMPLETED run, regardless of caller role. This is "the
+ * published run" -- what every content page (as opposed to an operational
+ * status page) should treat as the current analysis. A running, partial, or
+ * failed run -- even one more recent than the last completed run -- is never
+ * returned here.
+ */
+export async function getLatestPublishedRun() {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("screening_runs")
+    .select("*")
+    .eq("status", "completed")
     .order("run_date", { ascending: false })
     .order("created_at", { ascending: false })
     .limit(1)

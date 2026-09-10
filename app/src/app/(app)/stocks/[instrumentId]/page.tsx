@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { getLatestRun, getRuleTraces, getInstrument, getRuleDefinitionsByIds } from "@/lib/data/runs";
+import { getLatestPublishedRun, getRuleTraces, getInstrument, getRuleDefinitionsByIds } from "@/lib/data/runs";
 import { getDirectionForInstrument } from "@/lib/data/direction";
 import { createClient } from "@/lib/supabase/server";
 import { Badge } from "../../Badge";
@@ -14,7 +14,7 @@ export default async function StockDetailPage({
 }) {
   const { instrumentId } = await params;
 
-  const [instrument, run] = await Promise.all([getInstrument(instrumentId), getLatestRun()]);
+  const [instrument, run] = await Promise.all([getInstrument(instrumentId), getLatestPublishedRun()]);
   if (!instrument) notFound();
 
   if (!run) {

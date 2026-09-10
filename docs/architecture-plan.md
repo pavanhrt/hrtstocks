@@ -163,9 +163,40 @@ resolution between workstreams.
      public calendar since nseindia.com's own page timed out on direct fetch — flagged as
      PROJECT_DEFAULT/unverified against the primary source, one entry explicitly flagged as
      anomalous and unconfirmed). 11 tests, all passing.
-   - REMAINING: shared (cross-invocation) Fyers rate limiter, corporate-action-aware adjusted-bar
-     computation, wiring the lease/batch mechanism into `index.js`'s orchestration loop,
-     `getLatestRun` → published-run semantics (#12), multi-request historical backfill (>365 days).
+   - DONE: shared cross-invocation Fyers rate limiter (`providers/rate-limiter.js` +
+     `provider_rate_limit_buckets`, migration `0007`) -- an atomic Postgres upsert-with-conditional-
+     WHERE (`try_acquire_rate_limit_slot`), wired into `providers/fyers.js` as the authoritative
+     guard alongside the existing in-memory pacer. Degrades gracefully (never blocks) if migration
+     `0007` isn't applied yet.
+   - DONE: atomic run-lease wired into `index.js`'s actual orchestration (`run-lease.js` +
+     `screening_run_leases`) -- replaces the non-atomic select-then-insert check from earlier this
+     session. Heartbeats every 25 instruments during the run; releases in a `finally` so a thrown
+     error or a reconciliation failure never leaves the lease stuck. Degrades gracefully (acquires
+     unconditionally) if migration `0006` isn't applied yet.
+   - DONE: `getLatestRun` → published-run semantics (#12) -- new `getLatestPublishedRun()`
+     (latest `status='completed'` run) now used by every content page (Buy/Sell signals, stock
+     ledger, stock detail, Indexes, News); `getLatestRun()` (any status) stays scoped to Dashboard
+     and Data health, which display the status prominently. Root cause was narrower than the
+     spec's wording suggested: RLS already prevents a plain Viewer from ever seeing a non-completed
+     run, so this specifically fixed Researcher+ roles.
+   - DONE: `run_date` now uses `latestCompletedNseSession()` (Asia/Kolkata) instead of a plain UTC
+     date slice (#22).
+   - DONE: corporate-action-aware adjusted bars (#20) -- `features/corporate-actions.js`
+     (`computeAdjustedBars`), a pure back-adjustment function for split/bonus actions (dividend
+     adjustment is explicitly out of scope and disclosed as such -- no source document for its
+     convention has been supplied). Wired into `index.js`, writing to `market_bars_adjusted`
+     alongside the existing `market_bars_raw` write. Since `corporate_actions` has zero rows in
+     production today, this is presently a structural no-op (adjusted == raw) until corporate-action
+     data is actually ingested from somewhere -- **that ingestion is still unaddressed**, tracked as
+     a remaining item below. Also fixed a regression this same work would otherwise have shipped:
+     the `market_bars_raw` write now tries migration 0006's new shape first and falls back to the
+     current live shape on any failure, so raw-bar ingestion doesn't break if the code deploys
+     before the migration is applied.
+   - REMAINING: corporate-action *data ingestion* (a source for `corporate_actions` rows -- the
+     adjustment math above is ready, nothing feeds it), wiring `pipeline_batches` for true
+     multi-invocation resumability (today's loop is still one long sequential pass within a single
+     invocation, just no longer timing out the caller), multi-request historical backfill (>365
+     days, needed for monthly MACD/Primary-degree Elliott per problem #8).
 4. **Phase 3 — Direction intelligence rewrite.** Equal-pivot labels (#5), unconfirmed-leg
    separation, real Elliott hypothesis engine (primary/alt, forming/completed, invalidation),
    pattern detection (measurable patterns first, rest stay `MANUAL_REVIEW`), server-side

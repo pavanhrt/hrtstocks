@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { getLatestRun, getIndexResults, getIndexHistory } from "@/lib/data/runs";
+import { getLatestPublishedRun, getIndexResults, getIndexHistory } from "@/lib/data/runs";
 import { Badge } from "../Badge";
 
 export default async function IndexesPage() {
-  const run = await getLatestRun();
+  const run = await getLatestPublishedRun();
 
   if (!run) {
     return (

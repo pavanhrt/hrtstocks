@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getLatestRun } from "@/lib/data/runs";
+import { getLatestPublishedRun } from "@/lib/data/runs";
 import { getSignalCandidates, BUY_CODEABLE_GATES, BUY_MANUAL_GATES, type SignalCandidate } from "@/lib/data/signals";
 import { Badge } from "../Badge";
 
@@ -66,7 +66,7 @@ function CandidateTable({ candidates }: { candidates: SignalCandidate[] }) {
 }
 
 export default async function BuySignalsPage() {
-  const run = await getLatestRun();
+  const run = await getLatestPublishedRun();
 
   if (!run) {
     return (

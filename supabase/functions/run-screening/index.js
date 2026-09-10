@@ -29,12 +29,20 @@ import { fetchOHLCV } from "./providers/fyers.js";
 import { validateBars } from "./quality.js";
 import { buildFeatureContext } from "./features/context.js";
 import { buildDirectionAnalysis } from "./features/direction.js";
+import { computeAdjustedBars, ADJUSTMENT_VERSION } from "./features/corporate-actions.js";
 import { renderChartSvg } from "./charts/render.js";
 import { evaluateRules } from "./rules/evaluate.js";
 import { classify, scoreComponents, rankWithinTiers } from "./rank.js";
 import { reconcileCoverage } from "./reconcile.js";
+import { acquireRunLease, heartbeatRunLease, releaseRunLease } from "./run-lease.js";
+import { latestCompletedNseSession } from "./nse-calendar.js";
 
 const DIRECTION_TIMEFRAMES = ["daily", "weekly", "monthly"];
+const RUN_TYPE = "eod_screening";
+// Heartbeat often enough that a lease with a 10-minute expiry (run-lease.js's
+// default) never lapses mid-run just because this loop is slow on a given
+// instrument, but not so often it adds meaningful overhead.
+const HEARTBEAT_EVERY_N_INSTRUMENTS = 25;
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 // SUPABASE_SERVICE_ROLE_KEY is deprecated on this project (it migrated to
@@ -76,31 +84,37 @@ Deno.serve(async (req) => {
   const triggeredBy = body.triggered_by ?? null;
 
   const supabase = createClient(SUPABASE_URL, SECRET_KEY);
+  const runId = crypto.randomUUID();
 
   // A run regularly exceeds the caller's own timeout (Netlify's serverless
   // function budget is well under this function's ~125s TIME_BUDGET_MS), so
   // a client-side retry or an impatient repeat click otherwise stacks up
   // concurrent runs -- each pacing its own Fyers calls independently, which
   // multiplies the effective request rate past Fyers' 200/min cap (see
-  // providers/fyers.js's own comment on what that risks). Refuse to start a
-  // second run while one is still in flight; point the caller at it instead.
-  const { data: alreadyRunning } = await supabase
-    .from("screening_runs")
-    .select("id, started_at")
-    .eq("status", "running")
-    .order("started_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (alreadyRunning) {
+  // providers/fyers.js's own comment on what that risks). acquireRunLease is
+  // a single atomic UPDATE...WHERE...RETURNING (see run-lease.js) -- unlike
+  // the select-then-insert check this replaced (which is what let 5 runs
+  // stack up during this session's actual incident), there is no window
+  // where two concurrent invocations can both see "free" and both proceed.
+  const lease = await acquireRunLease(supabase, RUN_TYPE, runId);
+  if (!lease.acquired) {
+    const { data: activeLease } = await supabase
+      .from("screening_run_leases")
+      .select("run_id, acquired_at")
+      .eq("run_type", RUN_TYPE)
+      .maybeSingle();
     return json({
-      runId: alreadyRunning.id,
+      runId: activeLease?.run_id ?? null,
       status: "running",
-      note: `A run (started ${alreadyRunning.started_at}) is already in progress; not starting another.`,
+      note: `A run (leased ${activeLease?.acquired_at ?? "recently"}) is already in progress; not starting another.`,
     });
   }
-
-  const runId = crypto.randomUUID();
-  const runDate = new Date().toISOString().slice(0, 10);
+  // The run's own metadata date is the latest NSE session that has actually
+  // closed, in Asia/Kolkata -- not "today in UTC" (problem #22). These can
+  // differ by a full calendar day (e.g. a run triggered at 02:00 UTC is
+  // still within the prior IST trading day) and matter for which session's
+  // bars this run is meant to represent.
+  const runDate = latestCompletedNseSession(new Date());
 
   const { data: parameterVersion } = await supabase
     .from("parameter_versions")
@@ -183,7 +197,11 @@ async function runPipeline({ supabase, runId, runDate, startedAtMs, parameterVal
     const rankingInputs = [];
     let budgetExceededCount = 0;
 
-    for (const instrument of allInstruments) {
+    for (const [index, instrument] of allInstruments.entries()) {
+      if (index > 0 && index % HEARTBEAT_EVERY_N_INSTRUMENTS === 0) {
+        await heartbeatRunLease(supabase, RUN_TYPE);
+      }
+
       const overBudget = Date.now() - startedAtMs > TIME_BUDGET_MS;
       if (overBudget) budgetExceededCount++;
 
@@ -264,6 +282,12 @@ async function runPipeline({ supabase, runId, runDate, startedAtMs, parameterVal
       .from("screening_runs")
       .update({ status: "failed", completed_at: new Date().toISOString() })
       .eq("id", runId);
+  } finally {
+    // Always release -- success, reconciliation failure, or a thrown error
+    // all reach here. Without this, the lease would sit "active" until its
+    // expires_at lapses (up to leaseDurationMs later) before another run
+    // could start, even though this run is genuinely done.
+    await releaseRunLease(supabase, RUN_TYPE);
   }
 }
 
@@ -354,7 +378,7 @@ async function evaluateInstrument({ supabase, runId, instrument, ruleDefinitions
   let bars = [];
   let dataQuality = "NO_DATA";
   try {
-    const ohlcv = await fetchOHLCV(instrument.instrumentId, instrument.symbol, OHLCV_LOOKBACK_DAYS);
+    const ohlcv = await fetchOHLCV(instrument.instrumentId, instrument.symbol, OHLCV_LOOKBACK_DAYS, supabase);
     bars = ohlcv.data;
     const validation = validateBars(bars);
     dataQuality = validation.result;
@@ -393,8 +417,33 @@ async function evaluateInstrument({ supabase, runId, instrument, ruleDefinitions
     return { resultRow, componentScores: {} };
   }
 
-  await supabase.from("market_bars_raw").upsert(
-    bars.map((b) => ({
+  // Migration 0006 widens market_bars_raw's uniqueness to
+  // (instrument_id, interval, ts, provider) and adds interval/is_complete --
+  // but code and migrations deploy independently, so this must keep working
+  // against the schema as it exists *right now* (still the old
+  // (instrument_id, session_date, provider) constraint, no interval column)
+  // until that migration is actually applied. Try the new shape first;
+  // fall back to the old one on any failure rather than losing every bar
+  // for every instrument if the two are ever out of sync.
+  const rawBarsNewShape = bars.map((b) => ({
+    instrument_id: instrument.instrumentId,
+    interval: "1d",
+    session_date: b.date,
+    ts: `${b.date}T00:00:00+05:30`,
+    open: b.open,
+    high: b.high,
+    low: b.low,
+    close: b.close,
+    volume: b.volume,
+    provider: "fyers",
+    freshness: "EOD",
+    is_complete: true,
+  }));
+  const { error: rawBarsNewShapeError } = await supabase
+    .from("market_bars_raw")
+    .upsert(rawBarsNewShape, { onConflict: "instrument_id,interval,ts,provider" });
+  if (rawBarsNewShapeError) {
+    const rawBarsOldShape = bars.map((b) => ({
       instrument_id: instrument.instrumentId,
       session_date: b.date,
       ts: `${b.date}T00:00:00+05:30`,
@@ -405,9 +454,49 @@ async function evaluateInstrument({ supabase, runId, instrument, ruleDefinitions
       volume: b.volume,
       provider: "fyers",
       freshness: "EOD",
-    })),
-    { onConflict: "instrument_id,session_date,provider" }
-  );
+    }));
+    await supabase.from("market_bars_raw").upsert(rawBarsOldShape, { onConflict: "instrument_id,session_date,provider" });
+  }
+
+  // Adjusted bars (problem #20): raw + adjusted are stored separately, with
+  // an explicit adjustment_version, rather than pivots/patterns ever running
+  // on raw unadjusted data. No corporate-action data is ingested into this
+  // project yet (corporate_actions stays empty), so this is a structural
+  // no-op today -- computeAdjustedBars returns bars unchanged when there are
+  // no qualifying actions -- but the storage path and versioning are real.
+  try {
+    const { data: corporateActions } = await supabase
+      .from("corporate_actions")
+      .select("action_type, ex_date, factor")
+      .eq("instrument_id", instrument.instrumentId);
+    const adjustedBars = computeAdjustedBars(bars, corporateActions ?? []);
+    await supabase.from("market_bars_adjusted").upsert(
+      adjustedBars.map((b) => ({
+        instrument_id: instrument.instrumentId,
+        interval: "1d",
+        session_date: b.date,
+        ts: `${b.date}T00:00:00+05:30`,
+        open: b.open,
+        high: b.high,
+        low: b.low,
+        close: b.close,
+        volume: b.volume,
+        adjustment_version: ADJUSTMENT_VERSION,
+        is_complete: true,
+      })),
+      { onConflict: "instrument_id,interval,ts,adjustment_version" }
+    );
+  } catch (err) {
+    // market_bars_adjusted doesn't exist until migration 0006 is applied --
+    // never fail the instrument's actual screening result over this.
+    await logStage(
+      supabase,
+      runId,
+      "adjusted_bars",
+      "warning",
+      `${instrument.instrumentId}: adjusted-bar storage failed (likely migration 0006 not yet applied): ${err instanceof Error ? err.message : String(err)}`
+    );
+  }
 
   // Direction feature (Dow-theory pivots + best-effort wave label + chart)
   // is supplementary to the rule pipeline below -- a failure here must never
