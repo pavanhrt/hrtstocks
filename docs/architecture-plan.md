@@ -224,12 +224,48 @@ resolution between workstreams.
      just the latest bar), the zigzag parameter, the algorithm version, and the chart renderer
      version, so a stored chart can no longer stay stale after an algorithm or renderer change with
      unchanged underlying pivots.
-   - REMAINING: pattern detection (measurable patterns first, per spec -- not yet started), combining
-     SMM + GUE + pattern evidence into a server-side `final_alignment` (#1, #6 -- the biggest
-     remaining Phase 3 item), and actually persisting any of this into the new run-scoped schema
-     (`instrument_direction_runs`, `direction_pivots`, `elliott_hypotheses`, `pattern_detections`,
+   - DONE: pattern detection (`features/patterns.js`), scoped per the spec's own instruction --
+     "implement measurable patterns first, keep subjective/unresolved patterns under manual review."
+     Implemented against swing-strategy-extraction.md §12's DOCUMENTED/exact-or-disclosed-tolerance
+     entries only:
+     - Candlestick (§12.1, `detectCandlestickPatterns`): Bullish/Bearish Engulfing, Bullish
+       Piercing/Bearish Dark Cloud Cover (exact median-of-body rule), Hammer/Shooting Star/Hanging
+       Man (exact 2x-wick-vs-body rule; the opposite-side wick cap is the source's own disclosed
+       ~0.6x approximation, versioned as `HAMMER_UPPER_WICK_CAP_FRACTION`), Morning/Evening Star
+       (exact 3-candle rule). Hanging Man and Dark Cloud Cover both require the source's documented
+       follow-through candle before being `TRIGGERED`, staying `OBSERVED` until then.
+     - Chart formation (§12.2, `detectDoubleExtremePatterns`): Double Top/Double Bottom from the
+       already-labeled pivot sequence, using the source's own disclosed ~3% comparability tolerance
+       (`DOUBLE_EXTREME_TOLERANCE`) and requiring the documented prior trend into the first extreme
+       so a plain new HH/LL is never misread as a double top/bottom.
+     - Every threshold this module invents at all (wick cap, extreme tolerance, prior-trend lookback
+       window) is a disclosed `PROJECT_DEFAULT`, versioned via `PATTERN_PARAM_VERSION` and recorded
+       in each detection's `source_locator`.
+     - Deliberately NOT implemented -- the source itself never resolves these to a number, so
+       detecting them would mean inventing a threshold: Head & Shoulders / Inverted H&S / Cup &
+       Handle (§12.2, more anchor points than Double Top/Bottom and no simpler to approximate
+       honestly), Bull/Bear Flag & Pole (§12.3 -- the source explicitly flags this as "the rule that
+       disqualifies most candidates" with zero numeric guidance), Doji family, Spinning
+       Top/Harami/High Wave, all PAPA formations except the already-DOCUMENTED ones not yet wired
+       (Accumulation/Distribution, Tweezers, Gap-sustain, Rounding bottom/top -- all §12.4
+       UNRESOLVED). None of these produce a row; their absence means "not evaluated," not "not
+       present" -- callers must not treat a stock with no pattern rows as pattern-clean.
+     - Wired into `run-screening/index.js`: `persistPatternDetections` runs per instrument/timeframe
+       right after the direction chart/row upsert, inserting into `pattern_detections` (migration
+       0006, still unapplied -- degrades gracefully on `PGRST205` exactly like the other new-schema
+       writes in this file). Unlike `instrument_direction`, this is a plain INSERT of fresh per-run
+       evidence, not an upsert keyed on a hash -- a pattern can newly qualify (e.g. one more bar
+       closes an engulfing pair) even when the underlying pivot structure hasn't changed.
+     - Tests: `features/patterns.test.js`, 13 cases covering trigger conditions, the documented
+       prior-trend/location requirement for each single/multi-candle pattern, the follow-through
+       requirement for Hanging Man/Dark Cloud Cover, and the double-extreme tolerance/prior-trend
+       gate (including a rejection case for a pair outside tolerance).
+   - REMAINING: combining SMM + GUE + pattern evidence into a server-side `final_alignment` (#1, #6
+     -- the biggest remaining Phase 3 item), and persisting the direction/wave side of this into the
+     new run-scoped schema (`instrument_direction_runs`, `direction_pivots`, `elliott_hypotheses`,
      `instrument_alignment` -- migration 0006, still unapplied). Today's richer wave/unconfirmed-leg
-     data flows through to the existing `instrument_direction` table and the rendered chart only.
+     data flows through to the existing `instrument_direction` table and the rendered chart only;
+     `pattern_detections` is the first Phase 3 output actually reaching the new schema (see above).
 5. **Phase 4 — Analysis engine.** Swing strategy YAML (from Phase 0's extraction) → indicators
    (DMI/ADX, EMA crossover series, Bollinger failure detection, divergence) → gates → routes →
    confirmations → BUY/WAIT, SELL/WAIT. Depends on Phase 3's `ALIGNED_BULLISH`/`ALIGNED_BEARISH`

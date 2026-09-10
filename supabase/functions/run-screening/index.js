@@ -29,6 +29,7 @@ import { fetchOHLCV } from "./providers/fyers.js";
 import { validateBars } from "./quality.js";
 import { buildFeatureContext } from "./features/context.js";
 import { buildDirectionAnalysis } from "./features/direction.js";
+import { detectCandlestickPatterns, detectDoubleExtremePatterns, PATTERN_PARAM_VERSION } from "./features/patterns.js";
 import { computeAdjustedBars, ADJUSTMENT_VERSION } from "./features/corporate-actions.js";
 import { renderChartSvg } from "./charts/render.js";
 import { evaluateRules } from "./rules/evaluate.js";
@@ -604,7 +605,63 @@ async function upsertDirectionAnalysis({ supabase, runId, instrument, bars, docu
       },
       { onConflict: "instrument_id,timeframe" }
     );
+
+    // Pattern detection is fresh evidence for this run, not a derived cache
+    // keyed off the direction hash -- a candlestick/double-extreme pattern
+    // can newly qualify even when the underlying pivot structure hasn't
+    // changed (e.g. one more bar closes the engulfing pair). Failure here
+    // must never block the direction row above, which is why it's a
+    // separate try/catch per timeframe rather than folded into the block
+    // above.
+    try {
+      await persistPatternDetections({ supabase, runId, instrument, timeframe, bars: tf.bars, pivots: tf.pivots });
+    } catch (err) {
+      await logStage(
+        supabase,
+        runId,
+        "pattern_detection",
+        "warning",
+        `${instrument.instrumentId}/${timeframe}: pattern detection failed (likely migration 0006 not yet applied): ${err instanceof Error ? err.message : String(err)}`
+      );
+    }
   }
+}
+
+/**
+ * Runs the implemented candlestick + double-extreme pattern detectors for
+ * one instrument/timeframe and inserts the results into pattern_detections
+ * (migration 0006, not yet applied -- degrades gracefully like the other
+ * new-schema writes in this file). Deliberately an INSERT, not an upsert:
+ * pattern_detections is immutable per-run evidence, not a latest-state row
+ * like instrument_direction above -- a pattern observed in an earlier run
+ * and never re-detected simply stops appearing in later runs' evidence
+ * rather than being overwritten.
+ */
+async function persistPatternDetections({ supabase, runId, instrument, timeframe, bars, pivots }) {
+  const candlestickHits = detectCandlestickPatterns(bars);
+  const doubleExtremeHits = detectDoubleExtremePatterns(pivots, bars);
+  const hits = [...candlestickHits, ...doubleExtremeHits];
+  if (hits.length === 0) return;
+
+  const rows = hits.map((hit) => ({
+    run_id: runId,
+    instrument_id: instrument.instrumentId,
+    timeframe,
+    pattern_name: hit.patternName,
+    direction: hit.direction,
+    state: hit.state,
+    anchor_points: hit.anchorPoints,
+    neckline_or_boundary: hit.necklineOrBoundary ?? null,
+    trigger_bar_ts: hit.triggerBarDate,
+    target_price: hit.targetPrice,
+    invalidation_price: hit.invalidationPrice,
+    volume_evidence: hit.volumeEvidence,
+    source_locator: `${hit.sourceLocator} (pattern-param-version ${PATTERN_PARAM_VERSION})`,
+    computed_at: new Date().toISOString(),
+  }));
+
+  const { error } = await supabase.from("pattern_detections").insert(rows);
+  if (error && error.code !== "PGRST205") throw error;
 }
 
 /** Majority vote of PASSed bullish vs. bearish rules. Ties/no signal are undirected, not guessed. */
