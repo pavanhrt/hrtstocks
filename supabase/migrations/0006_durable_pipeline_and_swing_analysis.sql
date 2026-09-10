@@ -47,7 +47,16 @@ alter table market_bars_adjusted add constraint market_bars_adjusted_instrument_
 
 create table screening_run_leases (
   run_type text primary key,
-  run_id uuid references screening_runs(id),
+  -- Deliberately NOT a foreign key to screening_runs(id): acquireRunLease()
+  -- is called BEFORE that run's own screening_runs row is inserted (the
+  -- lease is meant to gate every other step, including creating the run
+  -- row, to serialize concurrent invocations as early as possible) -- a
+  -- live 500 confirmed the FK this column originally had made every
+  -- acquisition fail with a foreign-key violation, since the referenced row
+  -- can never exist yet at acquisition time. run_id here is informational
+  -- (which run currently holds the lease), not a referential-integrity
+  -- relationship.
+  run_id uuid,
   status text not null default 'released' check (status in ('active', 'released')),
   acquired_at timestamptz,
   heartbeat_at timestamptz,
