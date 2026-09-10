@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type CSSProperties, type InputHTMLAttributes } from "react";
 import { useFormState, useFormStatus } from "react-dom";
 import { signIn, signUp, requestPasswordReset, type ActionState } from "./actions";
 
@@ -12,6 +12,23 @@ function SubmitButton({ label }: { label: string }) {
     <button type="submit" disabled={pending} style={{ width: "100%", padding: "10px 0" }}>
       {pending ? "Working..." : label}
     </button>
+  );
+}
+
+const labelStyle: CSSProperties = { fontSize: 12, color: "var(--text-dim)", display: "block", marginBottom: 2 };
+
+function Field({
+  id,
+  label,
+  ...inputProps
+}: { id: string; label: string } & InputHTMLAttributes<HTMLInputElement>) {
+  return (
+    <div>
+      <label htmlFor={id} style={labelStyle}>
+        {label}
+      </label>
+      <input id={id} {...inputProps} style={{ width: "100%" }} />
+    </div>
   );
 }
 
@@ -30,11 +47,13 @@ export default function LoginForm({ next }: { next: string }) {
       {mode === "sign-in" && (
         <form action={signInAction} style={{ display: "grid", gap: 10 }}>
           <input type="hidden" name="next" value={next} />
-          <input name="email" type="email" placeholder="Email" required autoComplete="email" />
-          <input
+          <Field id="signin-email" label="Email" name="email" type="email" placeholder="you@example.com" required autoComplete="email" />
+          <Field
+            id="signin-password"
+            label="Password"
             name="password"
             type="password"
-            placeholder="Password"
+            placeholder="********"
             required
             autoComplete="current-password"
           />
@@ -44,11 +63,13 @@ export default function LoginForm({ next }: { next: string }) {
 
       {mode === "sign-up" && (
         <form action={signUpAction} style={{ display: "grid", gap: 10 }}>
-          <input name="email" type="email" placeholder="Email" required autoComplete="email" />
-          <input
+          <Field id="signup-email" label="Email" name="email" type="email" placeholder="you@example.com" required autoComplete="email" />
+          <Field
+            id="signup-password"
+            label="Password (min 6 characters)"
             name="password"
             type="password"
-            placeholder="Password (min 6 characters)"
+            placeholder="********"
             required
             minLength={6}
             autoComplete="new-password"
@@ -59,17 +80,15 @@ export default function LoginForm({ next }: { next: string }) {
 
       {mode === "reset" && (
         <form action={resetAction} style={{ display: "grid", gap: 10 }}>
-          <input name="email" type="email" placeholder="Email" required autoComplete="email" />
+          <Field id="reset-email" label="Email" name="email" type="email" placeholder="you@example.com" required autoComplete="email" />
           <SubmitButton label="Send reset link" />
         </form>
       )}
 
-      {active.error && (
-        <p style={{ color: "var(--fail)", fontSize: 13, marginBottom: 0 }}>{active.error}</p>
-      )}
-      {active.notice && (
-        <p style={{ color: "var(--pass)", fontSize: 13, marginBottom: 0 }}>{active.notice}</p>
-      )}
+      <div role="status" aria-live="polite">
+        {active.error && <p style={{ color: "var(--fail)", fontSize: 13, marginBottom: 0 }}>{active.error}</p>}
+        {active.notice && <p style={{ color: "var(--pass)", fontSize: 13, marginBottom: 0 }}>{active.notice}</p>}
+      </div>
 
       <div style={{ marginTop: 16, fontSize: 13, color: "var(--text-dim)", display: "flex", gap: 12 }}>
         {mode !== "sign-in" && (

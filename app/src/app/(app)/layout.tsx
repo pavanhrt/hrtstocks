@@ -1,7 +1,7 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import SignOutButton from "./SignOutButton";
+import Nav from "./Nav";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser();
@@ -25,6 +25,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
       <header
         style={{
+          position: "relative",
           borderBottom: "1px solid var(--panel-border)",
           padding: "10px 20px",
           display: "flex",
@@ -32,14 +33,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           justifyContent: "space-between",
         }}
       >
-        <nav style={{ display: "flex", gap: 18, alignItems: "center" }}>
-          <strong style={{ marginRight: 8 }}>Stock Research</strong>
-          {links.map((l) => (
-            <Link key={l.href} href={l.href} style={{ color: "var(--text)", fontSize: 14 }}>
-              {l.label}
-            </Link>
-          ))}
-        </nav>
+        <Nav links={links} />
         <div style={{ display: "flex", alignItems: "center", gap: 12, fontSize: 13, color: "var(--text-dim)" }}>
           <span>
             {user.email} &middot; <span style={{ textTransform: "capitalize" }}>{user.role.replace("_", " ")}</span>

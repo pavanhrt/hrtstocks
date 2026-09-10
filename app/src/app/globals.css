@@ -107,3 +107,76 @@ select {
 button {
   cursor: pointer;
 }
+
+/* Nav (Nav.tsx) -- problem #29: was a flat unresponsive row of <Link>s with
+   no active-state styling and no way to fit on a narrow viewport. */
+.nav-links {
+  display: flex;
+  gap: 18px;
+  align-items: center;
+}
+
+.nav-link {
+  color: var(--text-dim);
+  font-size: 14px;
+  text-decoration: none;
+  padding: 4px 2px;
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+}
+
+.nav-link:hover {
+  color: var(--text);
+}
+
+.nav-link[aria-current="page"] {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+  font-weight: 600;
+}
+
+.nav-toggle {
+  display: none;
+  background: none;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 6px 10px;
+}
+
+@media (max-width: 860px) {
+  .nav-toggle {
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .nav-links {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: var(--panel);
+    border-bottom: 1px solid var(--panel-border);
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 12px 20px;
+    gap: 4px;
+    z-index: 20;
+  }
+
+  .nav-links.open {
+    display: flex;
+  }
+
+  .nav-link {
+    width: 100%;
+    padding: 8px 0;
+    border-bottom: none;
+  }
+
+  .nav-link[aria-current="page"] {
+    border-bottom: none;
+    color: var(--accent);
+  }
+}
