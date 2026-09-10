@@ -15,7 +15,14 @@ import yaml from "js-yaml";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "..", "..");
 
-const STRATEGY_FILES = ["smm.yaml", "papa.yaml", "gue.yaml", "fome.yaml"];
+const STRATEGY_FILES = [
+  "smm.yaml",
+  "papa.yaml",
+  "gue.yaml",
+  "fome.yaml",
+  "buy-signal-playbook.yaml",
+  "sell-signal-playbook.yaml",
+];
 
 function loadYaml(relativePath) {
   const full = path.join(ROOT, relativePath);

@@ -61,7 +61,14 @@ NEXT_PUBLIC_SITE_URL=http://localhost:3000
 ```
 
 The anon key is not a secret (it's the same key `createBrowserClient` sends from the browser); the
-service-role key below is a secret and must never be committed or exposed client-side.
+secret key below is a real secret and must never be committed or exposed client-side.
+
+Note: this project's Supabase instance has migrated to the newer publishable/secret API key system,
+so the legacy `service_role` key shown on some older Supabase docs/tutorials **won't work** as the
+Edge Function's reserved `SUPABASE_SERVICE_ROLE_KEY` env var no longer resolves to a usable value
+there (confirmed directly against this project -- it's marked "Deprecated" on the Secrets page).
+Use the `sb_secret_...` key from **Settings -> API Keys -> "Publishable and secret API keys"** tab
+everywhere below instead.
 
 ## Deploying
 
@@ -71,7 +78,8 @@ service-role key below is a secret and must never be committed or exposed client
 2. Site settings -> Environment variables:
    - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` (from the values above)
    - `NEXT_PUBLIC_SITE_URL` = your Netlify site URL (used for the password-reset redirect)
-   - `SUPABASE_SERVICE_ROLE_KEY` (Supabase dashboard -> Project Settings -> API -- **secret**)
+   - `SUPABASE_SECRET_KEY` (Supabase dashboard -> Settings -> API Keys -> "Publishable and secret
+     API keys" tab -> the `sb_secret_...` key -- **secret**)
    - `RUN_SCREENING_FUNCTION_URL` = `https://yqxpucjtzrmwjniruebt.supabase.co/functions/v1/run-screening`
      (only valid after step 2)
 3. `netlify.toml` already points at `@netlify/plugin-nextjs`; Netlify will install it automatically.
@@ -89,14 +97,15 @@ supabase functions deploy run-screening --no-verify-jwt
 ```
 
 `--no-verify-jwt` is required because this function checks its own `Authorization: Bearer
-<service-role-key>` header (see `index.js`) rather than a user JWT -- it's only ever called
-server-to-server, from the Next.js API route or from `pg_cron`, never from the browser.
+<secret-key>` header (see `index.js`) against `SUPABASE_SECRET_KEYS` (the current, non-deprecated
+key system) rather than a user JWT -- it's only ever called server-to-server, from the Next.js API
+route or from `pg_cron`, never from the browser.
 
 **Smoke-test it once manually before scheduling it:**
 
 ```bash
 curl -X POST https://yqxpucjtzrmwjniruebt.supabase.co/functions/v1/run-screening \
-  -H "Authorization: Bearer <service-role-key>" \
+  -H "Authorization: Bearer <sb_secret_... key>" \
   -H "Content-Type: application/json" \
   -d '{"trigger_type":"manual"}'
 ```
@@ -118,14 +127,14 @@ select cron.schedule(
   $$
   select net.http_post(
     url := 'https://yqxpucjtzrmwjniruebt.supabase.co/functions/v1/run-screening',
-    headers := jsonb_build_object('Authorization', 'Bearer ' || '<service-role-key>', 'Content-Type', 'application/json'),
+    headers := jsonb_build_object('Authorization', 'Bearer ' || '<sb_secret_... key>', 'Content-Type', 'application/json'),
     body := jsonb_build_object('trigger_type', 'scheduled')
   );
   $$
 );
 ```
 
-Store the service-role key via [Supabase Vault](https://supabase.com/docs/guides/database/vault)
+Store the secret key via [Supabase Vault](https://supabase.com/docs/guides/database/vault)
 rather than inlining it in the cron job body if you'd rather not have it sitting in `pg_cron.job`.
 
 ### 4. Bootstrap your admin account

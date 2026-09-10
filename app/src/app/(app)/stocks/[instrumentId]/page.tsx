@@ -1,7 +1,11 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { getLatestRun, getRuleTraces, getInstrument, getRuleDefinitionsByIds } from "@/lib/data/runs";
+import { getDirectionForInstrument } from "@/lib/data/direction";
 import { createClient } from "@/lib/supabase/server";
 import { Badge } from "../../Badge";
+
+const TIMEFRAME_LABEL = { monthly: "Monthly", weekly: "Weekly", daily: "Daily" } as const;
 
 export default async function StockDetailPage({
   params,
@@ -34,6 +38,7 @@ export default async function StockDetailPage({
   ]);
 
   const definitions = await getRuleDefinitionsByIds(traces.map((t) => t.rule_id));
+  const direction = await getDirectionForInstrument(instrumentId);
 
   const bullish = traces.filter((t) => definitions[t.rule_id]?.direction === "bullish");
   const bearish = traces.filter((t) => definitions[t.rule_id]?.direction === "bearish");
@@ -135,6 +140,36 @@ export default async function StockDetailPage({
           </p>
         )}
       </div>
+
+      {direction && (
+        <div className="card">
+          <h2 style={{ marginTop: 0, fontSize: 15 }}>
+            Direction <Link href="/direction" style={{ fontSize: 12, fontWeight: 400, marginLeft: 8 }}>See all stocks →</Link>
+          </h2>
+          <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+            {(["monthly", "weekly", "daily"] as const).map((tf) => {
+              const row = direction.timeframes[tf];
+              const url = direction.chartUrls[tf];
+              return (
+                <div key={tf} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <div style={{ fontSize: 12, color: "var(--text-dim)", fontWeight: 600 }}>{TIMEFRAME_LABEL[tf]}</div>
+                  {url ? (
+                    <a href={url} target="_blank" rel="noreferrer">
+                      <img src={url} alt={`${instrument.symbol} ${tf} chart`} width={300} height={150} style={{ borderRadius: 6, border: "1px solid var(--panel-border)" }} />
+                    </a>
+                  ) : (
+                    <div style={{ width: 300, height: 150, borderRadius: 6, background: "var(--panel-border)" }} />
+                  )}
+                  <div style={{ fontSize: 12 }}>{row?.dow_state?.replace(/_/g, " ") ?? "Unavailable"}</div>
+                  <div style={{ fontSize: 11, color: row?.wave_confidence === "confirmed" ? "var(--pass)" : "var(--text-dim)" }}>
+                    {row?.wave_label ?? "Wave: unconfirmed"}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="card">
         <h2 style={{ marginTop: 0, fontSize: 15 }}>Bullish hypothesis</h2>

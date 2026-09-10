@@ -6,8 +6,8 @@
 //
 // Invoked either by pg_cron on the EOD schedule, or by the Next.js
 // POST /api/screening-runs route (Researcher+ only) -- both call this URL
-// with the service role key as a Bearer token, which is also this
-// function's own auth check below.
+// with the project's secret key (SUPABASE_SECRET_KEYS' "default" entry) as
+// a Bearer token, which is also this function's own auth check below.
 //
 // NOTE: written and unit-tested at the module level under Node (see the
 // sibling *.test.js files, run via `npm test` from stock-platform/), but
@@ -28,12 +28,22 @@ import { fetchIndexConstituents } from "./providers/nse-archives.js";
 import { fetchOHLCV } from "./providers/fyers.js";
 import { validateBars } from "./quality.js";
 import { buildFeatureContext } from "./features/context.js";
+import { buildDirectionAnalysis } from "./features/direction.js";
+import { renderChartSvg } from "./charts/render.js";
 import { evaluateRules } from "./rules/evaluate.js";
 import { classify, scoreComponents, rankWithinTiers } from "./rank.js";
 import { reconcileCoverage } from "./reconcile.js";
 
+const DIRECTION_TIMEFRAMES = ["daily", "weekly", "monthly"];
+
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
-const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+// SUPABASE_SERVICE_ROLE_KEY is deprecated on this project (it migrated to
+// Supabase's JWT-signing-key system, confirmed via the project's own
+// Edge Functions > Secrets page) -- the reserved legacy env var no longer
+// carries a usable key there. SUPABASE_SECRET_KEYS is the current
+// equivalent: a JSON dict of named secret keys, same bypass-RLS privileges,
+// see https://supabase.com/docs/guides/functions/secrets.
+const SECRET_KEY = JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS") ?? "{}").default;
 const INDEX_IDS = ["nifty-50", "nifty-bank", "nifty-100", "nifty-500"];
 const UNIVERSE_VERSION = "1.0.0";
 // Fyers caps a single daily-resolution history request at 366 days
@@ -57,7 +67,7 @@ const TIME_BUDGET_MS = 125_000;
 Deno.serve(async (req) => {
   const startedAtMs = Date.now();
   const authHeader = req.headers.get("Authorization") ?? "";
-  if (authHeader !== `Bearer ${SERVICE_ROLE_KEY}`) {
+  if (authHeader !== `Bearer ${SECRET_KEY}`) {
     return json({ error: "Unauthorized" }, 401);
   }
 
@@ -65,7 +75,7 @@ Deno.serve(async (req) => {
   const triggerType = body.trigger_type === "scheduled" ? "scheduled" : "manual";
   const triggeredBy = body.triggered_by ?? null;
 
-  const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+  const supabase = createClient(SUPABASE_URL, SECRET_KEY);
   const runId = crypto.randomUUID();
   const runDate = new Date().toISOString().slice(0, 10);
 
@@ -351,6 +361,21 @@ async function evaluateInstrument({ supabase, runId, instrument, ruleDefinitions
     { onConflict: "instrument_id,session_date,provider" }
   );
 
+  // Direction feature (Dow-theory pivots + best-effort wave label + chart)
+  // is supplementary to the rule pipeline below -- a failure here must never
+  // fail the instrument's actual screening result.
+  try {
+    await upsertDirectionAnalysis({ supabase, runId, instrument, bars, documentedParams: parameterValues.documented ?? {} });
+  } catch (err) {
+    await logStage(
+      supabase,
+      runId,
+      "direction_chart",
+      "warning",
+      `${instrument.instrumentId}: direction analysis failed: ${err instanceof Error ? err.message : String(err)}`
+    );
+  }
+
   const context = buildFeatureContext(bars, parameterValues.documented ?? {});
   const { traces, failedGates } = evaluateRules(ruleDefinitions, context, parameterValues);
 
@@ -379,6 +404,69 @@ async function evaluateInstrument({ supabase, runId, instrument, ruleDefinitions
   await supabase.from("instrument_run_results").insert(resultRow);
 
   return { resultRow, componentScores };
+}
+
+/**
+ * Renders/uploads a chart and upserts its instrument_direction row for each
+ * timeframe whose pivot+latest-bar hash changed since the last run -- an
+ * unchanged hash means the chart and row are left exactly as they are (the
+ * feature's own "keep the same image if nothing changed" requirement).
+ * NO_DATA instruments never reach this function, so their last-known-good
+ * chart is preserved by simply never being touched.
+ */
+async function upsertDirectionAnalysis({ supabase, runId, instrument, bars, documentedParams }) {
+  const analysis = await buildDirectionAnalysis(bars, documentedParams);
+
+  const { data: existingRows } = await supabase
+    .from("instrument_direction")
+    .select("timeframe, input_hash")
+    .eq("instrument_id", instrument.instrumentId);
+  const existingHashByTimeframe = Object.fromEntries((existingRows ?? []).map((r) => [r.timeframe, r.input_hash]));
+
+  for (const timeframe of DIRECTION_TIMEFRAMES) {
+    const tf = analysis[timeframe];
+    if (!tf) continue; // unresolved zigzag parameter or not enough bars -- never fabricated
+
+    const objectPath = `${instrument.instrumentId}/${timeframe}.svg`;
+    const unchanged = existingHashByTimeframe[timeframe] === tf.inputHash;
+
+    if (!unchanged) {
+      const svg = renderChartSvg({
+        symbol: instrument.symbol,
+        timeframe,
+        bars: tf.bars,
+        pivots: tf.pivots,
+        wave: tf.wave,
+        dowState: tf.dowState,
+      });
+      const { error: uploadError } = await supabase.storage
+        .from("direction-charts")
+        .upload(objectPath, new Blob([svg], { type: "image/svg+xml" }), { contentType: "image/svg+xml", upsert: true });
+      if (uploadError) {
+        await logStage(supabase, runId, "direction_chart", "warning", `${instrument.instrumentId}/${timeframe}: chart upload failed: ${uploadError.message}`);
+        continue; // don't point instrument_direction at a chart that isn't actually there
+      }
+    }
+
+    await supabase.from("instrument_direction").upsert(
+      {
+        instrument_id: instrument.instrumentId,
+        timeframe,
+        run_id: runId,
+        dow_state: tf.dowState,
+        pivots: tf.pivots,
+        last_swing_high: tf.lastSwingHigh,
+        last_swing_low: tf.lastSwingLow,
+        wave_label: tf.wave.label,
+        wave_confidence: tf.wave.confidence,
+        chart_object_path: objectPath,
+        input_hash: tf.inputHash,
+        data_quality: "PASS",
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "instrument_id,timeframe" }
+    );
+  }
 }
 
 /** Majority vote of PASSed bullish vs. bearish rules. Ties/no signal are undirected, not guessed. */

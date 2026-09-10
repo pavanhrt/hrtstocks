@@ -1,5 +1,5 @@
-parameter_version: 1.0.0
-status: initial_project_defaults
+parameter_version: 1.1.0
+status: partially_resolved_from_buy_sell_signal_playbooks
 
 documented:
   ema_periods: [5, 13, 26, 50, 100, 200]
@@ -11,17 +11,30 @@ documented:
   minimum_reward_risk: 3.0
   max_position_risk_fraction: 0.02
   provisional_monthly_loss_stop_fraction: 0.08
+  # Resolved in parameter_version 1.1.0 from the BUY/SELL Signal Playbooks'
+  # Stage 0 data tables (playbooks/BUY_Signal_Playbook.md and
+  # SELL_Signal_Playbook.md, "get the data before you think"), which state
+  # these values explicitly rather than leaving them for a backtest. Moved
+  # out of project_defaults_requiring_backtest per the null_policy's own
+  # allowance for a versioned decision backed by a dedicated source document.
+  rsi_period: 14
+  stochastic_lookback: 14
+  stochastic_smoothing: 3
+  bollinger_lookback: 20
+  standard_bollinger_deviation: 2.0
+  volume_lookback: 20
+  volume_multiplier: 1.0
+  # The playbooks specify a zigzag swing detector at "~5% monthly/weekly,
+  # 2-3% daily" for Dow/Elliott pivot detection. Not a single documented
+  # number -- these pick the midpoint of each stated range and are used only
+  # by features/structure.js's zigzagPivots(), not by any pre-existing rule.
+  zigzag_monthly_pct: 0.05
+  zigzag_weekly_pct: 0.05
+  zigzag_daily_pct: 0.025
 
 project_defaults_requiring_backtest:
-  rsi_period: null
-  stochastic_lookback: null
-  stochastic_smoothing: null
   adx_dmi_period: null
-  bollinger_lookback: null
-  standard_bollinger_deviation: null
   atr_period: null
-  volume_lookback: null
-  volume_multiplier: null
   pivot_left_window: null
   pivot_right_window: null
   support_resistance_tolerance: null

@@ -1,0 +1,188 @@
+strategy:
+  id: sell-signal-playbook
+  name: The Sell Signal Playbook, Tier 2 -- Short Entry (Positional -- Monthly to Weekly to Daily)
+  framework: SSP
+  rule_version: 1.0.0
+  parameter_version: 1.1.0
+  status: partially_automated
+  scope: [equity, index]
+
+provenance:
+  source_register: ../../playbooks/SELL_Signal_Playbook.md
+  source_group: SSP
+  locator_granularity: gate_level
+  production_rule_trace_ready: true
+  requirement: >
+    Scoped to Tier 2 (short entry, S1-S8) only. Tier 1 (the exit-long ladder,
+    SELL_Signal_Playbook.md section 1) is a graded warning system for an
+    already-held position -- this pipeline has no notion of a held position
+    or its entry price, so Tier 1 is out of scope for this screening
+    dashboard and is not encoded here. As with the buy side, S2/S4a/S5/S6/S8
+    are MANUAL_REVIEW sentinels (Elliott labeling and entry/stop/target are
+    not automated); a stock clearing S1/S3/S4b/S7 lands in manual_review,
+    never tier_a.
+
+rules:
+  - id: SSP-S1
+    playbook_gate: S1
+    name: Monthly Dow structure (bearish)
+    source_status: DOCUMENTED
+    timeframe: monthly
+    direction: bearish
+    inputs: [monthly_dow_state, monthly_range_breakout_down_with_volume]
+    expression: "monthly_dow_state == 'downtrend_intact' or monthly_dow_state == 'confirmed_reversal_bearish' or (monthly_dow_state == 'sideways' and monthly_range_breakout_down_with_volume)"
+    true_result: PASS
+    false_result: FAIL
+    missing_result: NO_DATA
+    hard_gate: false
+    note: >
+      hard_gate is false even though the source playbook treats S1 as
+      mandatory: evaluateRules()/classify() pool hard-gate failures across
+      EVERY active strategy into one result per instrument with no direction
+      scoping -- a bearish-only gate marked hard_gate:true would force every
+      instrument with a real (non-downtrend) Dow structure to FAIL overall,
+      for reasons unrelated to SMM/PAPA/GUE/FOME's own results. The
+      sell-signals dashboard reads SSP-* rule_traces directly and applies
+      the AND of S1/S3/S4B/S7A/S7B itself. Mirrors BSP-M1. Dow structure is
+      classified from zigzag pivots (features/structure.js), a disclosed
+      automation of the S1 table.
+
+  - id: SSP-S2
+    playbook_gate: S2
+    name: Monthly Elliott position (Primary degree, bearish)
+    source_status: UNRESOLVED
+    timeframe: monthly
+    direction: bearish
+    inputs: [monthly_elliott_position]
+    expression: manual_review
+    true_result: MANUAL_REVIEW
+    false_result: MANUAL_REVIEW
+    missing_result: MANUAL_REVIEW
+    hard_gate: false
+
+  - id: SSP-S3
+    playbook_gate: S3
+    name: Weekly Dow structure (bearish)
+    source_status: DOCUMENTED
+    timeframe: weekly
+    direction: bearish
+    inputs: [weekly_dow_state, weekly_range_breakout_down_with_volume]
+    expression: "weekly_dow_state == 'downtrend_intact' or weekly_dow_state == 'confirmed_reversal_bearish' or (weekly_dow_state == 'sideways' and weekly_range_breakout_down_with_volume)"
+    true_result: PASS
+    false_result: FAIL
+    missing_result: NO_DATA
+    hard_gate: false
+    note: >
+      hard_gate is false for the same cross-strategy pooling reason as
+      SSP-S1. Covers the Dow-structure/volume test only. S3's additional clause -- an
+      automatic FAIL on a live, triggered bullish weekly pattern (inverted
+      H&S, double bottom, cup & handle) -- is not automated here.
+
+  - id: SSP-S4A
+    playbook_gate: S4a
+    name: Weekly Elliott position (Intermediate degree, bearish)
+    source_status: UNRESOLVED
+    timeframe: weekly
+    direction: bearish
+    inputs: [weekly_elliott_position]
+    expression: manual_review
+    true_result: MANUAL_REVIEW
+    false_result: MANUAL_REVIEW
+    missing_result: MANUAL_REVIEW
+    hard_gate: false
+
+  - id: SSP-S4B
+    playbook_gate: S4b
+    name: Weekly MACD Tide + visual Dow confirmation (bearish)
+    source_status: DOCUMENTED
+    timeframe: weekly
+    direction: bearish
+    inputs: [weekly_macd_histogram_change, weekly_macd_histogram_prior_phase, weekly_dow_state]
+    expression: "(weekly_macd_histogram_change == 'downtick' or (weekly_macd_histogram_change == 'flat' and weekly_macd_histogram_prior_phase == 'up')) and (weekly_dow_state == 'downtrend_intact' or weekly_dow_state == 'confirmed_reversal_bearish')"
+    true_result: PASS
+    false_result: FAIL
+    missing_result: NO_DATA
+    hard_gate: false
+    note: >
+      hard_gate is false for the same cross-strategy pooling reason as
+      SSP-S1. Implements the playbook's own tie-break: "when the two disagree, S4b
+      is a FAIL" -- weekly_dow_state stands in for the visual Dow read.
+
+  - id: SSP-S5
+    playbook_gate: S5
+    name: Daily Elliott setup (SELL-1..SELL-5)
+    source_status: UNRESOLVED
+    timeframe: daily
+    direction: bearish
+    inputs: [daily_elliott_setup]
+    expression: manual_review
+    true_result: MANUAL_REVIEW
+    false_result: MANUAL_REVIEW
+    missing_result: MANUAL_REVIEW
+    hard_gate: false
+
+  - id: SSP-S6
+    playbook_gate: S6
+    name: PAPA price-action trigger (sell)
+    source_status: UNRESOLVED
+    timeframe: daily
+    direction: bearish
+    inputs: [papa_sell_setup_triggered]
+    expression: manual_review
+    true_result: MANUAL_REVIEW
+    false_result: MANUAL_REVIEW
+    missing_result: MANUAL_REVIEW
+    hard_gate: false
+
+  - id: SSP-S7A
+    playbook_gate: S7 Step 1
+    name: Bear Hat Step 1 -- the Tide (monthly, positional variant)
+    source_status: DOCUMENTED
+    timeframe: monthly
+    direction: bearish
+    inputs: [monthly_macd_histogram_change, monthly_macd_histogram_prior_phase, monthly_dow_state]
+    expression: "(monthly_macd_histogram_change == 'downtick' or (monthly_macd_histogram_change == 'flat' and monthly_macd_histogram_prior_phase == 'up')) and (monthly_dow_state == 'downtrend_intact' or monthly_dow_state == 'confirmed_reversal_bearish')"
+    true_result: PASS
+    false_result: FAIL
+    missing_result: NO_DATA
+    hard_gate: false
+    note: >
+      hard_gate is false for the same cross-strategy pooling reason as
+      SSP-S1. Same 365-day OHLCV coverage limitation as BSP-M7A: monthly MACD needs
+      ~35 monthly closes (~3 years) to resolve, so this mostly returns
+      NO_DATA until the daily lookback is extended.
+
+  - id: SSP-S7B
+    playbook_gate: S7 Step 2
+    name: Bear Hat Step 2 -- the Wave (daily Stochastic/RSI sell signal)
+    source_status: DOCUMENTED
+    timeframe: daily
+    direction: bearish
+    inputs: [daily_stochastic_k, daily_stochastic_d, daily_stochastic_k_previous, daily_stochastic_d_previous, daily_rsi, daily_rsi_previous]
+    expression: "(daily_stochastic_k < daily_stochastic_d and daily_stochastic_k_previous >= daily_stochastic_d_previous and daily_stochastic_k_previous > 80) or (daily_rsi <= 60 and daily_rsi_previous > 60)"
+    true_result: PASS
+    false_result: FAIL
+    missing_result: NO_DATA
+    hard_gate: false
+    note: >
+      hard_gate is false for the same cross-strategy pooling reason as
+      SSP-S1. Mirrors BSP-M7B: a Stochastic bearish %K/%D crossover from above 80, OR
+      an RSI downtick through the 60 line (the line the scorecard's Block A
+      and Block E already reference for the sell side) -- a disclosed
+      implementation choice, not an extracted literal rule.
+
+  - id: SSP-S8
+    playbook_gate: S8
+    name: Reward-to-risk gate (> 3, short)
+    source_status: UNRESOLVED
+    timeframe: daily
+    direction: bearish
+    inputs: [entry, stop_loss, target]
+    expression: manual_review
+    true_result: MANUAL_REVIEW
+    false_result: MANUAL_REVIEW
+    missing_result: MANUAL_REVIEW
+    hard_gate: false
+    note: >
+      Entry, stop and target derive from the Elliott structure in S5, which
+      is itself MANUAL_REVIEW -- cannot be computed independently.

@@ -6,7 +6,7 @@
 // exposure. It exists only so the site works even when the hosting
 // platform's environment variables aren't configured.
 //
-// Never add SUPABASE_SERVICE_ROLE_KEY (or any other real secret) to this
+// Never add SUPABASE_SECRET_KEY (or any other real secret) to this
 // file or give it a fallback -- that key bypasses every RLS policy and must
 // only ever come from a platform-managed environment variable, never from
 // source control. See README.md and the "Removed committed .env.local"

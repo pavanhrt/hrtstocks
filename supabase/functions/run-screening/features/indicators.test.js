@@ -9,6 +9,10 @@ import {
   retracementFraction,
   highestHigh,
   lowestLow,
+  rsi,
+  rsiWithPrevious,
+  stochastic,
+  macdHistogramPhase,
 } from "./indicators.js";
 
 test("sma returns null with insufficient history", () => {
@@ -86,4 +90,60 @@ test("highestHigh / lowestLow over trailing window", () => {
   assert.equal(highestHigh([1, 5, 3, 9, 2], 3), 9);
   assert.equal(lowestLow([1, 5, 3, 9, 2], 3), 2);
   assert.equal(highestHigh([1, 2], 5), null);
+});
+
+test("rsi returns null without period + 1 bars of history", () => {
+  assert.equal(rsi([1, 2, 3], 14), null);
+});
+
+test("rsi is 100 for a strictly rising series (no losses to average)", () => {
+  const closes = Array.from({ length: 20 }, (_, i) => 100 + i);
+  assert.equal(rsi(closes, 14), 100);
+});
+
+test("rsi sits below 50 for a strictly falling series", () => {
+  const closes = Array.from({ length: 20 }, (_, i) => 200 - i);
+  assert.ok(rsi(closes, 14) < 50);
+});
+
+test("rsiWithPrevious exposes the prior bar's value for crossover checks", () => {
+  const closes = Array.from({ length: 20 }, (_, i) => 100 + i);
+  const { value, previous } = rsiWithPrevious(closes, 14);
+  assert.equal(value, 100);
+  assert.ok(previous !== null);
+});
+
+test("stochastic returns nulls without enough bars for the lookback + smoothing window", () => {
+  const { k, d } = stochastic([10, 11], [9, 10], [9.5, 10.5], 14, 3, 3);
+  assert.equal(k, null);
+  assert.equal(d, null);
+});
+
+test("stochastic %K sits near 100 when the close is at the top of its recent range", () => {
+  const n = 25;
+  const highs = Array.from({ length: n }, (_, i) => 10 + i * 0.5);
+  const lows = Array.from({ length: n }, (_, i) => 9 + i * 0.5);
+  const closes = Array.from({ length: n }, (_, i) => 10 + i * 0.5); // close = high each bar
+  const { k } = stochastic(highs, lows, closes, 14, 3, 3);
+  assert.ok(k > 90);
+});
+
+test("macdHistogramPhase returns nulls without enough history", () => {
+  const { change, priorPhase } = macdHistogramPhase([1, 2, 3], 12, 26, 9);
+  assert.equal(change, null);
+  assert.equal(priorPhase, null);
+});
+
+test("macdHistogramPhase classifies a well-established trend's histogram as non-null", () => {
+  const closes = Array.from({ length: 60 }, (_, i) => 100 + i * 1.5);
+  const { change, priorPhase } = macdHistogramPhase(closes, 12, 26, 9, 4);
+  assert.ok(["uptick", "downtick", "flat"].includes(change));
+  assert.ok(["up", "down", "flat"].includes(priorPhase));
+});
+
+test("macdHistogramPhase on a flat (constant) series reports flat with no prior direction", () => {
+  const closes = new Array(60).fill(100);
+  const { change, priorPhase } = macdHistogramPhase(closes, 12, 26, 9, 4);
+  assert.equal(change, "flat");
+  assert.equal(priorPhase, "flat");
 });

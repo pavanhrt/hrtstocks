@@ -1,0 +1,207 @@
+strategy:
+  id: buy-signal-playbook
+  name: The Buy Signal Playbook (Positional -- Monthly to Weekly to Daily)
+  framework: BSP
+  rule_version: 1.0.0
+  parameter_version: 1.1.0
+  status: partially_automated
+  scope: [equity, index]
+
+provenance:
+  source_register: ../../playbooks/BUY_Signal_Playbook.md
+  source_group: BSP
+  locator_granularity: gate_level
+  production_rule_trace_ready: true
+  requirement: >
+    Each of the eight mandatory gates (M1-M8) is represented by one or more
+    rows below. Where a gate's own text requires Elliott wave labeling or an
+    entry/stop/target the pipeline cannot derive from OHLCV bars alone (M2,
+    M4a, M5, M6, M8), the row is a MANUAL_REVIEW sentinel identical in kind
+    to PAPA-DOW-003 -- it is not automated, and is not scored as PASS. A
+    stock that clears every codeable gate (M1, M3, M4b, M7) therefore lands
+    in the manual_review tier, never tier_a, because five of the eight
+    mandatory gates cannot be mechanically confirmed with daily OHLCV data.
+    See rank.js's classify() and the project README for that tier's meaning.
+
+rules:
+  - id: BSP-M1
+    playbook_gate: M1
+    name: Monthly Dow structure
+    source_status: DOCUMENTED
+    timeframe: monthly
+    direction: bullish
+    inputs: [monthly_dow_state, monthly_range_breakout_up_with_volume]
+    expression: "monthly_dow_state == 'uptrend_intact' or monthly_dow_state == 'confirmed_reversal_bullish' or (monthly_dow_state == 'sideways' and monthly_range_breakout_up_with_volume)"
+    true_result: PASS
+    false_result: FAIL
+    missing_result: NO_DATA
+    hard_gate: false
+    note: >
+      hard_gate is false here even though the source playbook treats M1 as
+      mandatory. Reason: evaluateRules()/classify() pool hard-gate failures
+      across EVERY active strategy into one result per instrument, with no
+      direction scoping -- marking a bullish-only gate hard_gate:true would
+      force every instrument with a real (non-uptrend) Dow structure to FAIL
+      overall, for reasons that have nothing to do with SMM/PAPA/GUE/FOME's
+      own results. The buy-signals dashboard instead reads BSP-* rule_traces
+      directly and applies the AND of M1/M3/M4B/M7A/M7B itself. Dow
+      structure is classified from zigzag pivots (features/structure.js),
+      not from the source's own visual pivot-walking -- a disclosed,
+      documented automation of the M1 table.
+
+  - id: BSP-M2
+    playbook_gate: M2
+    name: Monthly Elliott position (Primary degree)
+    source_status: UNRESOLVED
+    timeframe: monthly
+    direction: bullish
+    inputs: [monthly_elliott_position]
+    expression: manual_review
+    true_result: MANUAL_REVIEW
+    false_result: MANUAL_REVIEW
+    missing_result: MANUAL_REVIEW
+    hard_gate: false
+    note: >
+      Elliott wave labeling (impulse vs. corrective by "personality," the
+      three Elliott rules with real pivot arithmetic) is not automated by
+      this pipeline. Per the user's own decision, this stays MANUAL_REVIEW
+      rather than a simplified approximation.
+
+  - id: BSP-M3
+    playbook_gate: M3
+    name: Weekly Dow structure
+    source_status: DOCUMENTED
+    timeframe: weekly
+    direction: bullish
+    inputs: [weekly_dow_state, weekly_range_breakout_up_with_volume]
+    expression: "weekly_dow_state == 'uptrend_intact' or weekly_dow_state == 'confirmed_reversal_bullish' or (weekly_dow_state == 'sideways' and weekly_range_breakout_up_with_volume)"
+    true_result: PASS
+    false_result: FAIL
+    missing_result: NO_DATA
+    hard_gate: false
+    note: >
+      hard_gate is false for the same cross-strategy pooling reason as
+      BSP-M1 (see its note); the buy-signals dashboard applies this gate
+      itself. Covers the Dow-structure/volume test only. M3's additional clause --
+      an automatic FAIL on a live, triggered bearish weekly chart pattern
+      (H&S, Double Top, Rounding Top) -- is not automated (named
+      chart-pattern recognition is out of scope) and is not applied here.
+
+  - id: BSP-M4A
+    playbook_gate: M4a
+    name: Weekly Elliott position (Intermediate degree)
+    source_status: UNRESOLVED
+    timeframe: weekly
+    direction: bullish
+    inputs: [weekly_elliott_position]
+    expression: manual_review
+    true_result: MANUAL_REVIEW
+    false_result: MANUAL_REVIEW
+    missing_result: MANUAL_REVIEW
+    hard_gate: false
+
+  - id: BSP-M4B
+    playbook_gate: M4b
+    name: Weekly MACD Tide + visual Dow confirmation
+    source_status: DOCUMENTED
+    timeframe: weekly
+    direction: bullish
+    inputs: [weekly_macd_histogram_change, weekly_macd_histogram_prior_phase, weekly_dow_state]
+    expression: "(weekly_macd_histogram_change == 'uptick' or (weekly_macd_histogram_change == 'flat' and weekly_macd_histogram_prior_phase == 'down')) and (weekly_dow_state == 'uptrend_intact' or weekly_dow_state == 'confirmed_reversal_bullish')"
+    true_result: PASS
+    false_result: FAIL
+    missing_result: NO_DATA
+    hard_gate: false
+    note: >
+      hard_gate is false for the same cross-strategy pooling reason as
+      BSP-M1. Implements the playbook's own tie-break directly: "when the mechanical
+      and visual readings disagree, M4b is a FAIL" -- weekly_dow_state stands
+      in for the visual Dow read.
+
+  - id: BSP-M5
+    playbook_gate: M5
+    name: Daily Elliott setup (BUY-1..BUY-5)
+    source_status: UNRESOLVED
+    timeframe: daily
+    direction: bullish
+    inputs: [daily_elliott_setup]
+    expression: manual_review
+    true_result: MANUAL_REVIEW
+    false_result: MANUAL_REVIEW
+    missing_result: MANUAL_REVIEW
+    hard_gate: false
+
+  - id: BSP-M6
+    playbook_gate: M6
+    name: PAPA price-action trigger
+    source_status: UNRESOLVED
+    timeframe: daily
+    direction: bullish
+    inputs: [papa_buy_setup_triggered]
+    expression: manual_review
+    true_result: MANUAL_REVIEW
+    false_result: MANUAL_REVIEW
+    missing_result: MANUAL_REVIEW
+    hard_gate: false
+    note: >
+      "Observed vs. triggered" for a named PAPA setup requires candlestick
+      and level judgment this pipeline does not attempt to automate.
+
+  - id: BSP-M7A
+    playbook_gate: M7 Step 1
+    name: Bull Hat Step 1 -- the Tide (monthly, positional variant)
+    source_status: DOCUMENTED
+    timeframe: monthly
+    direction: bullish
+    inputs: [monthly_macd_histogram_change, monthly_macd_histogram_prior_phase, monthly_dow_state]
+    expression: "(monthly_macd_histogram_change == 'uptick' or (monthly_macd_histogram_change == 'flat' and monthly_macd_histogram_prior_phase == 'down')) and (monthly_dow_state == 'uptrend_intact' or monthly_dow_state == 'confirmed_reversal_bullish')"
+    true_result: PASS
+    false_result: FAIL
+    missing_result: NO_DATA
+    hard_gate: false
+    note: >
+      hard_gate is false for the same cross-strategy pooling reason as
+      BSP-M1. The playbook says "weekly (or monthly for positional)" for Step 1; this
+      document is the Monthly->Weekly->Daily positional variant, so Step 1
+      uses monthly. Monthly MACD needs ~35 monthly closes to resolve (26+9),
+      i.e. ~3 years of daily bars -- with only 365 days ingested today, this
+      rule will mostly resolve to NO_DATA until the OHLCV lookback is
+      extended. That is a disclosed data-coverage limitation, not a logic bug.
+
+  - id: BSP-M7B
+    playbook_gate: M7 Step 2
+    name: Bull Hat Step 2 -- the Wave (daily Stochastic/RSI buy signal)
+    source_status: DOCUMENTED
+    timeframe: daily
+    direction: bullish
+    inputs: [daily_stochastic_k, daily_stochastic_d, daily_stochastic_k_previous, daily_stochastic_d_previous, daily_rsi, daily_rsi_previous]
+    expression: "(daily_stochastic_k > daily_stochastic_d and daily_stochastic_k_previous <= daily_stochastic_d_previous and daily_stochastic_k_previous < 20) or (daily_rsi >= 40 and daily_rsi_previous < 40)"
+    true_result: PASS
+    false_result: FAIL
+    missing_result: NO_DATA
+    hard_gate: false
+    note: >
+      hard_gate is false for the same cross-strategy pooling reason as
+      BSP-M1. The playbook asks to "name the actual crossover" without fixing one
+      specific rule; this codifies it as a Stochastic bullish %K/%D crossover
+      from below 20, OR an RSI uptick through the 40 line (the same 40 line
+      the scorecard's Block A and Block E already reference) -- a disclosed
+      implementation choice, not an extracted literal rule.
+
+  - id: BSP-M8
+    playbook_gate: M8
+    name: Reward-to-risk gate (> 3)
+    source_status: UNRESOLVED
+    timeframe: daily
+    direction: bullish
+    inputs: [entry, stop_loss, target]
+    expression: manual_review
+    true_result: MANUAL_REVIEW
+    false_result: MANUAL_REVIEW
+    missing_result: MANUAL_REVIEW
+    hard_gate: false
+    note: >
+      Entry, stop and target all derive from the Elliott structure computed
+      in M5/M8's own text -- since M5 is MANUAL_REVIEW, this cannot be
+      computed independently without inventing a stop/target the source
+      material never gives from OHLCV bars alone.

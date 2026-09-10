@@ -10,6 +10,8 @@ export type Json =
   | Json[]
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
@@ -276,6 +278,73 @@ export type Database = {
             columns: ["instrument_id"]
             isOneToOne: false
             referencedRelation: "instruments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      instrument_direction: {
+        Row: {
+          chart_object_path: string | null
+          data_quality: Database["public"]["Enums"]["data_quality_state"] | null
+          dow_state: string | null
+          input_hash: string | null
+          instrument_id: string
+          last_swing_high: number | null
+          last_swing_low: number | null
+          pivots: Json
+          run_id: string | null
+          timeframe: string
+          updated_at: string
+          wave_confidence: string | null
+          wave_label: string | null
+        }
+        Insert: {
+          chart_object_path?: string | null
+          data_quality?:
+            | Database["public"]["Enums"]["data_quality_state"]
+            | null
+          dow_state?: string | null
+          input_hash?: string | null
+          instrument_id: string
+          last_swing_high?: number | null
+          last_swing_low?: number | null
+          pivots?: Json
+          run_id?: string | null
+          timeframe: string
+          updated_at?: string
+          wave_confidence?: string | null
+          wave_label?: string | null
+        }
+        Update: {
+          chart_object_path?: string | null
+          data_quality?:
+            | Database["public"]["Enums"]["data_quality_state"]
+            | null
+          dow_state?: string | null
+          input_hash?: string | null
+          instrument_id?: string
+          last_swing_high?: number | null
+          last_swing_low?: number | null
+          pivots?: Json
+          run_id?: string | null
+          timeframe?: string
+          updated_at?: string
+          wave_confidence?: string | null
+          wave_label?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "instrument_direction_instrument_id_fkey"
+            columns: ["instrument_id"]
+            isOneToOne: false
+            referencedRelation: "instruments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "instrument_direction_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "screening_runs"
             referencedColumns: ["id"]
           },
         ]
