@@ -76,6 +76,29 @@ Deno.serve(async (req) => {
   const triggeredBy = body.triggered_by ?? null;
 
   const supabase = createClient(SUPABASE_URL, SECRET_KEY);
+
+  // A run regularly exceeds the caller's own timeout (Netlify's serverless
+  // function budget is well under this function's ~125s TIME_BUDGET_MS), so
+  // a client-side retry or an impatient repeat click otherwise stacks up
+  // concurrent runs -- each pacing its own Fyers calls independently, which
+  // multiplies the effective request rate past Fyers' 200/min cap (see
+  // providers/fyers.js's own comment on what that risks). Refuse to start a
+  // second run while one is still in flight; point the caller at it instead.
+  const { data: alreadyRunning } = await supabase
+    .from("screening_runs")
+    .select("id, started_at")
+    .eq("status", "running")
+    .order("started_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (alreadyRunning) {
+    return json({
+      runId: alreadyRunning.id,
+      status: "running",
+      note: `A run (started ${alreadyRunning.started_at}) is already in progress; not starting another.`,
+    });
+  }
+
   const runId = crypto.randomUUID();
   const runDate = new Date().toISOString().slice(0, 10);
 
@@ -114,6 +137,34 @@ Deno.serve(async (req) => {
   });
   await logStage(supabase, runId, "start", "ok", `Run started (${triggerType})`);
 
+  // The actual ingestion/rule-evaluation work below routinely runs past any
+  // caller's own HTTP timeout (that's the whole reason TIME_BUDGET_MS exists
+  // at 125s). Rather than make the caller block for it -- which is what
+  // produced the 502s that led to the pile-up above -- acknowledge the run
+  // as started immediately and finish the work in the background via
+  // EdgeRuntime.waitUntil (https://supabase.com/docs/guides/functions/background-tasks).
+  const pipeline = runPipeline({
+    supabase,
+    runId,
+    runDate,
+    startedAtMs,
+    parameterValues,
+    ruleDefinitions: ruleDefinitions ?? [],
+    ruleDirectionById,
+  });
+  if (typeof EdgeRuntime !== "undefined") {
+    EdgeRuntime.waitUntil(pipeline);
+  } else {
+    // Local `supabase functions serve` without per_worker policy would kill
+    // the isolate before a detached background task finishes -- await it
+    // there instead so local smoke-testing still sees a real result.
+    await pipeline;
+  }
+
+  return json({ runId, status: "running" });
+});
+
+async function runPipeline({ supabase, runId, runDate, startedAtMs, parameterValues, ruleDefinitions, ruleDirectionById }) {
   try {
     const membership = await buildUniverse(supabase, runId, runDate);
     const allInstruments = [
@@ -142,7 +193,7 @@ Deno.serve(async (req) => {
             supabase,
             runId,
             instrument,
-            ruleDefinitions: ruleDefinitions ?? [],
+            ruleDefinitions,
             parameterValues,
             ruleDirectionById,
           });
@@ -206,8 +257,6 @@ Deno.serve(async (req) => {
       coverage.reconciled ? "ok" : "warning",
       `unique_stock_count=${coverage.unique_stock_count} reconciled=${coverage.reconciled}`
     );
-
-    return json({ runId, status: coverage.reconciled ? "completed" : "partial", coverage });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     await logStage(supabase, runId, "error", "failed", message);
@@ -215,9 +264,8 @@ Deno.serve(async (req) => {
       .from("screening_runs")
       .update({ status: "failed", completed_at: new Date().toISOString() })
       .eq("id", runId);
-    return json({ runId, status: "failed", error: message }, 500);
   }
-});
+}
 
 async function buildUniverse(supabase, runId, runDate) {
   const membership = new Map(); // instrumentId -> { symbol, name, indexIds: Set }
