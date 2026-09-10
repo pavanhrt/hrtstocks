@@ -144,7 +144,8 @@ export default async function StockDetailPage({
       {direction && (
         <div className="card">
           <h2 style={{ marginTop: 0, fontSize: 15 }}>
-            Direction <Link href="/direction" style={{ fontSize: 12, fontWeight: 400, marginLeft: 8 }}>See all stocks →</Link>
+            Direction <span style={{ fontSize: 12, fontWeight: 400, color: "var(--text-dim)" }}>({direction.finalAlignment.replace(/_/g, " ").toLowerCase()})</span>{" "}
+            <Link href="/direction" style={{ fontSize: 12, fontWeight: 400, marginLeft: 8 }}>See all stocks →</Link>
           </h2>
           <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
             {(["monthly", "weekly", "daily"] as const).map((tf) => {
