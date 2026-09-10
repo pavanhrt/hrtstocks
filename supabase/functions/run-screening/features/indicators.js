@@ -121,6 +121,30 @@ export function lowestLow(lows, period) {
   return Math.min(...lows.slice(lows.length - period));
 }
 
+/**
+ * The 1-hour swing playbooks require a trigger candle's volume to clear its
+ * own "hour-slot" average, not the flat 20-period one -- "mean volume of the
+ * same hour of day over the last 10-20 sessions" (see
+ * swing-strategy-extraction.md §7). `hourlyBars` must carry a `sessionDate`
+ * and `slotIndex` (nse-calendar.js's normalizeHourlyBars() already provides
+ * both). Averages only the `lookbackSessions` sessions strictly BEFORE
+ * `targetBar`'s own session, in the same slot -- never includes the target
+ * bar itself or a later session, and returns null (never a guessed number)
+ * when there isn't at least one prior same-slot session to average.
+ * @param {{sessionDate: string, slotIndex: number, volume: number}[]} hourlyBars oldest-first
+ * @param {{sessionDate: string, slotIndex: number}} targetBar
+ * @param {number} lookbackSessions
+ * @returns {number|null}
+ */
+export function hourSlotAverageVolume(hourlyBars, targetBar, lookbackSessions) {
+  const sameSlotBefore = hourlyBars.filter(
+    (b) => b.slotIndex === targetBar.slotIndex && b.sessionDate < targetBar.sessionDate
+  );
+  if (sameSlotBefore.length === 0) return null;
+  const recent = sameSlotBefore.slice(-lookbackSessions); // oldest-first input -> trailing slice is the most recent prior sessions
+  return recent.reduce((sum, b) => sum + b.volume, 0) / recent.length;
+}
+
 /** Rolling SMA series (same length as input); an entry is null until a full null-free window exists. */
 function smaSeries(values, period) {
   const out = new Array(values.length).fill(null);

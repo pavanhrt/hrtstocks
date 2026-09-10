@@ -228,6 +228,14 @@ create table swing_analysis_results (
   hypothesis text not null check (hypothesis in ('bullish', 'bearish')),
   selected_route text,
   mandatory_gates jsonb not null default '{}',
+  -- Raw output of features/hourly-routes.js's detectWave3Ignition (or, once
+  -- implemented, the other BUY-2..5/SELL-1,2,4,5 detectors) for whichever
+  -- route(s) were evaluated this run -- the full trigger/volume/rule-3
+  -- forward-check evidence, not just the pass/fail verdict `selected_route`
+  -- implies. Null until at least one route detector has run for this
+  -- (run, instrument, hypothesis). Added alongside hourly-routes.js in the
+  -- same local session that added this column -- migration still unapplied.
+  route_evidence jsonb,
   confirmation_groups jsonb not null default '{}',
   confirmation_groups_passed integer not null default 0,
   vetoes jsonb not null default '[]',

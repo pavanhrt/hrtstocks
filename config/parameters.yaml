@@ -1,4 +1,4 @@
-parameter_version: 1.1.0
+parameter_version: 1.2.0
 status: partially_resolved_from_buy_sell_signal_playbooks
 
 documented:
@@ -31,6 +31,18 @@ documented:
   zigzag_monthly_pct: 0.05
   zigzag_weekly_pct: 0.05
   zigzag_daily_pct: 0.025
+  # Added in parameter_version 1.2.0 for the swing (Weekly->Daily->1H) BUY-1/
+  # SELL-3 "Wave 3 Ignition" route checks (swing-strategy-extraction.md §2).
+  # Both are disclosed PROJECT_DEFAULT picks from an explicitly-stated range,
+  # not single documented numbers -- same status as the zigzag_* percentages
+  # above.
+  # "1-1.5% hourly" (swing-strategy-extraction.md §7, zig-zag swing detector
+  # row) -- midpoint of the stated range.
+  zigzag_hourly_pct: 0.0125
+  # "Mean volume of the same hour of day over the last 10-20 sessions"
+  # (swing-strategy-extraction.md §7, hour-slot volume row) -- midpoint of
+  # the stated range.
+  hour_slot_volume_lookback_sessions: 15
 
 project_defaults_requiring_backtest:
   adx_dmi_period: null

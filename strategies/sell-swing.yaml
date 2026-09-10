@@ -122,7 +122,11 @@ rules:
     false_result: MANUAL_REVIEW
     missing_result: MANUAL_REVIEW
     hard_gate: false
-    note: Blocked on 1-hour bar ingestion -- see buy-swing.yaml's WBP-M5 note.
+    note: >
+      SELL-3 "Wave 3-Down Ignition" (the mirror of BUY-1) is now detected by
+      features/hourly-routes.js's detectWave3Ignition -- see buy-swing.yaml's
+      WBP-M5 note. Still MANUAL_REVIEW: SELL-1,2,4,5 are not implemented, so
+      a SELL-3 non-match does not mean S5 fails.
 
   - id: WSP-S6
     playbook_gate: S6

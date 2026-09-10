@@ -176,10 +176,11 @@ export function isCompletedHourlyBoundary(barCloseIstTime) {
  *
  * @param {{ts: number, open: number, high: number, low: number, close: number, volume: number}[]} rawCandles epoch-second timestamps, UTC
  * @param {Date} [nowUtc]
- * @returns {{sessionDate: string, ts: string, open: number, high: number, low: number, close: number, volume: number, isComplete: boolean}[]}
+ * @returns {{sessionDate: string, ts: string, date: string, slotIndex: number, open: number, high: number, low: number, close: number, volume: number, isComplete: boolean}[]}
  */
 export function normalizeHourlyBars(rawCandles, nowUtc = new Date()) {
-  const validStartTimes = new Set(hourlyBarBoundaries().map((b) => b.start));
+  const boundaries = hourlyBarBoundaries();
+  const slotIndexByStart = new Map(boundaries.map((b, i) => [b.start, i]));
   const out = [];
   for (const candle of rawCandles) {
     const barStart = new Date(candle.ts * 1000);
@@ -189,12 +190,22 @@ export function normalizeHourlyBars(rawCandles, nowUtc = new Date()) {
       minute: "2-digit",
       hour12: false,
     }).format(barStart);
-    if (!validStartTimes.has(startTimeIst)) continue; // the excluded 15:15-15:30 stub, or an off-boundary candle
+    const slotIndex = slotIndexByStart.get(startTimeIst);
+    if (slotIndex === undefined) continue; // the excluded 15:15-15:30 stub, or an off-boundary candle
 
     const barEndUtc = new Date(barStart.getTime() + 60 * 60 * 1000); // each window is a full hour by construction
     out.push({
       sessionDate: isoDateInZone(barStart, NSE_TIMEZONE),
       ts: barStart.toISOString(),
+      // `date` aliases `ts` -- structure.js's zigzag/pivot/labeling functions
+      // treat a bar's `date` as an opaque label (never parsed as a calendar
+      // date, only used to tag a pivot), so an hourly bar is a structurally
+      // valid "bar" to them as long as `date` is present and unique per bar.
+      // This is what lets features/hourly-routes.js reuse that machinery
+      // directly instead of re-implementing zigzag/Elliott logic for hourly
+      // data.
+      date: barStart.toISOString(),
+      slotIndex, // 0-5, matching hourlyBarBoundaries()'s index -- the "hour slot" for hour-slot volume averaging
       open: candle.open,
       high: candle.high,
       low: candle.low,

@@ -99,6 +99,8 @@ test("normalizeHourlyBars keeps the 6 real hourly candles and drops the trailing
   assert.equal(bars.length, 6);
   assert.ok(bars.every((b) => b.sessionDate === "2026-09-10"));
   assert.ok(bars.every((b) => b.isComplete === true));
+  assert.deepEqual(bars.map((b) => b.slotIndex), [0, 1, 2, 3, 4, 5]);
+  assert.equal(bars[0].date, bars[0].ts); // date aliases ts for direct reuse by structure.js's zigzag functions
 });
 
 test("normalizeHourlyBars drops an off-boundary candle instead of guessing which window it belongs to", () => {

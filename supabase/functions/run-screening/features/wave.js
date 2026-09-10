@@ -63,6 +63,7 @@ export function labelWave(labeledPivots, unconfirmedLeg, dowState) {
       invalidationPrice: null,
       invalidationCondition: null,
       label: null, // kept for callers still on the pre-hypothesis shape (see direction.js)
+      pivotPrices: null,
     },
     alternative: null,
   };
@@ -121,6 +122,12 @@ function tryImpulseProgress(labeledPivots, unconfirmedLeg, bullish) {
       invalidationPrice: isFullImpulse ? null : impulseInvalidation(window, bullish, waveState, confirmedWaveCount).price,
       invalidationCondition: isFullImpulse ? null : impulseInvalidation(window, bullish, waveState, confirmedWaveCount).condition,
       label: `Impulse wave ${currentWave} (${bullish ? "up" : "down"}, ${waveState})`,
+      // The actual labeled pivots this hypothesis is built from (origin first,
+      // oldest-first) -- e.g. window[1] is wave 1's own terminus price/date.
+      // Needed by callers that check a specific documented trigger level
+      // (e.g. "an hourly close above the high of wave 1", BUY-1 check 6)
+      // rather than just the wave-position label.
+      pivotPrices: window.map((p) => ({ type: p.type, price: p.price, date: p.date })),
     };
   }
   return null;
@@ -238,6 +245,7 @@ function tryCorrectiveProgress(labeledPivots, unconfirmedLeg) {
       invalidationPrice: null,
       invalidationCondition: "no documented hard-rule invalidation level for a forming wave B",
       label: "Corrective zigzag, wave B (forming)",
+      pivotPrices: window.map((p) => ({ type: p.type, price: p.price, date: p.date })),
     };
   }
 
@@ -259,6 +267,7 @@ function tryCorrectiveProgress(labeledPivots, unconfirmedLeg) {
         invalidationPrice: null,
         invalidationCondition: "no documented hard-rule invalidation level for this position",
         label: "Corrective zigzag, wave B (completed)",
+        pivotPrices: window.map((p) => ({ type: p.type, price: p.price, date: p.date })),
       };
     }
     return {
@@ -273,6 +282,7 @@ function tryCorrectiveProgress(labeledPivots, unconfirmedLeg) {
       invalidationPrice: null,
       invalidationCondition: "no documented hard-rule invalidation level for a forming wave C",
       label: "Corrective zigzag, wave C (forming)",
+      pivotPrices: window.map((p) => ({ type: p.type, price: p.price, date: p.date })),
     };
   }
 
@@ -292,5 +302,6 @@ function tryCorrectiveProgress(labeledPivots, unconfirmedLeg) {
     invalidationPrice: null,
     invalidationCondition: null,
     label: "Corrective zigzag, wave C (completed)",
+    pivotPrices: window.map((p) => ({ type: p.type, price: p.price, date: p.date })),
   };
 }

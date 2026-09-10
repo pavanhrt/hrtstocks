@@ -1,25 +1,28 @@
 # Direction/Analysis rebuild — lead-agent architecture plan
 
 Status: **Phase 3 (Direction intelligence rewrite) — complete; Phase 2 (durable pipeline) — 1-hour
-bar ingestion now built, gated behind Phase 4's direction lock; Phase 4 (Analysis engine) — weekly+
-daily direction lock (WBP-M1..M4/WSP-S1..S4) and its swing_analysis_results persistence layer are
-done, everything past that (routes, confirmation groups, most vetoes, reward/risk) still needs the
-new hourly data to actually reach a seeded strategy before it can run.** Phases 0-3 (contracts,
-safe-redirect/error-handling/UI-copy fixes, durable pipeline/corporate-actions/rate-limiting/
-run-locking, and the Direction rewrite itself -- equal-pivot labels, unconfirmed-leg separation, the
-Elliott engine rewrite, pattern detection, server-side `final_alignment`, and run-scoped
-persistence) are done. Phase 4 so far: `strategies/buy-swing.yaml`/`sell-swing.yaml` (gates
-WBP-M1..M8/WSP-S1..S8, M1-M4/S1-S4 automated) plus `features/swing-analysis.js`, turning those gate
-traces into a real `swing_analysis_results` row per hypothesis every run -- always
-`final_action: WAIT` today, with the specific blocking reason disclosed in `pending_conditions`
-rather than a guessed BUY/SELL. Phase 2 now also fetches and stores 1-hour bars
+bar ingestion built, gated behind Phase 4's direction lock; Phase 4 (Analysis engine) — weekly+daily
+direction lock (WBP-M1..M4/WSP-S1..S4) done and persisted, plus the first hourly route (BUY-1/SELL-3
+"Wave 3 Ignition") detected end-to-end; 9 of 10 hourly routes, the confirmation groups, most
+vetoes, and reward/risk are still REMAINING.** Phases 0-3 (contracts, safe-redirect/error-handling/
+UI-copy fixes, durable pipeline/corporate-actions/rate-limiting/run-locking, and the Direction
+rewrite itself -- equal-pivot labels, unconfirmed-leg separation, the Elliott engine rewrite,
+pattern detection, server-side `final_alignment`, and run-scoped persistence) are done. Phase 4 so
+far: `strategies/buy-swing.yaml`/`sell-swing.yaml` (gates WBP-M1..M8/WSP-S1..S8, M1-M4/S1-S4
+automated) plus `features/swing-analysis.js`, turning those gate traces into a real
+`swing_analysis_results` row per hypothesis every run, and `features/hourly-routes.js`'s
+`detectWave3Ignition` (BUY-1/SELL-3 only), whose evidence now flows into that same row's
+`selected_route`/`route_evidence` -- `final_action` stays `WAIT` regardless (`WBP-M5`/`WSP-S5`
+needs all 5 routes ruled in/out, not just one), with the specific blocking reason disclosed in
+`pending_conditions` rather than a guessed BUY/SELL. Phase 2 now fetches and stores 1-hour bars
 (`providers/fyers.js`'s `fetchHourlyOHLCV`, `nse-calendar.js`'s `normalizeHourlyBars`,
-`index.js`'s `ingestHourlyBars`), gated on `directionLockPassed()` so it only spends request budget
-on instruments that have actually cleared M1-M4/S1-S4 -- real effect is still a no-op until
-`buy-swing.yaml`/`sell-swing.yaml` are seeded. All of the above is locally committed on `develop`;
-see each phase's DONE/REMAINING bullets in §6 below. Nothing in this document has been applied to
-the database or deployed -- `supabase/migrations/` goes through `0007_provider_rate_limit_buckets.sql`,
-drafted and locally verified against the live schema's real constraint names, but not applied.
+`index.js`'s `ingestHourlyBarsAndDetectRoutes`), gated on `directionLockPassed()` so it only spends
+request budget on instruments that have actually cleared M1-M4/S1-S4 -- real effect is still a
+no-op until `buy-swing.yaml`/`sell-swing.yaml` are seeded. All of the above is locally committed on
+`develop`; see each phase's DONE/REMAINING bullets in §6 below. Nothing in this document has been
+applied to the database or deployed -- `supabase/migrations/` goes through
+`0007_provider_rate_limit_buckets.sql`, drafted and locally verified against the live schema's real
+constraint names, but not applied.
 
 Companion document (produced by the rules/provenance agent, separately): `docs/swing-strategy-extraction.md`
 — full extraction of the Weekly→Daily→1H BUY/SELL playbooks with source locators. Read that before
@@ -464,14 +467,72 @@ resolution between workstreams.
      `swing_analysis_rule_traces` (idempotent against an unexpected re-evaluation within one run).
      Degrades gracefully (migration 0006 not yet applied). 7 new tests in
      `features/swing-analysis.test.js`.
-   - REMAINING: `WBP-M5..M8`/`WSP-S5..S8` themselves (blocked on 1-hour ingestion, Phase 2), route
-     identification (BUY-1..5/SELL-1..5), the 5 confirmation groups (§7 decision 3), vetoes (the
-     "what kills a live signal" list -- note two of its ~11 items, "daily close below the last HL"
-     and "weekly MACD histogram downticking," are NOT hourly-dependent and could be automated before
-     the rest; left undone this increment to avoid a half-implemented `vetoes` array that would look
-     like "no vetoes triggered" rather than "vetoes not yet computed"), the gap/first-candle and
-     15-minute-stub rules (§9-10, both still open `PROJECT_DEFAULT` decisions), and DMI/ADX (still
-     uncomputed -- no gate needs it yet, same `null_policy` reasoning as before).
+   - DONE: BUY-1 "Wave 3 Ignition" / SELL-3 "Wave 3-Down Ignition" route detection -- new
+     `features/hourly-routes.js`, `detectWave3Ignition()`. Picked as the first (of ten) hourly
+     Elliott routes to implement because the source itself calls BUY-1 "the flagship" and SELL-3
+     "the mirror of the flagship buy" (`swing-strategy-extraction.md` §2/§3) -- the most completely
+     documented pair. Implements the three REQUIRED checks (rule-1 arithmetic is inherited for free
+     from `wave.js`'s own impulse validation):
+     - **Trigger (check 6)**: the first hourly close after wave 2's own bar that clears wave 1's
+       price. The gap/first-candle rule (§9, an explicitly undocumented choice between two
+       alternatives) is resolved here as the disclosed `PROJECT_DEFAULT` "measure against the
+       previous session's close": a first-candle-of-the-session trigger only counts if the prior
+       session's own daily close had already cleared wave 1 -- otherwise it's `gapOnly` and not
+       `confirmed`.
+     - **Volume (check 7)**: the trigger candle must clear its own hour-slot average (new
+       `hourSlotAverageVolume()` in `features/indicators.js`, averaging only PRIOR sessions'
+       same-hour-of-day volume -- never the target session or a later one), AND wave 3's
+       volume-so-far must exceed wave 1's own summed volume.
+     - **Rule-3 forward-check (check 8)**: the minimum viable wave-3 target (end of wave 2 +/- the
+       length of wave 1) must sit at/beyond the nearest daily resistance/support (`structure.js`'s
+       `zigzagPivots()` on daily bars) -- auto-passes when no such daily level exists above/below
+       the current price at all.
+     - Deliberately NOT computed: BUY-1's "quality" (non-required) checks -- wave-2 depth/
+       alternation, hourly MACD PCO -- same reasoning as the M1-M4 gates' own scope note (they only
+       ever grade an already-valid setup, never gate it). BUY-2..5/SELL-1,2,4,5 are NOT implemented
+       -- a non-match from this module does NOT mean "no hourly setup exists," only that this one
+       route doesn't currently apply; `WBP-M5`/`WSP-S5` stay `MANUAL_REVIEW` accordingly (their
+       `note` fields updated to say so precisely).
+     - `labelWave()` is called with the target direction (`bullish` ? "uptrend_intact" :
+       "downtrend_intact") supplied directly, NOT derived from `classifyDowStructure()` on the
+       sparse hourly pivot set -- a fresh wave-3-forming shape is inherently only 3 confirmed
+       pivots deep (origin + wave 1 + wave 2), exactly the case `classifyDowStructure()` calls
+       `"ambiguous"` (it needs 2+ confirmed highs AND 2+ confirmed lows to say anything else). This
+       module is testing one specific directional hypothesis, not asking "what is this hourly
+       chart's general trend" -- the same pattern `wave.test.js`'s own fixtures already use.
+     - `features/wave.js`'s hypothesis objects now also carry `pivotPrices` (the actual labeled
+       pivots a hypothesis is built from, oldest-first) -- needed to check a documented trigger
+       level (e.g. "close above the high of wave 1") rather than just the wave-position label; a
+       small, additive extension, not a redesign.
+     - `HOURLY_LOOKBACK_DAYS` (`providers/fyers.js`) revised from 15 to 30 calendar days once the
+       hour-slot volume check needed `hour_slot_volume_lookback_sessions` (15, see below) PRIOR
+       trading sessions of history, not just the 15-20 hourly candles the pivot-finding floor
+       needed.
+     - Two new documented parameters in `config/parameters.yaml` (bumped to `parameter_version
+       1.2.0`): `zigzag_hourly_pct: 0.0125` (midpoint of the source's stated "1-1.5% hourly" range)
+       and `hour_slot_volume_lookback_sessions: 15` (midpoint of "10-20 sessions").
+     - New `route_evidence jsonb` column on `swing_analysis_results` (migration 0006, still
+       unapplied -- safe to extend): the full trigger/volume/rule-3-forward-check evidence, not
+       just the pass/fail verdict `selected_route` implies. Wired into
+       `run-screening/index.js`'s `ingestHourlyBarsAndDetectRoutes` (runs route detection right
+       after the hourly bars it just fetched, no extra DB round-trip) and
+       `persistSwingAnalysisResults` (folds a detected route into `selected_route` +
+       `pending_conditions`, but never flips `final_action` off `WAIT` -- `WBP-M5`/`WSP-S5` still
+       needs all 5 routes ruled in/out, not just this one).
+     - Tests: `features/hourly-routes.test.js` (8 cases -- no-shape-present, a fully-passing setup,
+       no-trigger-yet, gap-only vs. genuinely-cleared first-candle triggers, a volume-check
+       failure, a rule-3-forward-check failure, and the bearish/SELL-3 mirror), 3 new cases in
+       `features/indicators.test.js` for `hourSlotAverageVolume`, 2 new `pivotPrices` assertions in
+       `wave.test.js`.
+   - REMAINING: BUY-2..5/SELL-1,2,4,5 (9 of the 10 hourly routes), `WBP-M6..M8`/`WSP-S6..S8`
+     (PAPA trigger, SMM Hat, reward/risk -- all still blocked, M7/S7 additionally on the open §13
+     conflict #11 decision), the 5 confirmation groups (§7 decision 3), vetoes (the "what kills a
+     live signal" list -- two of its ~11 items, "daily close below the last HL" and "weekly MACD
+     histogram downticking," are NOT hourly-dependent and could be automated before the rest; left
+     undone to avoid a half-implemented `vetoes` array that would look like "no vetoes triggered"
+     rather than "vetoes not yet computed"), the 15-minute-stub rule's own `PROJECT_DEFAULT` (§10,
+     `HOURLY_STUB_POLICY` already resolved this for chart rendering, not yet cross-checked against
+     this route-detection use), and DMI/ADX (still uncomputed -- no gate needs it yet).
 6. **Phase 5 — UI.** Direction table rebuild (server pagination, filters, lazy charts — #25),
    Analysis pages + multi-panel charts, nav/login/accessibility pass.
 7. **Phase 6 — QA/integration.** The full test list from the spec, run against Phases 2-5's real

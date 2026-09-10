@@ -159,15 +159,22 @@ export async function fetchOHLCV(instrumentId, symbol, days, supabase = null) {
 // "fifteen to twenty hourly candles" -- see swing-strategy-extraction.md
 // §2, BUY-3), not a long history -- unlike daily bars (which need ~250
 // trading days for EMA-200/MACD warmup), 1-hour ingestion only needs a
-// short, recent window. 15 calendar days is roughly 10-11 NSE trading days,
-// ~60-66 hourly candles at 6/session -- comfortable margin over the
-// documented 15-20 floor for pivot-finding context, while staying far under
-// any plausible Fyers intraday date-range cap so this doesn't depend on
-// knowing that cap's exact value (unlike OHLCV_LOOKBACK_DAYS's 366-day
-// daily-resolution cap, index.js's own comment, this has NOT been confirmed
-// via a live response -- no FYERS_ACCESS_TOKEN is available in this
-// environment). PROJECT_DEFAULT, versioned here.
-const HOURLY_LOOKBACK_DAYS = 15;
+// short, recent window.
+//
+// Revised from 15 to 30 calendar days once BUY-1/SELL-3's hour-slot volume
+// check was implemented (features/hourly-routes.js): that check needs
+// `hour_slot_volume_lookback_sessions` (15, config/parameters.yaml) PRIOR
+// trading sessions of the SAME hour-of-day, i.e. at least ~16 trading
+// sessions of history before today's own session. 30 calendar days is
+// roughly 20-21 NSE trading days -- comfortable margin over that 16-session
+// floor (and still well over the 15-20 hourly-candle pivot-finding floor),
+// while staying far under any plausible Fyers intraday date-range cap so
+// this doesn't depend on knowing that cap's exact value (unlike
+// OHLCV_LOOKBACK_DAYS's 366-day daily-resolution cap, index.js's own
+// comment, this has NOT been confirmed via a live response -- no
+// FYERS_ACCESS_TOKEN is available in this environment). PROJECT_DEFAULT,
+// versioned here.
+const HOURLY_LOOKBACK_DAYS = 30;
 
 /**
  * Fetches the trailing HOURLY_LOOKBACK_DAYS of 1-hour candles. Returns raw

@@ -27,6 +27,8 @@ test("labelWave: a full, valid bullish impulse is reported as wave 5 completed",
   assert.deepEqual(primary.passedGates, ["GUE-IMPULSE-001", "GUE-IMPULSE-002", "GUE-IMPULSE-003"]);
   assert.equal(primary.ruleArithmetic.wave1, 10);
   assert.equal(primary.invalidationPrice, null); // impulse is complete, not forming
+  assert.equal(primary.pivotPrices.length, 6);
+  assert.deepEqual(primary.pivotPrices[1], { type: "HH", price: 110, date: "p1" }); // wave 1's own terminus
 });
 
 test("labelWave: a full, valid bearish impulse mirrors the bullish case", () => {
@@ -77,6 +79,7 @@ test("labelWave: wave 1 itself can be reported as forming (only the origin is co
   const { primary } = labelWave(pivots, unconfirmedLeg, "uptrend_intact");
   assert.equal(primary.currentWave, "1");
   assert.equal(primary.waveState, "forming");
+  assert.deepEqual(primary.pivotPrices, [{ type: "L", price: 100, date: "p0" }]);
 });
 
 test("labelWave: with only an origin and no forming leg, there is nothing to report", () => {

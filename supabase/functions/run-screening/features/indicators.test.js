@@ -13,6 +13,7 @@ import {
   rsiWithPrevious,
   stochastic,
   macdHistogramPhase,
+  hourSlotAverageVolume,
 } from "./indicators.js";
 
 test("sma returns null with insufficient history", () => {
@@ -146,4 +147,31 @@ test("macdHistogramPhase on a flat (constant) series reports flat with no prior 
   const { change, priorPhase } = macdHistogramPhase(closes, 12, 26, 9, 4);
   assert.equal(change, "flat");
   assert.equal(priorPhase, "flat");
+});
+
+test("hourSlotAverageVolume averages only the same slot, only sessions strictly before the target", () => {
+  const bars = [
+    { sessionDate: "2026-09-08", slotIndex: 1, volume: 1000 },
+    { sessionDate: "2026-09-08", slotIndex: 2, volume: 9999 }, // different slot -- excluded
+    { sessionDate: "2026-09-09", slotIndex: 1, volume: 2000 },
+    { sessionDate: "2026-09-10", slotIndex: 1, volume: 3000 }, // the target's own session -- excluded
+  ];
+  const target = { sessionDate: "2026-09-10", slotIndex: 1 };
+  assert.equal(hourSlotAverageVolume(bars, target, 15), (1000 + 2000) / 2);
+});
+
+test("hourSlotAverageVolume only uses the trailing `lookbackSessions` prior sessions, not the whole history", () => {
+  const bars = [
+    { sessionDate: "2026-09-01", slotIndex: 0, volume: 100 }, // outside the 2-session lookback
+    { sessionDate: "2026-09-02", slotIndex: 0, volume: 200 },
+    { sessionDate: "2026-09-03", slotIndex: 0, volume: 400 },
+  ];
+  const target = { sessionDate: "2026-09-04", slotIndex: 0 };
+  assert.equal(hourSlotAverageVolume(bars, target, 2), (200 + 400) / 2);
+});
+
+test("hourSlotAverageVolume returns null (never a guess) when there is no prior same-slot session", () => {
+  const bars = [{ sessionDate: "2026-09-10", slotIndex: 3, volume: 500 }];
+  const target = { sessionDate: "2026-09-10", slotIndex: 1 }; // different slot, and not strictly before
+  assert.equal(hourSlotAverageVolume(bars, target, 15), null);
 });

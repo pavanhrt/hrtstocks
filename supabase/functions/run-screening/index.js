@@ -32,6 +32,7 @@ import { buildDirectionAnalysis, ALGORITHM_VERSION as DIRECTION_ALGORITHM_VERSIO
 import { detectCandlestickPatterns, detectDoubleExtremePatterns, PATTERN_PARAM_VERSION } from "./features/patterns.js";
 import { computeFinalAlignment } from "./features/alignment.js";
 import { evaluateSwingHypothesis, directionLockPassed } from "./features/swing-analysis.js";
+import { detectWave3Ignition } from "./features/hourly-routes.js";
 import { computeAdjustedBars, ADJUSTMENT_VERSION } from "./features/corporate-actions.js";
 import { renderChartSvg, RENDER_VERSION } from "./charts/render.js";
 import { evaluateRules } from "./rules/evaluate.js";
@@ -525,6 +526,39 @@ async function evaluateInstrument({ supabase, runId, instrument, ruleDefinitions
       .insert(traces.map((t) => ({ run_id: runId, instrument_id: instrument.instrumentId, ...t })));
   }
 
+  // 1-hour bar ingestion + route detection (Phase 2/4, now started): both
+  // swing playbooks state "M1 AND M2 AND M3 AND M4 must all pass before the
+  // hourly chart is opened" -- so this only spends Fyers request budget on
+  // an instrument once its weekly+daily direction lock has actually
+  // cleared, rather than fetching hourly data for all ~500 instruments
+  // every run (which the existing 125s time budget and rate limits could
+  // not absorb -- see providers/fyers.js's own rate-limit comments). Real
+  // effect is a no-op today: buy-swing.yaml/sell-swing.yaml aren't seeded
+  // yet, so directionLockPassed is always false until they are.
+  const bullishQualifiesForHourly = directionLockPassed("bullish", traces);
+  const bearishQualifiesForHourly = directionLockPassed("bearish", traces);
+  let routeEvidence = null;
+  if (bullishQualifiesForHourly || bearishQualifiesForHourly) {
+    try {
+      routeEvidence = await ingestHourlyBarsAndDetectRoutes({
+        supabase,
+        instrument,
+        dailyBars: bars,
+        parameterValues: parameterValues.documented ?? {},
+        bullishQualifiesForHourly,
+        bearishQualifiesForHourly,
+      });
+    } catch (err) {
+      await logStage(
+        supabase,
+        runId,
+        "hourly_ingest",
+        "warning",
+        `${instrument.instrumentId}: hourly bar ingestion/route detection failed: ${err instanceof Error ? err.message : String(err)}`
+      );
+    }
+  }
+
   // Swing (Weekly->Daily->1H) mandatory-gate synthesis -- bullish and
   // bearish are always separate rows (problem #15). A no-op until
   // strategies/buy-swing.yaml/sell-swing.yaml are seeded (not yet, per this
@@ -532,7 +566,7 @@ async function evaluateInstrument({ supabase, runId, instrument, ruleDefinitions
   // null when neither hypothesis has any WBP-/WSP- traces to work with.
   // Failure here must never block instrument_run_results below.
   try {
-    await persistSwingAnalysisResults({ supabase, runId, instrument, traces });
+    await persistSwingAnalysisResults({ supabase, runId, instrument, traces, routeEvidence });
   } catch (err) {
     await logStage(
       supabase,
@@ -541,29 +575,6 @@ async function evaluateInstrument({ supabase, runId, instrument, ruleDefinitions
       "warning",
       `${instrument.instrumentId}: swing analysis persistence failed (likely migration 0006 not yet applied): ${err instanceof Error ? err.message : String(err)}`
     );
-  }
-
-  // 1-hour bar ingestion (Phase 2 REMAINING item, now started): both swing
-  // playbooks state "M1 AND M2 AND M3 AND M4 must all pass before the
-  // hourly chart is opened" -- so this only spends Fyers request budget on
-  // an instrument once its weekly+daily direction lock has actually
-  // cleared, rather than fetching hourly data for all ~500 instruments
-  // every run (which the existing 125s time budget and rate limits could
-  // not absorb -- see providers/fyers.js's own rate-limit comments). Real
-  // effect is a no-op today: buy-swing.yaml/sell-swing.yaml aren't seeded
-  // yet, so directionLockPassed is always false until they are.
-  if (directionLockPassed("bullish", traces) || directionLockPassed("bearish", traces)) {
-    try {
-      await ingestHourlyBars({ supabase, instrument });
-    } catch (err) {
-      await logStage(
-        supabase,
-        runId,
-        "hourly_ingest",
-        "warning",
-        `${instrument.instrumentId}: hourly bar ingestion failed: ${err instanceof Error ? err.message : String(err)}`
-      );
-    }
   }
 
   const { terminalState, tier } = classify(traces, failedGates, dataQuality);
@@ -597,10 +608,27 @@ async function evaluateInstrument({ supabase, runId, instrument, ruleDefinitions
  * that result's id so a re-run within the same run_id (should not happen in
  * normal operation, but is not assumed) never leaves stale duplicate traces.
  */
-async function persistSwingAnalysisResults({ supabase, runId, instrument, traces }) {
+async function persistSwingAnalysisResults({ supabase, runId, instrument, traces, routeEvidence }) {
   for (const hypothesis of ["bullish", "bearish"]) {
     const analysis = evaluateSwingHypothesis(hypothesis, traces);
     if (!analysis) continue; // no WBP-/WSP- gates evaluated this run -- strategy not seeded/active yet
+
+    // Route evidence (features/hourly-routes.js's detectWave3Ignition,
+    // BUY-1/SELL-3 only -- see that file's own scope note) is supplementary,
+    // never authoritative on its own: WBP-M5/WSP-S5 requires ruling in/out
+    // all 5 routes, not just this one, so finding a fully-confirmed BUY-1/
+    // SELL-3 setup still doesn't flip final_action away from WAIT -- it's
+    // disclosed in pending_conditions instead, alongside the still-missing
+    // M6-M8.
+    const route = routeEvidence?.[hypothesis];
+    if (route) {
+      analysis.selectedRoute = route.route;
+      analysis.pendingConditions.push(
+        route.requiredChecksPassed
+          ? `${route.route}'s required checks (trigger, volume, rule-3 forward-check) all pass -- WAIT still stands: WBP-M5/WSP-S5 requires checking all 5 routes, not just this one, and M6-M8 remain unautomated`
+          : `${route.route} detected (wave 3 forming) but its required checks are not all confirmed yet -- see route_evidence`
+      );
+    }
 
     const { data: resultRow, error: resultError } = await supabase
       .from("swing_analysis_results")
@@ -611,6 +639,7 @@ async function persistSwingAnalysisResults({ supabase, runId, instrument, traces
           hypothesis,
           selected_route: analysis.selectedRoute,
           mandatory_gates: analysis.mandatoryGates,
+          route_evidence: route ?? null,
           confirmation_groups: analysis.confirmationGroups,
           confirmation_groups_passed: analysis.confirmationGroupsPassed,
           vetoes: analysis.vetoes,
@@ -658,24 +687,35 @@ async function persistSwingAnalysisResults({ supabase, runId, instrument, traces
 }
 
 /**
- * Fetches the trailing ~15 days of 1-hour bars (providers/fyers.js's
- * fetchHourlyOHLCV) and upserts them into market_bars_raw with
- * interval='1h' (migration 0006, not yet applied). Unlike the daily bars
- * write above, there is NO safe old-schema fallback here: the pre-migration
- * unique constraint is (instrument_id, session_date, provider), which an
- * hourly bar would collide under with that same day's DAILY bar (both share
- * the same session_date) -- attempting an old-shape write would silently
- * corrupt the daily row. So this only ever attempts the new shape; if it
- * fails (table/columns don't exist yet), the caller's try/catch logs a
- * warning and this run simply has no hourly data for the instrument, same
- * as any other NO_DATA outcome -- never a corrupted daily bar.
+ * Fetches the trailing ~30 days of 1-hour bars (providers/fyers.js's
+ * fetchHourlyOHLCV), upserts them into market_bars_raw with interval='1h'
+ * (migration 0006, not yet applied), then runs BUY-1/SELL-3 "Wave 3
+ * Ignition" detection (features/hourly-routes.js) against whichever
+ * hypothesis actually qualified (bullishQualifiesForHourly/
+ * bearishQualifiesForHourly, from directionLockPassed()).
+ *
+ * Unlike the daily bars write, there is NO safe old-schema fallback here:
+ * the pre-migration unique constraint is (instrument_id, session_date,
+ * provider), which an hourly bar would collide under with that same day's
+ * DAILY bar (both share the same session_date) -- attempting an old-shape
+ * write would silently corrupt the daily row. So this only ever attempts
+ * the new shape; if it fails (table/columns don't exist yet), the caller's
+ * try/catch logs a warning and this run simply has no hourly data or route
+ * evidence for the instrument, same as any other NO_DATA outcome -- never a
+ * corrupted daily bar.
+ *
+ * @returns {{bullish: object|null, bearish: object|null}|null} detectWave3Ignition's
+ *   result per hypothesis (only for the hypothesis(es) that qualified), or
+ *   null if there were no hourly bars to work with (or the required
+ *   zigzag_hourly_pct/hour_slot_volume_lookback_sessions parameters are
+ *   unresolved -- never guessed)
  */
-async function ingestHourlyBars({ supabase, instrument }) {
+async function ingestHourlyBarsAndDetectRoutes({ supabase, instrument, dailyBars, parameterValues, bullishQualifiesForHourly, bearishQualifiesForHourly }) {
   const { data: rawCandles } = await fetchHourlyOHLCV(instrument.instrumentId, instrument.symbol, supabase);
-  const bars = normalizeHourlyBars(rawCandles);
-  if (bars.length === 0) return;
+  const hourlyBars = normalizeHourlyBars(rawCandles);
+  if (hourlyBars.length === 0) return null;
 
-  const rows = bars.map((b) => ({
+  const rows = hourlyBars.map((b) => ({
     instrument_id: instrument.instrumentId,
     interval: "1h",
     session_date: b.sessionDate,
@@ -691,6 +731,17 @@ async function ingestHourlyBars({ supabase, instrument }) {
   }));
   const { error } = await supabase.from("market_bars_raw").upsert(rows, { onConflict: "instrument_id,interval,ts,provider" });
   if (error) throw error;
+
+  const hourlyZigzagPct = parameterValues.zigzag_hourly_pct;
+  const dailyZigzagPct = parameterValues.zigzag_daily_pct;
+  const hourSlotVolumeLookbackSessions = parameterValues.hour_slot_volume_lookback_sessions;
+  if (hourlyZigzagPct == null || dailyZigzagPct == null || hourSlotVolumeLookbackSessions == null) return null;
+
+  const detect = (bullish) => detectWave3Ignition({ hourlyBars, dailyBars, bullish, hourlyZigzagPct, dailyZigzagPct, hourSlotVolumeLookbackSessions });
+  return {
+    bullish: bullishQualifiesForHourly ? detect(true) : null,
+    bearish: bearishQualifiesForHourly ? detect(false) : null,
+  };
 }
 
 /**
