@@ -456,53 +456,13 @@ async function evaluateInstrument({ supabase, runId, instrument, ruleDefinitions
   // until that migration is actually applied. Try the new shape first;
   // fall back to the old one on any failure rather than losing every bar
   // for every instrument if the two are ever out of sync.
-  const rawBarsNewShape = bars.map((b) => ({
-    instrument_id: instrument.instrumentId,
-    interval: "1d",
-    session_date: b.date,
-    ts: `${b.date}T00:00:00+05:30`,
-    open: b.open,
-    high: b.high,
-    low: b.low,
-    close: b.close,
-    volume: b.volume,
-    provider: "fyers",
-    freshness: "EOD",
-    is_complete: true,
-  }));
-  const { error: rawBarsNewShapeError } = await supabase
-    .from("market_bars_raw")
-    .upsert(rawBarsNewShape, { onConflict: "instrument_id,interval,ts,provider" });
-  if (rawBarsNewShapeError) {
-    const rawBarsOldShape = bars.map((b) => ({
-      instrument_id: instrument.instrumentId,
-      session_date: b.date,
-      ts: `${b.date}T00:00:00+05:30`,
-      open: b.open,
-      high: b.high,
-      low: b.low,
-      close: b.close,
-      volume: b.volume,
-      provider: "fyers",
-      freshness: "EOD",
-    }));
-    await supabase.from("market_bars_raw").upsert(rawBarsOldShape, { onConflict: "instrument_id,session_date,provider" });
-  }
-
-  // Adjusted bars (problem #20): raw + adjusted are stored separately, with
-  // an explicit adjustment_version, rather than pivots/patterns ever running
-  // on raw unadjusted data. No corporate-action data is ingested into this
-  // project yet (corporate_actions stays empty), so this is a structural
-  // no-op today -- computeAdjustedBars returns bars unchanged when there are
-  // no qualifying actions -- but the storage path and versioning are real.
-  try {
-    const { data: corporateActions } = await supabase
-      .from("corporate_actions")
-      .select("action_type, ex_date, factor")
-      .eq("instrument_id", instrument.instrumentId);
-    const adjustedBars = computeAdjustedBars(bars, corporateActions ?? []);
-    await supabase.from("market_bars_adjusted").upsert(
-      adjustedBars.map((b) => ({
+  // Raw-bar storage (with its old-shape fallback) and adjusted-bar storage
+  // write to two different tables from the same already-fetched `bars` --
+  // neither reads the other's result, so they run concurrently rather than
+  // one blocking the other's network round trip.
+  await Promise.all([
+    (async () => {
+      const rawBarsNewShape = bars.map((b) => ({
         instrument_id: instrument.instrumentId,
         interval: "1d",
         session_date: b.date,
@@ -512,46 +472,106 @@ async function evaluateInstrument({ supabase, runId, instrument, ruleDefinitions
         low: b.low,
         close: b.close,
         volume: b.volume,
-        adjustment_version: ADJUSTMENT_VERSION,
+        provider: "fyers",
+        freshness: "EOD",
         is_complete: true,
-      })),
-      { onConflict: "instrument_id,interval,ts,adjustment_version" }
-    );
-  } catch (err) {
-    // market_bars_adjusted doesn't exist until migration 0006 is applied --
-    // never fail the instrument's actual screening result over this.
-    await logStage(
-      supabase,
-      runId,
-      "adjusted_bars",
-      "warning",
-      `${instrument.instrumentId}: adjusted-bar storage failed (likely migration 0006 not yet applied): ${err instanceof Error ? err.message : String(err)}`
-    );
-  }
+      }));
+      const { error: rawBarsNewShapeError } = await supabase
+        .from("market_bars_raw")
+        .upsert(rawBarsNewShape, { onConflict: "instrument_id,interval,ts,provider" });
+      if (rawBarsNewShapeError) {
+        const rawBarsOldShape = bars.map((b) => ({
+          instrument_id: instrument.instrumentId,
+          session_date: b.date,
+          ts: `${b.date}T00:00:00+05:30`,
+          open: b.open,
+          high: b.high,
+          low: b.low,
+          close: b.close,
+          volume: b.volume,
+          provider: "fyers",
+          freshness: "EOD",
+        }));
+        await supabase.from("market_bars_raw").upsert(rawBarsOldShape, { onConflict: "instrument_id,session_date,provider" });
+      }
+    })(),
+    (async () => {
+      // Adjusted bars (problem #20): raw + adjusted are stored separately, with
+      // an explicit adjustment_version, rather than pivots/patterns ever running
+      // on raw unadjusted data. No corporate-action data is ingested into this
+      // project yet (corporate_actions stays empty), so this is a structural
+      // no-op today -- computeAdjustedBars returns bars unchanged when there are
+      // no qualifying actions -- but the storage path and versioning are real.
+      try {
+        const { data: corporateActions } = await supabase
+          .from("corporate_actions")
+          .select("action_type, ex_date, factor")
+          .eq("instrument_id", instrument.instrumentId);
+        const adjustedBars = computeAdjustedBars(bars, corporateActions ?? []);
+        await supabase.from("market_bars_adjusted").upsert(
+          adjustedBars.map((b) => ({
+            instrument_id: instrument.instrumentId,
+            interval: "1d",
+            session_date: b.date,
+            ts: `${b.date}T00:00:00+05:30`,
+            open: b.open,
+            high: b.high,
+            low: b.low,
+            close: b.close,
+            volume: b.volume,
+            adjustment_version: ADJUSTMENT_VERSION,
+            is_complete: true,
+          })),
+          { onConflict: "instrument_id,interval,ts,adjustment_version" }
+        );
+      } catch (err) {
+        // market_bars_adjusted doesn't exist until migration 0006 is applied --
+        // never fail the instrument's actual screening result over this.
+        await logStage(
+          supabase,
+          runId,
+          "adjusted_bars",
+          "warning",
+          `${instrument.instrumentId}: adjusted-bar storage failed (likely migration 0006 not yet applied): ${err instanceof Error ? err.message : String(err)}`
+        );
+      }
+    })(),
+  ]);
 
-  // Direction feature (Dow-theory pivots + best-effort wave label + chart)
-  // is supplementary to the rule pipeline below -- a failure here must never
-  // fail the instrument's actual screening result.
-  try {
-    await upsertDirectionAnalysis({ supabase, runId, instrument, bars, documentedParams: parameterValues.documented ?? {} });
-  } catch (err) {
-    await logStage(
-      supabase,
-      runId,
-      "direction_chart",
-      "warning",
-      `${instrument.instrumentId}: direction analysis failed: ${err instanceof Error ? err.message : String(err)}`
-    );
-  }
-
-  const context = buildFeatureContext(bars, parameterValues.documented ?? {});
-  const { traces, failedGates } = evaluateRules(ruleDefinitions, context, parameterValues);
-
-  if (traces.length > 0) {
-    await supabase
-      .from("rule_traces")
-      .insert(traces.map((t) => ({ run_id: runId, instrument_id: instrument.instrumentId, ...t })));
-  }
+  // Direction analysis (Dow-theory pivots + wave label + chart, writing
+  // instrument_direction/instrument_direction_runs/direction_pivots/
+  // elliott_hypotheses/pattern_detections/instrument_alignment) and rule
+  // evaluation (writing rule_traces) both only need `bars` -- neither reads
+  // the other's output, so there is no reason to make one wait on the
+  // other's network round trips. Direction analysis is still supplementary
+  // to the rule pipeline (a failure there must never fail the instrument's
+  // actual screening result), so it keeps its own try/catch inside this
+  // concurrent branch rather than being allowed to reject the Promise.all.
+  const [, { traces, failedGates }] = await Promise.all([
+    (async () => {
+      try {
+        await upsertDirectionAnalysis({ supabase, runId, instrument, bars, documentedParams: parameterValues.documented ?? {} });
+      } catch (err) {
+        await logStage(
+          supabase,
+          runId,
+          "direction_chart",
+          "warning",
+          `${instrument.instrumentId}: direction analysis failed: ${err instanceof Error ? err.message : String(err)}`
+        );
+      }
+    })(),
+    (async () => {
+      const context = buildFeatureContext(bars, parameterValues.documented ?? {});
+      const result = evaluateRules(ruleDefinitions, context, parameterValues);
+      if (result.traces.length > 0) {
+        await supabase
+          .from("rule_traces")
+          .insert(result.traces.map((t) => ({ run_id: runId, instrument_id: instrument.instrumentId, ...t })));
+      }
+      return result;
+    })(),
+  ]);
 
   // 1-hour bar ingestion + route detection (Phase 2/4, now started): both
   // swing playbooks state "M1 AND M2 AND M3 AND M4 must all pass before the
@@ -803,94 +823,109 @@ async function upsertDirectionAnalysis({ supabase, runId, instrument, bars, docu
     .eq("instrument_id", instrument.instrumentId);
   const existingHashByTimeframe = Object.fromEntries((existingRows ?? []).map((r) => [r.timeframe, r.input_hash]));
 
-  const patternsByTimeframe = {};
+  // Each timeframe's chart/direction/pattern work below is fully
+  // independent of every other timeframe's -- nothing reads another
+  // timeframe's result until persistFinalAlignment, which needs all three
+  // at once. Running them sequentially was a layout accident, not a real
+  // dependency, and those per-timeframe network round trips (chart upload +
+  // up to 4 more table writes each) were the dominant cost of evaluating one
+  // instrument -- confirmed live on 2026-09-10: a run averaged ~9-14s per
+  // instrument against a 125s budget, covering only ~13 of 501 stocks.
+  // Running the three timeframes concurrently instead of one after another
+  // cuts this section's wall-clock time roughly 3x with no behavior change.
+  const perTimeframeResults = await Promise.all(
+    DIRECTION_TIMEFRAMES.map(async (timeframe) => {
+      const tf = analysis[timeframe];
+      if (!tf) return null; // unresolved zigzag parameter or not enough bars -- never fabricated
 
-  for (const timeframe of DIRECTION_TIMEFRAMES) {
-    const tf = analysis[timeframe];
-    if (!tf) continue; // unresolved zigzag parameter or not enough bars -- never fabricated
+      const objectPath = `${instrument.instrumentId}/${timeframe}.svg`;
+      const unchanged = existingHashByTimeframe[timeframe] === tf.inputHash;
 
-    const objectPath = `${instrument.instrumentId}/${timeframe}.svg`;
-    const unchanged = existingHashByTimeframe[timeframe] === tf.inputHash;
-
-    if (!unchanged) {
-      const svg = renderChartSvg({
-        symbol: instrument.symbol,
-        timeframe,
-        bars: tf.bars,
-        pivots: tf.pivots,
-        unconfirmedLeg: tf.unconfirmedLeg,
-        wave: tf.wave,
-        dowState: tf.dowState,
-      });
-      const { error: uploadError } = await supabase.storage
-        .from("direction-charts")
-        .upload(objectPath, new Blob([svg], { type: "image/svg+xml" }), { contentType: "image/svg+xml", upsert: true });
-      if (uploadError) {
-        await logStage(supabase, runId, "direction_chart", "warning", `${instrument.instrumentId}/${timeframe}: chart upload failed: ${uploadError.message}`);
-        continue; // don't point instrument_direction at a chart that isn't actually there
+      if (!unchanged) {
+        const svg = renderChartSvg({
+          symbol: instrument.symbol,
+          timeframe,
+          bars: tf.bars,
+          pivots: tf.pivots,
+          unconfirmedLeg: tf.unconfirmedLeg,
+          wave: tf.wave,
+          dowState: tf.dowState,
+        });
+        const { error: uploadError } = await supabase.storage
+          .from("direction-charts")
+          .upload(objectPath, new Blob([svg], { type: "image/svg+xml" }), { contentType: "image/svg+xml", upsert: true });
+        if (uploadError) {
+          await logStage(supabase, runId, "direction_chart", "warning", `${instrument.instrumentId}/${timeframe}: chart upload failed: ${uploadError.message}`);
+          return null; // don't point instrument_direction at a chart that isn't actually there
+        }
       }
-    }
 
-    await supabase.from("instrument_direction").upsert(
-      {
-        instrument_id: instrument.instrumentId,
-        timeframe,
-        run_id: runId,
-        dow_state: tf.dowState,
-        pivots: tf.pivots,
-        last_swing_high: tf.lastSwingHigh,
-        last_swing_low: tf.lastSwingLow,
-        wave_label: tf.wave.label,
-        wave_confidence: tf.wave.confidence,
-        chart_object_path: objectPath,
-        input_hash: tf.inputHash,
-        data_quality: "PASS",
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "instrument_id,timeframe" }
-    );
-
-    // Run-scoped schema (migration 0006, not yet applied -- degrades
-    // gracefully): instrument_direction above is latest-state only and gets
-    // overwritten every run, so it can never answer "what did we actually
-    // see on run X" -- these tables are this run's immutable evidence.
-    // Failure here must never block the legacy row above (still what the
-    // live Direction page reads) or pattern detection below.
-    try {
-      await persistDirectionRun({ supabase, runId, instrument, timeframe, tf, objectPath });
-    } catch (err) {
-      await logStage(
-        supabase,
-        runId,
-        "direction_run",
-        "warning",
-        `${instrument.instrumentId}/${timeframe}: run-scoped direction/wave persistence failed (likely migration 0006 not yet applied): ${err instanceof Error ? err.message : String(err)}`
+      await supabase.from("instrument_direction").upsert(
+        {
+          instrument_id: instrument.instrumentId,
+          timeframe,
+          run_id: runId,
+          dow_state: tf.dowState,
+          pivots: tf.pivots,
+          last_swing_high: tf.lastSwingHigh,
+          last_swing_low: tf.lastSwingLow,
+          wave_label: tf.wave.label,
+          wave_confidence: tf.wave.confidence,
+          chart_object_path: objectPath,
+          input_hash: tf.inputHash,
+          data_quality: "PASS",
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "instrument_id,timeframe" }
       );
-    }
 
-    // Pattern detection is computed regardless of persistence success (the
-    // in-memory hits still feed final_alignment below even if the insert
-    // degrades because migration 0006 isn't applied). It's also fresh
-    // evidence for this run, not a derived cache keyed off the direction
-    // hash -- a candlestick/double-extreme pattern can newly qualify even
-    // when the underlying pivot structure hasn't changed (e.g. one more bar
-    // closes the engulfing pair). A persistence failure must never block the
-    // direction row above, which is why it's a separate try/catch per
-    // timeframe rather than folded into the block above.
-    const hits = [...detectCandlestickPatterns(tf.bars), ...detectDoubleExtremePatterns(tf.pivots, tf.bars)];
-    try {
-      patternsByTimeframe[timeframe] = await persistPatternDetections({ supabase, runId, instrument, timeframe, hits });
-    } catch (err) {
-      patternsByTimeframe[timeframe] = hits; // persistence failed -- still usable for alignment, just without a DB id per hit
-      await logStage(
-        supabase,
-        runId,
-        "pattern_detection",
-        "warning",
-        `${instrument.instrumentId}/${timeframe}: pattern detection persistence failed (likely migration 0006 not yet applied): ${err instanceof Error ? err.message : String(err)}`
-      );
-    }
-  }
+      // Run-scoped schema (migration 0006, not yet applied -- degrades
+      // gracefully): instrument_direction above is latest-state only and gets
+      // overwritten every run, so it can never answer "what did we actually
+      // see on run X" -- these tables are this run's immutable evidence.
+      // Failure here must never block the legacy row above (still what the
+      // live Direction page reads) or pattern detection below.
+      try {
+        await persistDirectionRun({ supabase, runId, instrument, timeframe, tf, objectPath });
+      } catch (err) {
+        await logStage(
+          supabase,
+          runId,
+          "direction_run",
+          "warning",
+          `${instrument.instrumentId}/${timeframe}: run-scoped direction/wave persistence failed (likely migration 0006 not yet applied): ${err instanceof Error ? err.message : String(err)}`
+        );
+      }
+
+      // Pattern detection is computed regardless of persistence success (the
+      // in-memory hits still feed final_alignment below even if the insert
+      // degrades because migration 0006 isn't applied). It's also fresh
+      // evidence for this run, not a derived cache keyed off the direction
+      // hash -- a candlestick/double-extreme pattern can newly qualify even
+      // when the underlying pivot structure hasn't changed (e.g. one more bar
+      // closes the engulfing pair). A persistence failure must never block the
+      // direction row above, which is why it's a separate try/catch per
+      // timeframe rather than folded into the block above.
+      const hits = [...detectCandlestickPatterns(tf.bars), ...detectDoubleExtremePatterns(tf.pivots, tf.bars)];
+      let patterns = hits;
+      try {
+        patterns = await persistPatternDetections({ supabase, runId, instrument, timeframe, hits });
+      } catch (err) {
+        // persistence failed -- hits are still usable for alignment, just without a DB id per hit
+        await logStage(
+          supabase,
+          runId,
+          "pattern_detection",
+          "warning",
+          `${instrument.instrumentId}/${timeframe}: pattern detection persistence failed (likely migration 0006 not yet applied): ${err instanceof Error ? err.message : String(err)}`
+        );
+      }
+
+      return [timeframe, patterns];
+    })
+  );
+
+  const patternsByTimeframe = Object.fromEntries(perTimeframeResults.filter(Boolean));
 
   // final_alignment (#1, #6): combines SMM (all 3 timeframes' dow_state),
   // GUE (disclosed but non-authoritative, see alignment.js), and PAPA
