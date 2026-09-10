@@ -147,10 +147,25 @@ resolution between workstreams.
 2. **Phase 1 — Safety/security fixes independent of the schema rebuild.** #27, #28 first (pure
    bug fixes, no schema dependency). Then #16 (ranking sum), #14 (wording), #18 (parameter
    labeling) — small, isolated, testable now.
-3. **Phase 2 — Durable pipeline foundation.** Migration `0006`'s pipeline tables, lease/batch
-   mechanism, shared rate limiter, NSE calendar (`Asia/Kolkata`, holiday list, session-stub
-   policy), corporate-action-aware adjusted bars, `getLatestRun` → published-run semantics (#12).
-   Everything downstream depends on this being real, not stubbed.
+3. **Phase 2 — Durable pipeline foundation.**
+   - DONE: `supabase/migrations/0006_durable_pipeline_and_swing_analysis.sql` — leases
+     (`screening_run_leases`, atomic acquire via single-row CAS + `expires_at` stale-lease
+     recovery, replacing the non-atomic check from earlier this session), `pipeline_batches`,
+     run-scoped Direction tables (`instrument_direction_runs`, `direction_pivots`,
+     `elliott_hypotheses`, `pattern_detections`, `instrument_alignment`), `swing_analysis_results`
+     + `swing_analysis_rule_traces`, interval-aware `market_bars_raw`/`market_bars_adjusted`
+     (additive ALTERs, verified against the live schema's actual constraint names, not applied).
+     Full RLS on every new table, same pattern as `0002_rls.sql`. **Not applied to the remote
+     project.**
+   - DONE: `supabase/functions/run-screening/nse-calendar.js` — `Asia/Kolkata` session timing,
+     `latestCompletedNseSession()`, hourly bar boundaries with the disclosed
+     `HOURLY_STUB_POLICY = "exclude"` decision, holiday list for 2026 (sourced from Zerodha's
+     public calendar since nseindia.com's own page timed out on direct fetch — flagged as
+     PROJECT_DEFAULT/unverified against the primary source, one entry explicitly flagged as
+     anomalous and unconfirmed). 11 tests, all passing.
+   - REMAINING: shared (cross-invocation) Fyers rate limiter, corporate-action-aware adjusted-bar
+     computation, wiring the lease/batch mechanism into `index.js`'s orchestration loop,
+     `getLatestRun` → published-run semantics (#12), multi-request historical backfill (>365 days).
 4. **Phase 3 — Direction intelligence rewrite.** Equal-pivot labels (#5), unconfirmed-leg
    separation, real Elliott hypothesis engine (primary/alt, forming/completed, invalidation),
    pattern detection (measurable patterns first, rest stay `MANUAL_REVIEW`), server-side
@@ -166,7 +181,29 @@ resolution between workstreams.
 8. **Phase 7 — Single verified push + live validation**, per the deployment authorization, only
    once Phases 1-6 are genuinely complete and passing.
 
-## 7. Open decisions for the strategy owner (cannot be resolved by an agent)
+## 7. Resolved decisions (strategy owner, 2026-09-10)
+
+These three were blocking Phase 4 and have been decided:
+
+1. **Reward/risk threshold.** New parameter `swing_minimum_reward_risk_strict: 3.0`, compared
+   strictly (`reward/risk > 3.0`), scoped to the new swing (Weekly→Daily→1H) strategies only. The
+   existing `minimum_reward_risk: 3.0` (compared `>=`) in `config/parameters.yaml`, used by the
+   positional strategies, is untouched.
+2. **Gate ID namespace.** New swing gates use `WBP-M1`..`WBP-M8` (buy) and `WSP-S1`..`WSP-S8`
+   (sell) — distinct from the existing positional `BSP-`/`SSP-` IDs in
+   `strategies/buy-signal-playbook.yaml` / `sell-signal-playbook.yaml`, so nothing collides.
+3. **5 confirmation groups / 4-of-5.** The primary Weekly→Daily→1H playbooks (the authoritative
+   source for *what* each route/gate checks — exact triggers, arithmetic, thresholds) use a
+   100-point scorecard, not a "groups" structure; that structure exists only in the
+   buy-conditions.md/sell-conditions.md cross-check docs. Resolution: the 5 groups are a disclosed
+   `PROJECT_DEFAULT` synthesis layer this project defines, each populated from checks the primary
+   playbook already documents per route (e.g. BUY-1's "quality" checks: wave-2 depth/alternation,
+   hourly MACD crossover) — not new invented thresholds, not a claim the primary source states
+   "groups" verbatim. Every group's membership must cite the real per-check source locator from
+   `swing-strategy-extraction.md`. The 4-of-5 pass threshold is this project's own gating rule,
+   versioned as such.
+
+## 8. Open decisions for the strategy owner (cannot be resolved by an agent)
 
 - Whichever conflicts `docs/swing-strategy-extraction.md` surfaces between the Weekly→Daily→1H
   playbook and the buy-conditions/sell-conditions references.
