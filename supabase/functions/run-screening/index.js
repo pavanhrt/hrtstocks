@@ -30,6 +30,7 @@ import { validateBars } from "./quality.js";
 import { buildFeatureContext } from "./features/context.js";
 import { buildDirectionAnalysis } from "./features/direction.js";
 import { detectCandlestickPatterns, detectDoubleExtremePatterns, PATTERN_PARAM_VERSION } from "./features/patterns.js";
+import { computeFinalAlignment } from "./features/alignment.js";
 import { computeAdjustedBars, ADJUSTMENT_VERSION } from "./features/corporate-actions.js";
 import { renderChartSvg } from "./charts/render.js";
 import { evaluateRules } from "./rules/evaluate.js";
@@ -561,6 +562,8 @@ async function upsertDirectionAnalysis({ supabase, runId, instrument, bars, docu
     .eq("instrument_id", instrument.instrumentId);
   const existingHashByTimeframe = Object.fromEntries((existingRows ?? []).map((r) => [r.timeframe, r.input_hash]));
 
+  const patternsByTimeframe = {};
+
   for (const timeframe of DIRECTION_TIMEFRAMES) {
     const tf = analysis[timeframe];
     if (!tf) continue; // unresolved zigzag parameter or not enough bars -- never fabricated
@@ -606,42 +609,64 @@ async function upsertDirectionAnalysis({ supabase, runId, instrument, bars, docu
       { onConflict: "instrument_id,timeframe" }
     );
 
-    // Pattern detection is fresh evidence for this run, not a derived cache
-    // keyed off the direction hash -- a candlestick/double-extreme pattern
-    // can newly qualify even when the underlying pivot structure hasn't
-    // changed (e.g. one more bar closes the engulfing pair). Failure here
-    // must never block the direction row above, which is why it's a
-    // separate try/catch per timeframe rather than folded into the block
-    // above.
+    // Pattern detection is computed regardless of persistence success (the
+    // in-memory hits still feed final_alignment below even if the insert
+    // degrades because migration 0006 isn't applied). It's also fresh
+    // evidence for this run, not a derived cache keyed off the direction
+    // hash -- a candlestick/double-extreme pattern can newly qualify even
+    // when the underlying pivot structure hasn't changed (e.g. one more bar
+    // closes the engulfing pair). A persistence failure must never block the
+    // direction row above, which is why it's a separate try/catch per
+    // timeframe rather than folded into the block above.
+    const hits = [...detectCandlestickPatterns(tf.bars), ...detectDoubleExtremePatterns(tf.pivots, tf.bars)];
     try {
-      await persistPatternDetections({ supabase, runId, instrument, timeframe, bars: tf.bars, pivots: tf.pivots });
+      patternsByTimeframe[timeframe] = await persistPatternDetections({ supabase, runId, instrument, timeframe, hits });
     } catch (err) {
+      patternsByTimeframe[timeframe] = hits; // persistence failed -- still usable for alignment, just without a DB id per hit
       await logStage(
         supabase,
         runId,
         "pattern_detection",
         "warning",
-        `${instrument.instrumentId}/${timeframe}: pattern detection failed (likely migration 0006 not yet applied): ${err instanceof Error ? err.message : String(err)}`
+        `${instrument.instrumentId}/${timeframe}: pattern detection persistence failed (likely migration 0006 not yet applied): ${err instanceof Error ? err.message : String(err)}`
       );
     }
+  }
+
+  // final_alignment (#1, #6): combines SMM (all 3 timeframes' dow_state),
+  // GUE (disclosed but non-authoritative, see alignment.js), and PAPA
+  // (a TRIGGERED opposing pattern downgrades to MANUAL_REVIEW) into one
+  // server-side call -- never derived in the browser from raw dow_state
+  // strings again.
+  try {
+    await persistFinalAlignment({ supabase, runId, instrument, analysis, patternsByTimeframe });
+  } catch (err) {
+    await logStage(
+      supabase,
+      runId,
+      "final_alignment",
+      "warning",
+      `${instrument.instrumentId}: final_alignment computation/persistence failed (likely migration 0006 not yet applied): ${err instanceof Error ? err.message : String(err)}`
+    );
   }
 }
 
 /**
- * Runs the implemented candlestick + double-extreme pattern detectors for
- * one instrument/timeframe and inserts the results into pattern_detections
- * (migration 0006, not yet applied -- degrades gracefully like the other
- * new-schema writes in this file). Deliberately an INSERT, not an upsert:
- * pattern_detections is immutable per-run evidence, not a latest-state row
- * like instrument_direction above -- a pattern observed in an earlier run
- * and never re-detected simply stops appearing in later runs' evidence
- * rather than being overwritten.
+ * Runs the implemented candlestick + double-extreme pattern detectors'
+ * results through an insert into pattern_detections (migration 0006, not
+ * yet applied -- degrades gracefully like the other new-schema writes in
+ * this file, but still returns the computed hits either way so alignment
+ * computation always has real pattern evidence to work with). Deliberately
+ * an INSERT, not an upsert: pattern_detections is immutable per-run
+ * evidence, not a latest-state row like instrument_direction above -- a
+ * pattern observed in an earlier run and never re-detected simply stops
+ * appearing in later runs' evidence rather than being overwritten.
+ * @returns {object[]} the hits, each carrying a real `id` from the insert
+ *   when persistence succeeded (needed to set instrument_alignment's
+ *   triggered_*_pattern_id honestly rather than guessing one)
  */
-async function persistPatternDetections({ supabase, runId, instrument, timeframe, bars, pivots }) {
-  const candlestickHits = detectCandlestickPatterns(bars);
-  const doubleExtremeHits = detectDoubleExtremePatterns(pivots, bars);
-  const hits = [...candlestickHits, ...doubleExtremeHits];
-  if (hits.length === 0) return;
+async function persistPatternDetections({ supabase, runId, instrument, timeframe, hits }) {
+  if (hits.length === 0) return hits;
 
   const rows = hits.map((hit) => ({
     run_id: runId,
@@ -660,8 +685,56 @@ async function persistPatternDetections({ supabase, runId, instrument, timeframe
     computed_at: new Date().toISOString(),
   }));
 
-  const { error } = await supabase.from("pattern_detections").insert(rows);
+  const { data: inserted, error } = await supabase.from("pattern_detections").insert(rows).select("id");
+  if (error) {
+    if (error.code === "PGRST205") return hits; // table not migrated yet -- hits are still usable in-memory
+    throw error;
+  }
+  // A single multi-row INSERT's RETURNING rows come back in the same order
+  // as the VALUES list on every Postgres version this project targets -- but
+  // only rely on that when the count actually matches; otherwise leave hits
+  // without a DB id rather than risk mis-attributing one.
+  if (inserted && inserted.length === hits.length) {
+    return hits.map((hit, i) => ({ ...hit, id: inserted[i].id }));
+  }
+  return hits;
+}
+
+/**
+ * Computes final_alignment for one instrument (SMM+GUE+PAPA synthesis, see
+ * alignment.js) and upserts it into instrument_alignment (migration 0006,
+ * not yet applied -- degrades gracefully). monthly/weekly/daily_direction_id
+ * and elliott_hypothesis_id are deliberately left null: they reference
+ * instrument_direction_runs/elliott_hypotheses, which nothing in this
+ * pipeline writes to yet (still REMAINING per architecture-plan.md) --
+ * populating them now would mean inventing ids.
+ */
+async function persistFinalAlignment({ supabase, runId, instrument, analysis, patternsByTimeframe }) {
+  const alignment = computeFinalAlignment(analysis, patternsByTimeframe);
+
+  const bearishPatternId =
+    alignment.opposingTriggeredPattern?.direction === "bearish" ? findPatternId(patternsByTimeframe, alignment.opposingTriggeredPattern) : null;
+  const bullishPatternId =
+    alignment.opposingTriggeredPattern?.direction === "bullish" ? findPatternId(patternsByTimeframe, alignment.opposingTriggeredPattern) : null;
+
+  const { error } = await supabase.from("instrument_alignment").upsert(
+    {
+      run_id: runId,
+      instrument_id: instrument.instrumentId,
+      final_alignment: alignment.finalAlignment,
+      triggered_bearish_pattern_id: bearishPatternId,
+      triggered_bullish_pattern_id: bullishPatternId,
+      computed_at: new Date().toISOString(),
+    },
+    { onConflict: "run_id,instrument_id" }
+  );
   if (error && error.code !== "PGRST205") throw error;
+}
+
+function findPatternId(patternsByTimeframe, opposingPattern) {
+  const hits = patternsByTimeframe[opposingPattern.timeframe] ?? [];
+  const hit = hits.find((h) => h.patternName === opposingPattern.patternName && h.direction === opposingPattern.direction && h.state === "TRIGGERED");
+  return hit?.id ?? null;
 }
 
 /** Majority vote of PASSed bullish vs. bearish rules. Ties/no signal are undirected, not guessed. */

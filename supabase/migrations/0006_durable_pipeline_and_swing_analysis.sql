@@ -207,6 +207,7 @@ create table instrument_alignment (
   daily_direction_id bigint references instrument_direction_runs(id),
   elliott_hypothesis_id bigint references elliott_hypotheses(id),
   triggered_bearish_pattern_id bigint references pattern_detections(id),
+  triggered_bullish_pattern_id bigint references pattern_detections(id),
   computed_at timestamptz not null default now(),
   primary key (run_id, instrument_id)
 );

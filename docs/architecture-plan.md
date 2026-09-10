@@ -260,12 +260,50 @@ resolution between workstreams.
        prior-trend/location requirement for each single/multi-candle pattern, the follow-through
        requirement for Hanging Man/Dark Cloud Cover, and the double-extreme tolerance/prior-trend
        gate (including a rejection case for a pair outside tolerance).
-   - REMAINING: combining SMM + GUE + pattern evidence into a server-side `final_alignment` (#1, #6
-     -- the biggest remaining Phase 3 item), and persisting the direction/wave side of this into the
-     new run-scoped schema (`instrument_direction_runs`, `direction_pivots`, `elliott_hypotheses`,
-     `instrument_alignment` -- migration 0006, still unapplied). Today's richer wave/unconfirmed-leg
-     data flows through to the existing `instrument_direction` table and the rendered chart only;
-     `pattern_detections` is the first Phase 3 output actually reaching the new schema (see above).
+   - DONE: server-side `final_alignment` (#1, #6) -- new `features/alignment.js`,
+     `computeFinalAlignment(direction, patternsByTimeframe)`. A disclosed `PROJECT_DEFAULT` synthesis
+     (no source document defines how to combine three timeframes' verdicts + a wave hypothesis +
+     pattern evidence into one instrument-level call, only a per-chart weighting in
+     `smm-chart-analysis-SKILL.md` §7 -- "primary trend > position vs level > structure break >
+     candle patterns > volume"), versioned via `ALIGNMENT_LOGIC_VERSION` and reasoned as follows:
+     - **SMM is the only source of a directional call.** `ALIGNED_BULLISH`/`ALIGNED_BEARISH` require
+       all three of daily+weekly+monthly `dow_state` to independently agree -- the same requirement
+       `DirectionTable.tsx`'s client-side `confluenceOf()` already used (problem #1's actual bug was
+       *where* this ran and *how completely*, not the core rule), now authoritative and computed
+       server-side.
+     - **GUE is disclosed, never authoritative.** A confirmed wave impulse on a timeframe can never
+       actually disagree with that timeframe's own `dow_state` (both derive from the same pivot
+       sequence), so there's no sound basis for it to independently veto/confirm here -- consistent
+       with `AGENTS.md` already treating Elliott counting as `MANUAL_REVIEW`-by-design.
+     - **PAPA can downgrade to `MANUAL_REVIEW`, never flip the call outright** -- a `TRIGGERED`
+       (never merely `OBSERVED`) pattern opposing the SMM-determined direction, on any of the three
+       timeframes, matches the source's own "reversal signal ends trend validity" framing closely
+       enough to require a human look, not closely enough (alone) to declare the opposite trend.
+     - **Missing timeframe coverage never becomes a directional pass** -- 0 resolved timeframes is
+       `UNAVAILABLE`; 1-2 is `MANUAL_REVIEW`, never evaluated as if it were a complete set.
+     - Wired into `run-screening/index.js`'s `persistFinalAlignment`, called once per instrument
+       after all three timeframes' direction+pattern work: upserts `instrument_alignment`
+       (migration 0006, not yet applied -- degrades gracefully). `monthly/weekly/daily_direction_id`
+       and `elliott_hypothesis_id` are deliberately left null (nothing in this pipeline writes
+       `instrument_direction_runs`/`elliott_hypotheses` yet -- populating them now would mean
+       inventing ids); `triggered_bearish_pattern_id`/`triggered_bullish_pattern_id` are populated
+       from the real `pattern_detections` insert id only when the row count of that insert matches
+       the computed hits 1:1, otherwise left null rather than risk mis-attributing one. Migration
+       0006 itself was corrected in passing: it only ever had `triggered_bearish_pattern_id`
+       (an asymmetric oversight from when it was drafted before pattern detection existed) --
+       added the matching `triggered_bullish_pattern_id` column, safe since the migration is still
+       unapplied.
+     - Tests: `features/alignment.test.js`, 10 cases -- all-bullish/all-bearish/all-sideways
+       agreement, cross-timeframe disagreement (`MIXED`), zero/partial timeframe coverage
+       (`UNAVAILABLE`/`MANUAL_REVIEW`), a `TRIGGERED` opposing pattern downgrading both bullish and
+       bearish calls, an `OBSERVED` (not `TRIGGERED`) opposing pattern *not* downgrading, and an
+       agreeing `TRIGGERED` pattern not downgrading.
+   - REMAINING: persisting the direction/wave side of Phase 3 into the new run-scoped schema
+     (`instrument_direction_runs`, `direction_pivots`, `elliott_hypotheses` -- migration 0006, still
+     unapplied). Today's richer wave/unconfirmed-leg data flows through to the existing
+     `instrument_direction` table and the rendered chart only; `pattern_detections` and
+     `instrument_alignment` are the first Phase 3 outputs actually reaching the new schema (see
+     above), which is why their FK columns back to the direction/wave tables stay null for now.
 5. **Phase 4 — Analysis engine.** Swing strategy YAML (from Phase 0's extraction) → indicators
    (DMI/ADX, EMA crossover series, Bollinger failure detection, divergence) → gates → routes →
    confirmations → BUY/WAIT, SELL/WAIT. Depends on Phase 3's `ALIGNED_BULLISH`/`ALIGNED_BEARISH`
