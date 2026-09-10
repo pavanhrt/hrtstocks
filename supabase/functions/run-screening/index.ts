@@ -199,26 +199,40 @@ async function runPipeline({ supabase, runId, runDate, startedAtMs, parameterVal
 
     const stockResults = [];
     const rankingInputs = [];
-    let budgetExceededCount = 0;
 
+    // Once the clock crosses TIME_BUDGET_MS for one instrument, it has
+    // crossed it for every instrument after it too (time only moves
+    // forward) -- so there is no need to keep re-checking Date.now() and
+    // recording each remaining instrument's "skipped" result with its own
+    // two sequential awaited inserts. That per-instrument insert pair was
+    // itself slow enough (real network round trips, not the near-zero
+    // latency the mocked-client unit tests see) that on a run with ~490
+    // instruments left to skip, doing them one at a time could by itself
+    // run past the platform's own wall-clock kill -- leaving the run stuck
+    // in "running" forever with the pipeline hard-killed mid-loop (confirmed
+    // live on 2026-09-10: a run died at ~150s wall clock having only
+    // recorded 41 results, most of them still-sequential "skipped" rows).
+    // Breaking out and bulk-inserting the remainder in two calls instead of
+    // ~2*N fixes that.
+    let cutoffIndex = allInstruments.length;
     for (const [index, instrument] of allInstruments.entries()) {
       if (index > 0 && index % HEARTBEAT_EVERY_N_INSTRUMENTS === 0) {
         await heartbeatRunLease(supabase, RUN_TYPE);
       }
 
-      const overBudget = Date.now() - startedAtMs > TIME_BUDGET_MS;
-      if (overBudget) budgetExceededCount++;
+      if (Date.now() - startedAtMs > TIME_BUDGET_MS) {
+        cutoffIndex = index;
+        break;
+      }
 
-      const { resultRow, componentScores } = overBudget
-        ? await recordSkippedForTimeBudget({ supabase, runId, instrument })
-        : await evaluateInstrument({
-            supabase,
-            runId,
-            instrument,
-            ruleDefinitions,
-            parameterValues,
-            ruleDirectionById,
-          });
+      const { resultRow, componentScores } = await evaluateInstrument({
+        supabase,
+        runId,
+        instrument,
+        ruleDefinitions,
+        parameterValues,
+        ruleDirectionById,
+      });
 
       if (!instrument.isIndex) stockResults.push(resultRow);
       // Indexes are contextual evidence, never ranked candidates (AGENTS.md).
@@ -233,13 +247,20 @@ async function runPipeline({ supabase, runId, runDate, startedAtMs, parameterVal
       }
     }
 
-    if (budgetExceededCount > 0) {
+    const skippedInstruments = allInstruments.slice(cutoffIndex);
+    if (skippedInstruments.length > 0) {
+      const skippedResultRows = await recordSkippedForTimeBudgetBulk({ supabase, runId, instruments: skippedInstruments });
+      for (const resultRow of skippedResultRows) {
+        if (!resultRow.is_index) stockResults.push(resultRow);
+        // Every bulk-skipped row is tier "unavailable" -- never tier_a/b, so
+        // none of these ever belong in rankingInputs.
+      }
       await logStage(
         supabase,
         runId,
         "time_budget",
         "warning",
-        `${budgetExceededCount} instrument(s) skipped (marked unavailable) after the ${TIME_BUDGET_MS / 1000}s ingestion time budget was reached -- rerun to pick them up`
+        `${skippedInstruments.length} instrument(s) skipped (marked unavailable) after the ${TIME_BUDGET_MS / 1000}s ingestion time budget was reached -- rerun to pick them up`
       );
     }
 
@@ -346,9 +367,14 @@ async function buildUniverse(supabase, runId, runDate) {
   return membership;
 }
 
-/** Cheap path used once TIME_BUDGET_MS is spent -- no Fyers call, just an honest terminal result so coverage stays complete. */
-async function recordSkippedForTimeBudget({ supabase, runId, instrument }) {
-  const resultRow = {
+/**
+ * Cheap path used once TIME_BUDGET_MS is spent -- no Fyers calls, just
+ * honest terminal results for every remaining instrument so coverage stays
+ * complete. Bulk-inserted (two round trips total, not two per instrument) --
+ * see the comment above this function's only call site for why that matters.
+ */
+async function recordSkippedForTimeBudgetBulk({ supabase, runId, instruments }) {
+  const resultRows = instruments.map((instrument) => ({
     run_id: runId,
     instrument_id: instrument.instrumentId,
     is_index: instrument.isIndex,
@@ -358,16 +384,17 @@ async function recordSkippedForTimeBudget({ supabase, runId, instrument }) {
     score: null,
     failed_gates: [],
     data_quality: "NO_DATA",
-  };
-  await supabase.from("instrument_run_results").insert(resultRow);
-  await supabase.from("data_quality_results").insert({
+  }));
+  const qualityRows = instruments.map((instrument) => ({
     run_id: runId,
     instrument_id: instrument.instrumentId,
     check_name: "ingestion",
     result: "NO_DATA",
     details: { note: "Skipped: run's ingestion time budget was already spent when this instrument's turn came up" },
-  });
-  return { resultRow, componentScores: {} };
+  }));
+  await supabase.from("instrument_run_results").insert(resultRows);
+  await supabase.from("data_quality_results").insert(qualityRows);
+  return resultRows;
 }
 
 async function evaluateInstrument({ supabase, runId, instrument, ruleDefinitions, parameterValues, ruleDirectionById }) {
