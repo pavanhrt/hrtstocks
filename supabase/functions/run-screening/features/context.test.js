@@ -17,6 +17,7 @@ const DOCUMENTED = {
   volume_multiplier: 1.0,
   zigzag_weekly_pct: 0.05,
   zigzag_monthly_pct: 0.05,
+  zigzag_daily_pct: 0.025,
 };
 
 function makeDailyBars(count, startDate = "2024-01-01") {
@@ -74,4 +75,40 @@ test("buildFeatureContext handles too few bars for weekly/monthly aggregation wi
   const bars = makeDailyBars(3);
   const context = buildFeatureContext(bars, DOCUMENTED);
   assert.equal("weekly_dow_state" in context, false);
+});
+
+test("buildFeatureContext computes a daily dow_state directly from daily bars (not just weekly/monthly)", () => {
+  const bars = makeDailyBars(365);
+  const context = buildFeatureContext(bars, DOCUMENTED);
+  assert.ok(["uptrend_intact", "downtrend_intact", "confirmed_reversal_bullish", "confirmed_reversal_bearish", "sideways", "ambiguous"].includes(context.daily_dow_state));
+});
+
+test("buildFeatureContext omits daily_dow_state when zigzag_daily_pct is unresolved", () => {
+  const bars = makeDailyBars(365);
+  const { zigzag_daily_pct, ...withoutDaily } = DOCUMENTED;
+  const context = buildFeatureContext(bars, withoutDaily);
+  assert.equal("daily_dow_state" in context, false);
+  assert.equal("daily_no_live_triggered_bearish_pattern" in context, false);
+});
+
+test("buildFeatureContext computes weekly and daily Elliott position (structure_type/direction/current_wave/wave_state/confidence), never for monthly", () => {
+  const bars = makeDailyBars(365);
+  const context = buildFeatureContext(bars, DOCUMENTED);
+  for (const prefix of ["weekly", "daily"]) {
+    assert.ok(`${prefix}_elliott_structure_type` in context, `${prefix}_elliott_structure_type should be present`);
+    assert.ok(`${prefix}_elliott_confidence` in context, `${prefix}_elliott_confidence should be present`);
+    assert.ok(["confirmed", "tentative", "unconfirmed"].includes(context[`${prefix}_elliott_confidence`]));
+    if (context[`${prefix}_elliott_structure_type`] != null) {
+      assert.ok(["impulse", "zigzag"].includes(context[`${prefix}_elliott_structure_type`]));
+      assert.ok(["bullish", "bearish"].includes(context[`${prefix}_elliott_direction`]));
+    }
+  }
+  assert.equal("monthly_elliott_structure_type" in context, false);
+});
+
+test("buildFeatureContext computes daily_no_live_triggered_{bullish,bearish}_pattern as booleans", () => {
+  const bars = makeDailyBars(365);
+  const context = buildFeatureContext(bars, DOCUMENTED);
+  assert.equal(typeof context.daily_no_live_triggered_bearish_pattern, "boolean");
+  assert.equal(typeof context.daily_no_live_triggered_bullish_pattern, "boolean");
 });

@@ -1,0 +1,169 @@
+strategy:
+  id: sell-swing-playbook
+  name: The Sell Signal Playbook (Swing -- Weekly to Daily to 1-Hour)
+  framework: WSP
+  rule_version: 1.0.0
+  parameter_version: 1.1.0
+  status: partially_automated
+  scope: [equity, index]
+
+provenance:
+  source_register: ../docs/swing-strategy-extraction.md
+  source_document: playbooks/SELL_Signal_Playbook_Weekly_Daily_1H.md
+  source_group: WSP
+  locator_granularity: gate_level
+  production_rule_trace_ready: false
+  requirement: >
+    Mirror of strategies/buy-swing.yaml -- see that file's provenance block
+    for the full explanation of the WBP/WSP namespace, the direction-lock
+    requirement, and why WSP-S5..S8 stay MANUAL_REVIEW sentinels. This is a
+    different document from strategies/sell-signal-playbook.yaml (SSP-,
+    Monthly->Weekly->Daily positional).
+
+rules:
+  - id: WSP-S1
+    playbook_gate: S1
+    name: Weekly Dow direction
+    source_status: DOCUMENTED
+    timeframe: weekly
+    direction: bearish
+    inputs: [weekly_dow_state]
+    expression: "weekly_dow_state == 'downtrend_intact' or weekly_dow_state == 'confirmed_reversal_bearish'"
+    true_result: PASS
+    false_result: FAIL
+    missing_result: NO_DATA
+    hard_gate: false
+    note: >
+      hard_gate is false for the same cross-strategy pooling reason as
+      WBP-M1 (see buy-swing.yaml). Locator: swing-strategy-extraction.md §4
+      table, S1 row ("Downtrend (LH+LL) intact, or confirmed reversal").
+      Same disclosed scope limit as WBP-M1: the fuller S1 table (source §4)
+      was not further transcribed beyond this row.
+
+  - id: WSP-S2
+    playbook_gate: S2
+    name: Weekly Elliott position
+    source_status: DOCUMENTED
+    timeframe: weekly
+    direction: bearish
+    inputs: [weekly_elliott_structure_type, weekly_elliott_direction, weekly_elliott_current_wave, weekly_elliott_wave_state]
+    expression: "(weekly_elliott_structure_type == 'impulse' and weekly_elliott_direction == 'bearish' and weekly_elliott_current_wave in ['1', '3', '5']) or (weekly_elliott_structure_type == 'impulse' and weekly_elliott_direction == 'bullish' and weekly_elliott_current_wave == '5' and weekly_elliott_wave_state == 'completed') or (weekly_elliott_structure_type == 'zigzag' and weekly_elliott_direction == 'bullish' and weekly_elliott_wave_state == 'completed')"
+    true_result: PASS
+    false_result: FAIL
+    missing_result: NO_DATA
+    hard_gate: false
+    note: >
+      hard_gate is false for the same cross-strategy pooling reason as
+      WBP-M1. Locator: swing-strategy-extraction.md §4 table, S2 row
+      ("Inside a falling motive wave, a completed 5-up, or (A)/(B)/(C); all
+      3 rules PASS"). This row names THREE branches where WBP-M2's own row
+      names only two ("Inside motive (1)/(3)/(5), or a completed
+      (A)-(B)-(C) down") -- implemented exactly as each row's own text
+      states, not forced into false symmetry. "A completed 5-up" is read as
+      a completed bullish impulse wave 5 (the classic Elliott setup this
+      same document's SELL-1 route, §3, calls "Wave 5 Exhaustion" at
+      Minute degree) -- a disclosed interpretation of a compressed table
+      cell, not a literal quote; the fuller S2 table (source §4) should be
+      checked against this reading before production use.
+      "all 3 rules PASS" is satisfied by construction, same reasoning as
+      WBP-M2's note.
+
+  - id: WSP-S3
+    playbook_gate: S3
+    name: Daily Dow direction
+    source_status: DOCUMENTED
+    timeframe: daily
+    direction: bearish
+    inputs: [daily_dow_state, daily_no_live_triggered_bullish_pattern]
+    expression: "(daily_dow_state == 'downtrend_intact' or daily_dow_state == 'confirmed_reversal_bearish') and daily_no_live_triggered_bullish_pattern"
+    true_result: PASS
+    false_result: FAIL
+    missing_result: NO_DATA
+    hard_gate: false
+    note: >
+      hard_gate is false for the same cross-strategy pooling reason as
+      WBP-M1. Locator: swing-strategy-extraction.md §4 table, S3 row
+      ("Downtrend intact, bounce holding below last LH, or confirmed
+      reversal; no live triggered bullish daily pattern"). Mirrors WBP-M3's
+      note on "holding the last HL/LH" being the same event
+      classifyDowStructure() already encodes, not a separate branch.
+
+  - id: WSP-S4
+    playbook_gate: S4
+    name: Daily wave + Tide
+    source_status: DOCUMENTED
+    timeframe: daily
+    direction: bearish
+    inputs: [daily_elliott_structure_type, daily_elliott_direction, daily_elliott_current_wave, daily_macd_histogram_change, daily_macd_histogram_prior_phase]
+    expression: "(daily_elliott_structure_type == 'impulse' and daily_elliott_direction == 'bearish' and daily_elliott_current_wave in ['1', '3', '5']) and (daily_macd_histogram_change == 'downtick' or (daily_macd_histogram_change == 'flat' and daily_macd_histogram_prior_phase == 'up'))"
+    true_result: PASS
+    false_result: FAIL
+    missing_result: NO_DATA
+    hard_gate: false
+    note: >
+      hard_gate is false for the same cross-strategy pooling reason as
+      WBP-M1. Locator: swing-strategy-extraction.md §4 table, S4 row
+      ("Valid bearish wave position AND daily MACD downtick/flat-after-up,
+      visual read agreeing"). "Valid bearish wave position" is terser than
+      WBP-M4's own row text ("Inside motive 1/3/5") -- read as the same
+      condition mirrored bearish, consistent with §4's framing of this table
+      as "mirrored bearish equivalents." A disclosed interpretation, not a
+      literal quote.
+
+  - id: WSP-S5
+    playbook_gate: S5
+    name: Hourly Elliott setup (SELL-1..SELL-5)
+    source_status: DOCUMENTED
+    timeframe: 1h
+    direction: bearish
+    inputs: [hourly_elliott_setup]
+    expression: manual_review
+    true_result: MANUAL_REVIEW
+    false_result: MANUAL_REVIEW
+    missing_result: MANUAL_REVIEW
+    hard_gate: false
+    note: Blocked on 1-hour bar ingestion -- see buy-swing.yaml's WBP-M5 note.
+
+  - id: WSP-S6
+    playbook_gate: S6
+    name: Price-action trigger (hourly PAPA setup)
+    source_status: DOCUMENTED
+    timeframe: 1h
+    direction: bearish
+    inputs: [hourly_papa_sell_setup_triggered]
+    expression: manual_review
+    true_result: MANUAL_REVIEW
+    false_result: MANUAL_REVIEW
+    missing_result: MANUAL_REVIEW
+    hard_gate: false
+    note: Blocked on 1-hour bar ingestion -- see buy-swing.yaml's WBP-M6 note.
+
+  - id: WSP-S7
+    playbook_gate: S7
+    name: SMM Bear Hat (Step 1 AND Step 2)
+    source_status: UNRESOLVED
+    timeframe: 1h
+    direction: bearish
+    inputs: [hourly_bear_hat_step1, hourly_bear_hat_step2]
+    expression: manual_review
+    true_result: MANUAL_REVIEW
+    false_result: MANUAL_REVIEW
+    missing_result: MANUAL_REVIEW
+    hard_gate: false
+    note: >
+      Blocked on 1-hour bar ingestion AND the same open §13 conflict #11 as
+      WBP-M7 -- see buy-swing.yaml's note.
+
+  - id: WSP-S8
+    playbook_gate: S8
+    name: Reward-to-risk gate (strict > 3)
+    source_status: DOCUMENTED
+    timeframe: 1h
+    direction: bearish
+    inputs: [entry, structural_stop, target]
+    expression: manual_review
+    true_result: MANUAL_REVIEW
+    false_result: MANUAL_REVIEW
+    missing_result: MANUAL_REVIEW
+    hard_gate: false
+    note: Blocked on WSP-S5 -- see buy-swing.yaml's WBP-M8 note.

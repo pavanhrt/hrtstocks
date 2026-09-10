@@ -1,11 +1,14 @@
 # Direction/Analysis rebuild — lead-agent architecture plan
 
-Status: **Phase 3 (Direction intelligence rewrite) — complete; Phase 4 (Analysis engine) not yet
-started.** Phases 0-3 (contracts, safe-redirect/error-handling/UI-copy fixes, durable
-pipeline/corporate-actions/rate-limiting/run-locking, and the Direction rewrite itself -- equal-pivot
-labels, unconfirmed-leg separation, the Elliott engine rewrite, pattern detection, server-side
-`final_alignment`, and run-scoped persistence) are done and locally committed on `develop`; see each
-phase's DONE/REMAINING bullets in §6 below. Nothing in this document has been applied to the
+Status: **Phase 3 (Direction intelligence rewrite) — complete; Phase 4 (Analysis engine) — in
+progress, weekly+daily direction lock (WBP-M1..M4/WSP-S1..S4) done.** Phases 0-3 (contracts,
+safe-redirect/error-handling/UI-copy fixes, durable pipeline/corporate-actions/rate-limiting/
+run-locking, and the Direction rewrite itself -- equal-pivot labels, unconfirmed-leg separation,
+the Elliott engine rewrite, pattern detection, server-side `final_alignment`, and run-scoped
+persistence) are done. Phase 4 has its first real slice: `strategies/buy-swing.yaml`/
+`sell-swing.yaml` (gates WBP-M1..M8/WSP-S1..S8), with M1-M4/S1-S4 automated and M5-M8/S5-S8
+disclosed as blocked on Phase 2's still-missing 1-hour ingestion. All of the above is locally
+committed on `develop`; see each phase's DONE/REMAINING bullets in §6 below. Nothing in this document has been applied to the
 database or deployed -- `supabase/migrations/` goes through `0007_provider_rate_limit_buckets.sql`,
 drafted and locally verified against the live schema's real constraint names, but not applied.
 
@@ -343,6 +346,59 @@ resolution between workstreams.
    (DMI/ADX, EMA crossover series, Bollinger failure detection, divergence) → gates → routes →
    confirmations → BUY/WAIT, SELL/WAIT. Depends on Phase 3's `ALIGNED_BULLISH`/`ALIGNED_BEARISH`
    universe and Phase 2's 1-hour ingestion.
+   - DONE: the weekly+daily direction lock -- new `strategies/buy-swing.yaml` /
+     `strategies/sell-swing.yaml`, gates `WBP-M1..M8` / `WSP-S1..S8` (namespaced per §7 decision 2,
+     reusing the existing `evaluateRules`/expression-engine infrastructure `strategies/buy-signal-
+     playbook.yaml` already established -- no new evaluation engine needed).
+     - `WBP-M1..M4`/`WSP-S1..S4` are real, automated, `DOCUMENTED` gates (a first for this
+       namespace -- the positional `BSP-M2/M4A/M5/M6/M8` equivalents all stayed `MANUAL_REVIEW`
+       sentinels): weekly Dow direction, weekly Elliott position, daily Dow direction (+ no live
+       `TRIGGERED` opposing daily pattern), and daily wave position + MACD Tide agreement. Per both
+       playbooks' own explicit rule ("M1 AND M2 AND M3 AND M4 must all pass before the hourly chart
+       is opened"), these four gates are a complete, self-contained, honestly-scoped slice that
+       needs no 1-hour data at all.
+     - `WBP-M5..M8`/`WSP-S5..S8` (hourly Elliott setup, PAPA trigger, SMM Hat, reward/risk) are
+       `MANUAL_REVIEW` sentinels, same pattern as `BSP-M5/M6/M8` -- but disclosed as
+       data-availability blocks (no 1-hour bars ingested yet, Phase 2 REMAINING), not
+       specification gaps like `BSP-M5`'s. `WBP-M7`/`WSP-S7` (SMM Hat) are additionally blocked on
+       an open strategy-owner decision (`swing-strategy-extraction.md` §13 conflict #11, Step 2
+       crossover choice underspecified for the hourly variant).
+     - `hard_gate: false` on every WBP-/WSP- rule, for the identical cross-strategy-pooling reason
+       already documented on `BSP-M1`'s own note (`evaluateRules()`/`classify()` pool hard-gate
+       failures across every active strategy with no direction scoping) -- a future `/analysis` page
+       (Phase 5) must read `WBP-*`/`WSP-*` traces directly and apply the AND of M1-M4 itself,
+       exactly like `buy-signals`/`sell-signals` already do for `BSP-*`/`SSP-*`.
+     - `WBP-M2`/`WSP-S2` (weekly Elliott position) is a disclosed interpretation, not a literal
+       transcription, of `swing-strategy-extraction.md` §4's compressed table cells -- flagged
+       explicitly in each rule's own `note` field (e.g. `WSP-S2`'s 3-branch reading of "a completed
+       5-up" as a completed bullish impulse setting up a reversal). Not resolved as a strategy-owner
+       decision here; disclosed so it can be checked against the fuller source table later.
+     - Supporting engine work: `features/wave.js`'s hypothesis objects (impulse and zigzag) now carry
+       an explicit `direction: 'bullish'|'bearish'` field (previously only encoded inside the
+       human-readable `label` string) -- needed by `WBP-M2/M4`/`WSP-S2/S4` to know which way a
+       structure points without string-parsing. `features/context.js` now also computes
+       `daily_dow_state` (previously only weekly/monthly were classified for rule evaluation --
+       direction.js computed a daily dow_state, but only for the Direction feature, never fed into
+       `evaluateRules`), `{weekly,daily}_elliott_*` (reusing `structure.js`'s `labelPivotSequence` +
+       `wave.js`'s `labelWave`, the same engine the Direction feature uses), and
+       `daily_no_live_triggered_{bullish,bearish}_pattern` (reusing `features/patterns.js`'s
+       detectors directly on daily bars).
+     - New `strategies/buy-swing.yaml`/`sell-swing.yaml` registered in
+       `supabase/seed/parse-strategies.mjs`'s `STRATEGY_FILES`, verified via `parseStrategyFile()`
+       (8 rules each, 0 skipped, valid syntax) -- **not seeded to the remote project** (seeding
+       writes `rule_definitions`/`strategy_versions` to the live database, prohibited without
+       explicit authorization per this task's constraints, same as the unapplied migrations).
+     - Tests: `rules/swing-gates.test.js` (9 golden-case tests, one per real gate plus a
+       missing-input/NO_DATA case, expressions verified to match the seeded YAML text exactly, not
+       just hand-copied), plus new coverage in `wave.test.js` (direction field) and
+       `context.test.js` (5 new cases for `daily_dow_state`, weekly/daily Elliott position, and the
+       pattern-veto booleans).
+   - REMAINING: `WBP-M5..M8`/`WSP-S5..S8` (blocked on 1-hour ingestion, Phase 2), route
+     identification (BUY-1..5/SELL-1..5), the 5 confirmation groups (§7 decision 3), vetoes, the
+     gap/first-candle and 15-minute-stub rules (§9-10, both still open `PROJECT_DEFAULT` decisions),
+     DMI/ADX (still uncomputed -- no gate needs it yet, same `null_policy` reasoning as before), and
+     the `swing_analysis_results`/`swing_analysis_rule_traces` persistence layer (migration 0006
+     tables already drafted, nothing writes to them yet).
 6. **Phase 5 — UI.** Direction table rebuild (server pagination, filters, lazy charts — #25),
    Analysis pages + multi-panel charts, nav/login/accessibility pass.
 7. **Phase 6 — QA/integration.** The full test list from the spec, run against Phases 2-5's real

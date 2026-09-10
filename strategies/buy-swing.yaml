@@ -1,0 +1,207 @@
+strategy:
+  id: buy-swing-playbook
+  name: The Buy Signal Playbook (Swing -- Weekly to Daily to 1-Hour)
+  framework: WBP
+  rule_version: 1.0.0
+  parameter_version: 1.1.0
+  status: partially_automated
+  scope: [equity, index]
+
+provenance:
+  source_register: ../docs/swing-strategy-extraction.md
+  source_document: playbooks/BUY_Signal_Playbook_Weekly_Daily_1H.md
+  source_group: WBP
+  locator_granularity: gate_level
+  production_rule_trace_ready: false
+  requirement: >
+    This is a DIFFERENT document from strategies/buy-signal-playbook.yaml (BSP-,
+    Monthly->Weekly->Daily positional) -- see docs/swing-strategy-extraction.md
+    §1 source register, conflict #2. Gate IDs are namespaced WBP-M1..M8 so
+    nothing collides with BSP-M1..M8, per architecture-plan.md §7 decision 2.
+
+    Both playbooks state the direction lock explicitly: "M1 AND M2 AND M3 AND
+    M4 must all pass before the hourly chart is opened" -- gates WBP-M5..M8
+    (the hourly Elliott setup, PAPA trigger, SMM Bull Hat, and reward/risk)
+    require 1-hour OHLCV bars, which this pipeline does not ingest yet
+    (architecture-plan.md Phase 2 REMAINING item), so they stay MANUAL_REVIEW
+    sentinels below -- not automated, not scored as PASS, and never silently
+    skipped. WBP-M1..M4 (the weekly+daily direction lock) are real, automated,
+    DOCUMENTED gates as of rule_version 1.0.0 -- the first time this codebase
+    computes a daily Dow state and an Elliott wave position for the rule
+    engine (previously only weekly/monthly Dow state was computed in
+    features/context.js, and no Elliott position was computed there at all).
+
+rules:
+  - id: WBP-M1
+    playbook_gate: M1
+    name: Weekly Dow direction
+    source_status: DOCUMENTED
+    timeframe: weekly
+    direction: bullish
+    inputs: [weekly_dow_state]
+    expression: "weekly_dow_state == 'uptrend_intact' or weekly_dow_state == 'confirmed_reversal_bullish'"
+    true_result: PASS
+    false_result: FAIL
+    missing_result: NO_DATA
+    hard_gate: false
+    note: >
+      hard_gate is false for the same cross-strategy pooling reason as
+      BSP-M1 (see that file's note) -- evaluateRules()/classify() pool
+      hard-gate failures across every active strategy with no direction
+      scoping. A future /analysis page (Phase 5) must read WBP-*/WSP-*
+      traces directly and apply the AND of M1-M4 itself, exactly like the
+      existing buy-signals/sell-signals pages already do for BSP-/SSP-.
+      Locator: swing-strategy-extraction.md §4 table, M1 row ("Uptrend
+      (HH+HL) intact, or confirmed reversal"). The fuller M1 table this row
+      summarizes (source §2) was not further transcribed into the
+      extraction doc beyond this row -- if it adds a sideways+breakout
+      branch (as BSP-M1's own, different-document M1 table does), that is
+      not encoded here; only the two states this row names are.
+
+  - id: WBP-M2
+    playbook_gate: M2
+    name: Weekly Elliott position
+    source_status: DOCUMENTED
+    timeframe: weekly
+    direction: bullish
+    inputs: [weekly_elliott_structure_type, weekly_elliott_direction, weekly_elliott_current_wave, weekly_elliott_wave_state]
+    expression: "(weekly_elliott_structure_type == 'impulse' and weekly_elliott_direction == 'bullish' and weekly_elliott_current_wave in ['1', '3', '5']) or (weekly_elliott_structure_type == 'zigzag' and weekly_elliott_direction == 'bearish' and weekly_elliott_wave_state == 'completed')"
+    true_result: PASS
+    false_result: FAIL
+    missing_result: NO_DATA
+    hard_gate: false
+    note: >
+      hard_gate is false for the same cross-strategy pooling reason as
+      WBP-M1. Locator: swing-strategy-extraction.md §4 table, M2 row
+      ("Inside motive (1)/(3)/(5), or a completed (A)-(B)-(C) down; all 3
+      Elliott rules PASS"). "all 3 Elliott rules PASS" is satisfied by
+      construction -- features/wave.js's labelWave() only ever reports
+      structure_type='impulse' when GUE-IMPULSE-001/002/003 already
+      validated at that window length (see wave.js's validateImpulsePrefix),
+      so no separate rule-arithmetic check is needed here. Unlike
+      BSP-M4A (the positional document's equivalent, still a MANUAL_REVIEW
+      sentinel), this is now a real automated gate: features/context.js
+      computes weekly_elliott_* from the same labelPivotSequence + labelWave
+      the Direction feature uses, not a separate approximation.
+
+  - id: WBP-M3
+    playbook_gate: M3
+    name: Daily Dow direction
+    source_status: DOCUMENTED
+    timeframe: daily
+    direction: bullish
+    inputs: [daily_dow_state, daily_no_live_triggered_bearish_pattern]
+    expression: "(daily_dow_state == 'uptrend_intact' or daily_dow_state == 'confirmed_reversal_bullish') and daily_no_live_triggered_bearish_pattern"
+    true_result: PASS
+    false_result: FAIL
+    missing_result: NO_DATA
+    hard_gate: false
+    note: >
+      hard_gate is false for the same cross-strategy pooling reason as
+      WBP-M1. Locator: swing-strategy-extraction.md §4 table, M3 row
+      ("Uptrend intact, pullback holding last HL, or confirmed reversal; no
+      live triggered bearish daily pattern"). "Pullback holding last HL" is
+      not a separate branch -- classifyDowStructure() already reports
+      'uptrend_intact' only while the last close stays above the last swing
+      low, which IS "holding the last HL"; a break below it is the same
+      event the source calls trend invalidation. "No live triggered bearish
+      daily pattern" reuses features/patterns.js's TRIGGERED/bearish
+      detections directly (features/alignment.js's own opposing-pattern
+      logic, reused here for a different purpose: gating entry, not scoring
+      Direction confluence).
+
+  - id: WBP-M4
+    playbook_gate: M4
+    name: Daily wave + Tide
+    source_status: DOCUMENTED
+    timeframe: daily
+    direction: bullish
+    inputs: [daily_elliott_structure_type, daily_elliott_direction, daily_elliott_current_wave, daily_macd_histogram_change, daily_macd_histogram_prior_phase]
+    expression: "(daily_elliott_structure_type == 'impulse' and daily_elliott_direction == 'bullish' and daily_elliott_current_wave in ['1', '3', '5']) and (daily_macd_histogram_change == 'uptick' or (daily_macd_histogram_change == 'flat' and daily_macd_histogram_prior_phase == 'down'))"
+    true_result: PASS
+    false_result: FAIL
+    missing_result: NO_DATA
+    hard_gate: false
+    note: >
+      hard_gate is false for the same cross-strategy pooling reason as
+      WBP-M1. Locator: swing-strategy-extraction.md §4 table, M4 row
+      ("Inside motive 1/3/5 AND daily MACD uptick/flat-after-down, visual
+      read agreeing"). Implemented as a single AND gate matching this
+      table's own single-row presentation (unlike BSP-M4A/M4B, which split
+      an equivalent concept into two rows for a different document's own
+      table structure).
+
+  - id: WBP-M5
+    playbook_gate: M5
+    name: Hourly Elliott setup (BUY-1..BUY-5)
+    source_status: DOCUMENTED
+    timeframe: 1h
+    direction: bullish
+    inputs: [hourly_elliott_setup]
+    expression: manual_review
+    true_result: MANUAL_REVIEW
+    false_result: MANUAL_REVIEW
+    missing_result: MANUAL_REVIEW
+    hard_gate: false
+    note: >
+      Blocked on 1-hour bar ingestion, which this pipeline does not have yet
+      (migration 0006 added interval/is_complete columns; nothing populates
+      1h rows -- architecture-plan.md Phase 2 REMAINING). Not UNRESOLVED
+      like BSP-M5: the source fully documents BUY-1..BUY-5's exact mechanics
+      (swing-strategy-extraction.md §2) -- this is a data-availability block,
+      not a missing specification.
+
+  - id: WBP-M6
+    playbook_gate: M6
+    name: Price-action trigger (hourly PAPA setup)
+    source_status: DOCUMENTED
+    timeframe: 1h
+    direction: bullish
+    inputs: [hourly_papa_buy_setup_triggered]
+    expression: manual_review
+    true_result: MANUAL_REVIEW
+    false_result: MANUAL_REVIEW
+    missing_result: MANUAL_REVIEW
+    hard_gate: false
+    note: Blocked on 1-hour bar ingestion -- same reason as WBP-M5.
+
+  - id: WBP-M7
+    playbook_gate: M7
+    name: SMM Bull Hat (Step 1 AND Step 2)
+    source_status: UNRESOLVED
+    timeframe: 1h
+    direction: bullish
+    inputs: [hourly_bull_hat_step1, hourly_bull_hat_step2]
+    expression: manual_review
+    true_result: MANUAL_REVIEW
+    false_result: MANUAL_REVIEW
+    missing_result: MANUAL_REVIEW
+    hard_gate: false
+    note: >
+      Blocked on 1-hour bar ingestion AND on an open strategy-owner decision:
+      swing-strategy-extraction.md §13 conflict #11 -- the Step 2
+      Stochastic/RSI crossover choice this codebase made for BSP-M7B
+      (positional, daily) is not confirmed as the right choice for the
+      1-hour variant.
+
+  - id: WBP-M8
+    playbook_gate: M8
+    name: Reward-to-risk gate (strict > 3)
+    source_status: DOCUMENTED
+    timeframe: 1h
+    direction: bullish
+    inputs: [entry, structural_stop, target]
+    expression: manual_review
+    true_result: MANUAL_REVIEW
+    false_result: MANUAL_REVIEW
+    missing_result: MANUAL_REVIEW
+    hard_gate: false
+    note: >
+      Entry/stop/target derive from the hourly Elliott setup computed in
+      WBP-M5, which is itself blocked -- cannot be computed independently
+      without inventing a stop/target. Once WBP-M5 is real, this gate uses
+      the strict `> 3.0` threshold from architecture-plan.md §7 decision 1
+      (a new `swing_minimum_reward_risk_strict` parameter, distinct from the
+      existing `minimum_reward_risk: 3.0` used by other strategies) -- not
+      yet added to config/parameters.yaml since nothing depends on it yet
+      (null_policy).

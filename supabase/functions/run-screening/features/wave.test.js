@@ -20,6 +20,7 @@ test("labelWave: a full, valid bullish impulse is reported as wave 5 completed",
   ];
   const { primary, alternative } = labelWave(pivots, null, "uptrend_intact");
   assert.equal(primary.structureType, "impulse");
+  assert.equal(primary.direction, "bullish");
   assert.equal(primary.currentWave, "5");
   assert.equal(primary.waveState, "completed");
   assert.equal(primary.confidence, "confirmed");
@@ -39,6 +40,7 @@ test("labelWave: a full, valid bearish impulse mirrors the bullish case", () => 
   ];
   const { primary } = labelWave(pivots, null, "downtrend_intact");
   assert.equal(primary.structureType, "impulse");
+  assert.equal(primary.direction, "bearish");
   assert.equal(primary.currentWave, "5");
   assert.equal(primary.waveState, "completed");
   assert.equal(primary.confidence, "confirmed");
@@ -116,6 +118,7 @@ test("labelWave: a valid completed zigzag (B stays within origin, C extends beyo
   const { primary, alternative } = labelWave(pivots, null, "sideways");
   const zigzag = primary.structureType === "zigzag" ? primary : alternative;
   assert.ok(zigzag);
+  assert.equal(zigzag.direction, "bearish"); // wave A moved down from the origin
   assert.equal(zigzag.currentWave, "C");
   assert.equal(zigzag.waveState, "completed");
   assert.equal(zigzag.confidence, "confirmed");

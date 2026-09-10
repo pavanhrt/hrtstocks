@@ -50,6 +50,7 @@ export function labelWave(labeledPivots, unconfirmedLeg, dowState) {
   return {
     primary: {
       structureType: null,
+      direction: null,
       currentWave: null,
       waveState: null,
       confidence: "unconfirmed",
@@ -108,6 +109,7 @@ function tryImpulseProgress(labeledPivots, unconfirmedLeg, bullish) {
 
     return {
       structureType: "impulse",
+      direction: bullish ? "bullish" : "bearish",
       currentWave,
       waveState,
       confidence,
@@ -226,6 +228,7 @@ function tryCorrectiveProgress(labeledPivots, unconfirmedLeg) {
     if (!unconfirmedLeg) return null;
     return {
       structureType: "zigzag",
+      direction: correctionIsDown ? "bearish" : "bullish",
       currentWave: "B",
       waveState: "forming",
       confidence: "tentative",
@@ -246,6 +249,7 @@ function tryCorrectiveProgress(labeledPivots, unconfirmedLeg) {
     if (!unconfirmedLeg) {
       return {
         structureType: "zigzag",
+        direction: correctionIsDown ? "bearish" : "bullish",
         currentWave: "B",
         waveState: "completed",
         confidence: "tentative",
@@ -259,6 +263,7 @@ function tryCorrectiveProgress(labeledPivots, unconfirmedLeg) {
     }
     return {
       structureType: "zigzag",
+      direction: correctionIsDown ? "bearish" : "bullish",
       currentWave: "C",
       waveState: "forming",
       confidence: "tentative",
@@ -277,6 +282,7 @@ function tryCorrectiveProgress(labeledPivots, unconfirmedLeg) {
 
   return {
     structureType: "zigzag",
+    direction: correctionIsDown ? "bearish" : "bullish",
     currentWave: "C",
     waveState: "completed",
     confidence: "confirmed",
