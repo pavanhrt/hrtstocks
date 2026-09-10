@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { evaluateSwingHypothesis } from "./swing-analysis.js";
+import { evaluateSwingHypothesis, directionLockPassed } from "./swing-analysis.js";
 
 function trace(rule_id, result, explanation = `${rule_id} evaluated to ${result}`) {
   return { rule_id, result, explanation, observed_values: {}, thresholds: {}, source_locator: null };
@@ -91,4 +91,20 @@ test("evaluateSwingHypothesis never claims BUY or SELL -- finalAction is always 
   assert.equal(allFail.finalAction, "WAIT");
   const allPass = evaluateSwingHypothesis("bullish", fullBullishGateSet());
   assert.equal(allPass.finalAction, "WAIT");
+});
+
+test("directionLockPassed is true only when all 4 direction-lock gates PASS", () => {
+  assert.equal(directionLockPassed("bullish", fullBullishGateSet()), true);
+  assert.equal(directionLockPassed("bullish", fullBullishGateSet({ m3: "FAIL" })), false);
+  assert.equal(directionLockPassed("bullish", fullBullishGateSet({ m2: "NO_DATA" })), false);
+});
+
+test("directionLockPassed is false when the hypothesis's gates were never evaluated at all (strategy not seeded)", () => {
+  assert.equal(directionLockPassed("bullish", []), false);
+  assert.equal(directionLockPassed("bearish", fullBullishGateSet()), false); // only WBP- traces present, no WSP-
+});
+
+test("directionLockPassed does not require the hourly gates (M5-M8) to have resolved -- only M1-M4", () => {
+  const traces = fullBullishGateSet(); // M5-M8 are MANUAL_REVIEW in this fixture
+  assert.equal(directionLockPassed("bullish", traces), true);
 });

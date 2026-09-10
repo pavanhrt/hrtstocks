@@ -6,7 +6,16 @@ import {
   hourlyBarBoundaries,
   isCompletedHourlyBoundary,
   HOURLY_STUB_POLICY,
+  normalizeHourlyBars,
 } from "./nse-calendar.js";
+
+function epoch(isoUtc) {
+  return Math.floor(new Date(isoUtc).getTime() / 1000);
+}
+
+function candle(ts, close = 100) {
+  return { ts, open: close - 1, high: close + 1, low: close - 2, close, volume: 1000 };
+}
 
 test("isNseTradingDay rejects Saturday and Sunday", () => {
   assert.equal(isNseTradingDay("2026-09-12"), false); // Saturday
@@ -73,4 +82,42 @@ test("isCompletedHourlyBoundary accepts a real hourly close and rejects the excl
   assert.equal(isCompletedHourlyBoundary("15:15"), true);
   assert.equal(isCompletedHourlyBoundary("15:30"), false); // the stub -- never a valid trigger close
   assert.equal(isCompletedHourlyBoundary("10:00"), false); // not a boundary at all
+});
+
+test("normalizeHourlyBars keeps the 6 real hourly candles and drops the trailing 15:15 stub", () => {
+  const raw = [
+    candle(epoch("2026-09-10T03:45:00Z")), // 09:15 IST
+    candle(epoch("2026-09-10T04:45:00Z")), // 10:15 IST
+    candle(epoch("2026-09-10T05:45:00Z")), // 11:15 IST
+    candle(epoch("2026-09-10T06:45:00Z")), // 12:15 IST
+    candle(epoch("2026-09-10T07:45:00Z")), // 13:15 IST
+    candle(epoch("2026-09-10T08:45:00Z")), // 14:15 IST
+    candle(epoch("2026-09-10T09:45:00Z")), // 15:15 IST -- the excluded stub
+  ];
+  const nowUtc = new Date("2026-09-10T12:30:00Z"); // well after close
+  const bars = normalizeHourlyBars(raw, nowUtc);
+  assert.equal(bars.length, 6);
+  assert.ok(bars.every((b) => b.sessionDate === "2026-09-10"));
+  assert.ok(bars.every((b) => b.isComplete === true));
+});
+
+test("normalizeHourlyBars drops an off-boundary candle instead of guessing which window it belongs to", () => {
+  const raw = [candle(epoch("2026-09-10T03:50:00Z"))]; // 09:20 IST -- not a real boundary start
+  assert.equal(normalizeHourlyBars(raw).length, 0);
+});
+
+test("normalizeHourlyBars marks the still-forming current hour as incomplete, past hours as complete", () => {
+  const raw = [
+    candle(epoch("2026-09-10T03:45:00Z"), 100), // 09:15 IST, ends 10:15 IST
+    candle(epoch("2026-09-10T04:45:00Z"), 101), // 10:15 IST, ends 11:15 IST
+  ];
+  const nowUtc = new Date("2026-09-10T05:00:00Z"); // 10:30 IST -- mid-session, second bar still forming
+  const bars = normalizeHourlyBars(raw, nowUtc);
+  assert.equal(bars.length, 2);
+  assert.equal(bars[0].isComplete, true); // its 10:15 IST close has passed
+  assert.equal(bars[1].isComplete, false); // its 11:15 IST close has not
+});
+
+test("normalizeHourlyBars returns an empty list for an empty input, never throwing", () => {
+  assert.deepEqual(normalizeHourlyBars([]), []);
 });

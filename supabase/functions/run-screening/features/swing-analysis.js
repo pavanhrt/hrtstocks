@@ -24,6 +24,23 @@ function gateNumber(ruleId) {
 }
 
 /**
+ * True only when this hypothesis's 4 direction-lock gates (M1-M4/S1-S4) were
+ * all evaluated and all PASSed -- both playbooks' own explicit rule ("M1 AND
+ * M2 AND M3 AND M4 must all pass before the hourly chart is opened").
+ * index.js uses this to gate 1-hour bar ingestion: fetching hourly data for
+ * an instrument whose weekly+daily direction lock hasn't even cleared would
+ * be wasted Fyers request budget on a stock the playbook itself says isn't
+ * ready for the hourly chart yet.
+ * @param {"bullish"|"bearish"} hypothesis
+ * @param {{rule_id: string, result: string}[]} traces
+ */
+export function directionLockPassed(hypothesis, traces) {
+  const prefix = GATE_PREFIX[hypothesis];
+  const directionLockGates = traces.filter((t) => t.rule_id.startsWith(prefix) && (gateNumber(t.rule_id) ?? 99) <= DIRECTION_LOCK_GATE_COUNT);
+  return directionLockGates.length === DIRECTION_LOCK_GATE_COUNT && directionLockGates.every((t) => t.result === "PASS");
+}
+
+/**
  * @param {"bullish"|"bearish"} hypothesis
  * @param {{rule_id: string, result: string, explanation: string}[]} traces the full pooled traces array for one instrument/run (evaluateRules() output, every active strategy) -- this filters to its own WBP-/WSP- prefix
  * @returns {object|null} a swing_analysis_results-shaped row (camelCase, caller maps to columns), or null when none of this hypothesis's swing gates were evaluated (buy-swing.yaml/sell-swing.yaml not yet seeded/active -- nothing to report, not NO_DATA)

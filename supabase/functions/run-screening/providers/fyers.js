@@ -76,26 +76,11 @@ function fmtDate(d) {
 }
 
 /**
- * @param {string} instrumentId
- * @param {string} symbol
- * @param {number} days
- * @param {import("@supabase/supabase-js").SupabaseClient} [supabase] when
- *   provided, also claims a slot in the cross-invocation rate-limit bucket
- *   before calling Fyers -- omit only for tests/local scripts that don't
- *   have a Supabase client handy; production callers must pass it.
+ * Shared request/throttle/retry loop for both fetchOHLCV (daily) and
+ * fetchHourlyOHLCV -- a 429 retry policy and the cross-invocation rate-limit
+ * slot are resolution-independent, no reason to duplicate them per caller.
  */
-export async function fetchOHLCV(instrumentId, symbol, days, supabase = null) {
-  const to = new Date();
-  const from = new Date(to.getTime() - days * 24 * 60 * 60 * 1000);
-
-  const url = new URL(`${DATA_BASE_URL}/history`);
-  url.searchParams.set("symbol", toFyersSymbol(instrumentId, symbol));
-  url.searchParams.set("resolution", "D");
-  url.searchParams.set("date_format", "1");
-  url.searchParams.set("range_from", fmtDate(from));
-  url.searchParams.set("range_to", fmtDate(to));
-  url.searchParams.set("cont_flag", "1");
-
+async function requestHistory(url, symbol, supabase) {
   let res, body;
   for (let attempt = 0; ; attempt++) {
     await throttle();
@@ -123,6 +108,31 @@ export async function fetchOHLCV(instrumentId, symbol, days, supabase = null) {
       `Fyers history request failed for ${symbol}: ${res.status} ${body ? JSON.stringify(body) : ""}`
     );
   }
+  return body;
+}
+
+/**
+ * @param {string} instrumentId
+ * @param {string} symbol
+ * @param {number} days
+ * @param {import("@supabase/supabase-js").SupabaseClient} [supabase] when
+ *   provided, also claims a slot in the cross-invocation rate-limit bucket
+ *   before calling Fyers -- omit only for tests/local scripts that don't
+ *   have a Supabase client handy; production callers must pass it.
+ */
+export async function fetchOHLCV(instrumentId, symbol, days, supabase = null) {
+  const to = new Date();
+  const from = new Date(to.getTime() - days * 24 * 60 * 60 * 1000);
+
+  const url = new URL(`${DATA_BASE_URL}/history`);
+  url.searchParams.set("symbol", toFyersSymbol(instrumentId, symbol));
+  url.searchParams.set("resolution", "D");
+  url.searchParams.set("date_format", "1");
+  url.searchParams.set("range_from", fmtDate(from));
+  url.searchParams.set("range_to", fmtDate(to));
+  url.searchParams.set("cont_flag", "1");
+
+  const body = await requestHistory(url, symbol, supabase);
 
   const data = (body.candles ?? [])
     .map(([ts, open, high, low, close, volume]) => ({
@@ -143,3 +153,74 @@ export async function fetchOHLCV(instrumentId, symbol, days, supabase = null) {
     retrievedAt: new Date().toISOString(),
   };
 }
+
+// The swing playbooks only ever reason about a handful of the most recent
+// hourly candles (BUY-3/SELL-2's own documented structural minimum is
+// "fifteen to twenty hourly candles" -- see swing-strategy-extraction.md
+// §2, BUY-3), not a long history -- unlike daily bars (which need ~250
+// trading days for EMA-200/MACD warmup), 1-hour ingestion only needs a
+// short, recent window. 15 calendar days is roughly 10-11 NSE trading days,
+// ~60-66 hourly candles at 6/session -- comfortable margin over the
+// documented 15-20 floor for pivot-finding context, while staying far under
+// any plausible Fyers intraday date-range cap so this doesn't depend on
+// knowing that cap's exact value (unlike OHLCV_LOOKBACK_DAYS's 366-day
+// daily-resolution cap, index.js's own comment, this has NOT been confirmed
+// via a live response -- no FYERS_ACCESS_TOKEN is available in this
+// environment). PROJECT_DEFAULT, versioned here.
+const HOURLY_LOOKBACK_DAYS = 15;
+
+/**
+ * Fetches the trailing HOURLY_LOOKBACK_DAYS of 1-hour candles. Returns raw
+ * epoch-timestamped bars -- callers should run these through
+ * nse-calendar.js's normalizeHourlyBars() before storage, which excludes
+ * the trailing 15-minute session stub and marks the still-forming current
+ * hour as incomplete.
+ *
+ * date_format=0 (epoch-second range bounds, not date-only strings) is used
+ * here instead of fetchOHLCV's date_format=1 -- an intraday resolution needs
+ * a boundary finer than a calendar day. This parameter choice follows
+ * Fyers' documented history API shape but, like the resolution="60" value
+ * itself, has not been independently confirmed against a live response in
+ * this environment (no FYERS_ACCESS_TOKEN available) -- verify empirically
+ * once a token is configured, before relying on this in production.
+ *
+ * @param {string} instrumentId
+ * @param {string} symbol
+ * @param {import("@supabase/supabase-js").SupabaseClient} [supabase]
+ * @param {number} [days]
+ */
+export async function fetchHourlyOHLCV(instrumentId, symbol, supabase = null, days = HOURLY_LOOKBACK_DAYS) {
+  const to = new Date();
+  const from = new Date(to.getTime() - days * 24 * 60 * 60 * 1000);
+
+  const url = new URL(`${DATA_BASE_URL}/history`);
+  url.searchParams.set("symbol", toFyersSymbol(instrumentId, symbol));
+  url.searchParams.set("resolution", "60");
+  url.searchParams.set("date_format", "0");
+  url.searchParams.set("range_from", String(Math.floor(from.getTime() / 1000)));
+  url.searchParams.set("range_to", String(Math.floor(to.getTime() / 1000)));
+  url.searchParams.set("cont_flag", "1");
+
+  const body = await requestHistory(url, symbol, supabase);
+
+  const data = (body.candles ?? [])
+    .map(([ts, open, high, low, close, volume]) => ({
+      ts: Number(ts), // epoch seconds, UTC
+      open: Number(open),
+      high: Number(high),
+      low: Number(low),
+      close: Number(close),
+      volume: Number(volume),
+    }))
+    .filter((bar) => Number.isFinite(bar.close))
+    .sort((a, b) => a.ts - b.ts);
+
+  return {
+    data,
+    freshness: "INTRADAY",
+    provider: "fyers",
+    retrievedAt: new Date().toISOString(),
+  };
+}
+
+export { HOURLY_LOOKBACK_DAYS };

@@ -1,19 +1,24 @@
 # Direction/Analysis rebuild — lead-agent architecture plan
 
-Status: **Phase 3 (Direction intelligence rewrite) — complete; Phase 4 (Analysis engine) — in
-progress: weekly+daily direction lock (WBP-M1..M4/WSP-S1..S4) and its swing_analysis_results
-persistence layer are done, everything downstream of the hourly chart is blocked on Phase 2's
-missing 1-hour ingestion.** Phases 0-3 (contracts, safe-redirect/error-handling/UI-copy fixes,
-durable pipeline/corporate-actions/rate-limiting/run-locking, and the Direction rewrite itself --
-equal-pivot labels, unconfirmed-leg separation, the Elliott engine rewrite, pattern detection,
-server-side `final_alignment`, and run-scoped persistence) are done. Phase 4 so far:
-`strategies/buy-swing.yaml`/`sell-swing.yaml` (gates WBP-M1..M8/WSP-S1..S8, M1-M4/S1-S4 automated,
-M5-M8/S5-S8 disclosed as blocked) plus `features/swing-analysis.js`, which turns those gate traces
-into a real `swing_analysis_results` row per hypothesis every run -- always `final_action: WAIT`
-today, with the specific blocking reason disclosed in `pending_conditions` rather than a guessed
-BUY/SELL. All of the above is locally committed on `develop`; see each phase's DONE/REMAINING
-bullets in §6 below. Nothing in this document has been applied to the
-database or deployed -- `supabase/migrations/` goes through `0007_provider_rate_limit_buckets.sql`,
+Status: **Phase 3 (Direction intelligence rewrite) — complete; Phase 2 (durable pipeline) — 1-hour
+bar ingestion now built, gated behind Phase 4's direction lock; Phase 4 (Analysis engine) — weekly+
+daily direction lock (WBP-M1..M4/WSP-S1..S4) and its swing_analysis_results persistence layer are
+done, everything past that (routes, confirmation groups, most vetoes, reward/risk) still needs the
+new hourly data to actually reach a seeded strategy before it can run.** Phases 0-3 (contracts,
+safe-redirect/error-handling/UI-copy fixes, durable pipeline/corporate-actions/rate-limiting/
+run-locking, and the Direction rewrite itself -- equal-pivot labels, unconfirmed-leg separation, the
+Elliott engine rewrite, pattern detection, server-side `final_alignment`, and run-scoped
+persistence) are done. Phase 4 so far: `strategies/buy-swing.yaml`/`sell-swing.yaml` (gates
+WBP-M1..M8/WSP-S1..S8, M1-M4/S1-S4 automated) plus `features/swing-analysis.js`, turning those gate
+traces into a real `swing_analysis_results` row per hypothesis every run -- always
+`final_action: WAIT` today, with the specific blocking reason disclosed in `pending_conditions`
+rather than a guessed BUY/SELL. Phase 2 now also fetches and stores 1-hour bars
+(`providers/fyers.js`'s `fetchHourlyOHLCV`, `nse-calendar.js`'s `normalizeHourlyBars`,
+`index.js`'s `ingestHourlyBars`), gated on `directionLockPassed()` so it only spends request budget
+on instruments that have actually cleared M1-M4/S1-S4 -- real effect is still a no-op until
+`buy-swing.yaml`/`sell-swing.yaml` are seeded. All of the above is locally committed on `develop`;
+see each phase's DONE/REMAINING bullets in §6 below. Nothing in this document has been applied to
+the database or deployed -- `supabase/migrations/` goes through `0007_provider_rate_limit_buckets.sql`,
 drafted and locally verified against the live schema's real constraint names, but not applied.
 
 Companion document (produced by the rules/provenance agent, separately): `docs/swing-strategy-extraction.md`
@@ -207,6 +212,49 @@ resolution between workstreams.
      the `market_bars_raw` write now tries migration 0006's new shape first and falls back to the
      current live shape on any failure, so raw-bar ingestion doesn't break if the code deploys
      before the migration is applied.
+   - DONE: 1-hour bar ingestion, scoped and gated. `providers/fyers.js`'s new
+     `fetchHourlyOHLCV(instrumentId, symbol, supabase, days)` (`resolution=60`, `date_format=0`
+     epoch-second range bounds -- unlike `fetchOHLCV`'s `date_format=1`, an intraday resolution
+     needs a boundary finer than a calendar day). `HOURLY_LOOKBACK_DAYS = 15` (a disclosed
+     `PROJECT_DEFAULT`): the swing playbooks only ever reason about a handful of recent hourly
+     candles (BUY-3/SELL-2's own documented floor is "fifteen to twenty hourly candles" --
+     swing-strategy-extraction.md §2), not a long history like daily bars need for EMA-200/MACD
+     warmup, so 15 calendar days (~60-66 hourly candles) gives comfortable margin over that floor
+     while staying far under any plausible Fyers intraday date-range cap -- deliberately avoiding
+     the need to know that cap's exact value, since (unlike `OHLCV_LOOKBACK_DAYS`'s 366-day cap,
+     confirmed via a live 422 response) **neither `resolution=60` nor `date_format=0` has been
+     confirmed against a live Fyers response in this environment** (no `FYERS_ACCESS_TOKEN`
+     available) -- flagged for empirical verification once a token is configured, before relying on
+     this in production.
+     `nse-calendar.js`'s new `normalizeHourlyBars()` converts raw epoch-timestamped candles into
+     this project's bar shape, keeping only candles whose IST start-of-bar time matches one of
+     `hourlyBarBoundaries()`'s 6 windows -- this is what actually implements
+     `HOURLY_STUB_POLICY=exclude` (a 15:15-started stub candle simply fails the boundary match,
+     regardless of whether Fyers even returns one), and marks the still-forming current hour as
+     `is_complete=false` by comparing each bar's own end-instant against `now`. Assumes Fyers
+     timestamps an intraday candle by its START (matching this project's own confirmed convention
+     for daily candles) -- also unconfirmed live; if wrong, every candle fails its boundary match
+     and this returns an empty list, a safe failure (no hourly bars, i.e. `NO_DATA` upstream), never
+     a wrong or mislabeled bar.
+     Wired into `run-screening/index.js`'s new `ingestHourlyBars`, called once per instrument
+     **only when `features/swing-analysis.js`'s new `directionLockPassed()` is true for either
+     hypothesis** -- both playbooks state explicitly "M1 AND M2 AND M3 AND M4 must all pass before
+     the hourly chart is opened," so this spends Fyers request budget only on instruments that have
+     actually cleared the weekly+daily direction lock, not all ~500 every run (which the existing
+     125s time budget and rate limits could not absorb). Writes `market_bars_raw` with
+     `interval='1h'` (migration 0006) -- deliberately has **no old-schema fallback** (unlike the
+     daily write above): the pre-migration unique constraint `(instrument_id, session_date,
+     provider)` doesn't include `interval`, so an hourly bar would collide with and silently corrupt
+     that same day's daily bar under the old shape; failing outward (caught by the caller, logged,
+     no hourly data for that instrument this run) is the only safe behavior pre-migration.
+     Real effect today is a no-op: `buy-swing.yaml`/`sell-swing.yaml` aren't seeded, so
+     `directionLockPassed` is always false and `ingestHourlyBars` never runs -- the infrastructure is
+     real and tested, but nothing actually fetches hourly data until those strategies are seeded
+     (a remote write, not done per this task's constraints).
+     Tests: 4 new cases in `nse-calendar.test.js` for `normalizeHourlyBars` (stub exclusion,
+     off-boundary rejection, mid-session completeness, empty input), 3 new cases in
+     `swing-analysis.test.js` for `directionLockPassed`. No test added for `fetchHourlyOHLCV` itself
+     (network I/O, same as the pre-existing `fetchOHLCV` -- untested for the same reason).
    - REMAINING: corporate-action *data ingestion* (a source for `corporate_actions` rows -- the
      adjustment math above is ready, nothing feeds it), wiring `pipeline_batches` for true
      multi-invocation resumability (today's loop is still one long sequential pass within a single

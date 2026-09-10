@@ -25,20 +25,20 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { fetchIndexConstituents } from "./providers/nse-archives.js";
-import { fetchOHLCV } from "./providers/fyers.js";
+import { fetchOHLCV, fetchHourlyOHLCV } from "./providers/fyers.js";
 import { validateBars } from "./quality.js";
 import { buildFeatureContext } from "./features/context.js";
 import { buildDirectionAnalysis, ALGORITHM_VERSION as DIRECTION_ALGORITHM_VERSION } from "./features/direction.js";
 import { detectCandlestickPatterns, detectDoubleExtremePatterns, PATTERN_PARAM_VERSION } from "./features/patterns.js";
 import { computeFinalAlignment } from "./features/alignment.js";
-import { evaluateSwingHypothesis } from "./features/swing-analysis.js";
+import { evaluateSwingHypothesis, directionLockPassed } from "./features/swing-analysis.js";
 import { computeAdjustedBars, ADJUSTMENT_VERSION } from "./features/corporate-actions.js";
 import { renderChartSvg, RENDER_VERSION } from "./charts/render.js";
 import { evaluateRules } from "./rules/evaluate.js";
 import { classify, scoreComponents, rankWithinTiers } from "./rank.js";
 import { reconcileCoverage } from "./reconcile.js";
 import { acquireRunLease, heartbeatRunLease, releaseRunLease } from "./run-lease.js";
-import { latestCompletedNseSession } from "./nse-calendar.js";
+import { latestCompletedNseSession, normalizeHourlyBars } from "./nse-calendar.js";
 
 const DIRECTION_TIMEFRAMES = ["daily", "weekly", "monthly"];
 const RUN_TYPE = "eod_screening";
@@ -543,6 +543,29 @@ async function evaluateInstrument({ supabase, runId, instrument, ruleDefinitions
     );
   }
 
+  // 1-hour bar ingestion (Phase 2 REMAINING item, now started): both swing
+  // playbooks state "M1 AND M2 AND M3 AND M4 must all pass before the
+  // hourly chart is opened" -- so this only spends Fyers request budget on
+  // an instrument once its weekly+daily direction lock has actually
+  // cleared, rather than fetching hourly data for all ~500 instruments
+  // every run (which the existing 125s time budget and rate limits could
+  // not absorb -- see providers/fyers.js's own rate-limit comments). Real
+  // effect is a no-op today: buy-swing.yaml/sell-swing.yaml aren't seeded
+  // yet, so directionLockPassed is always false until they are.
+  if (directionLockPassed("bullish", traces) || directionLockPassed("bearish", traces)) {
+    try {
+      await ingestHourlyBars({ supabase, instrument });
+    } catch (err) {
+      await logStage(
+        supabase,
+        runId,
+        "hourly_ingest",
+        "warning",
+        `${instrument.instrumentId}: hourly bar ingestion failed: ${err instanceof Error ? err.message : String(err)}`
+      );
+    }
+  }
+
   const { terminalState, tier } = classify(traces, failedGates, dataQuality);
   const tracesByFramework = groupBy(traces, (t) => t.rule_id.split("-")[0]);
   const { total, componentScores } = scoreComponents(tracesByFramework);
@@ -632,6 +655,42 @@ async function persistSwingAnalysisResults({ supabase, runId, instrument, traces
       if (traceError) throw traceError;
     }
   }
+}
+
+/**
+ * Fetches the trailing ~15 days of 1-hour bars (providers/fyers.js's
+ * fetchHourlyOHLCV) and upserts them into market_bars_raw with
+ * interval='1h' (migration 0006, not yet applied). Unlike the daily bars
+ * write above, there is NO safe old-schema fallback here: the pre-migration
+ * unique constraint is (instrument_id, session_date, provider), which an
+ * hourly bar would collide under with that same day's DAILY bar (both share
+ * the same session_date) -- attempting an old-shape write would silently
+ * corrupt the daily row. So this only ever attempts the new shape; if it
+ * fails (table/columns don't exist yet), the caller's try/catch logs a
+ * warning and this run simply has no hourly data for the instrument, same
+ * as any other NO_DATA outcome -- never a corrupted daily bar.
+ */
+async function ingestHourlyBars({ supabase, instrument }) {
+  const { data: rawCandles } = await fetchHourlyOHLCV(instrument.instrumentId, instrument.symbol, supabase);
+  const bars = normalizeHourlyBars(rawCandles);
+  if (bars.length === 0) return;
+
+  const rows = bars.map((b) => ({
+    instrument_id: instrument.instrumentId,
+    interval: "1h",
+    session_date: b.sessionDate,
+    ts: b.ts,
+    open: b.open,
+    high: b.high,
+    low: b.low,
+    close: b.close,
+    volume: b.volume,
+    provider: "fyers",
+    freshness: "INTRADAY",
+    is_complete: b.isComplete,
+  }));
+  const { error } = await supabase.from("market_bars_raw").upsert(rows, { onConflict: "instrument_id,interval,ts,provider" });
+  if (error) throw error;
 }
 
 /**

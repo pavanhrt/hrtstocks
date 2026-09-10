@@ -154,3 +154,54 @@ export function hourlyBarBoundaries() {
 export function isCompletedHourlyBoundary(barCloseIstTime) {
   return hourlyBarBoundaries().some((b) => b.end === barCloseIstTime);
 }
+
+/**
+ * Converts raw epoch-timestamped 1-hour candles (providers/fyers.js's
+ * fetchHourlyOHLCV) into this project's bar shape, keeping only candles
+ * whose IST start-of-bar clock time matches one of hourlyBarBoundaries()'s
+ * 6 windows. This is what actually implements HOURLY_STUB_POLICY=exclude --
+ * a candle starting at 15:15 (the trailing stub) simply doesn't match any
+ * boundary and is dropped, regardless of whether the provider even returns
+ * one. An off-boundary candle (a resolution/alignment artifact) is dropped
+ * the same way rather than guessed into the nearest bucket.
+ *
+ * ASSUMES the provider timestamps an intraday candle by its START time --
+ * matching this project's own confirmed convention for daily-resolution
+ * candles (providers/fyers.js's fetchOHLCV maps a daily candle's timestamp
+ * directly to that session's date). This has NOT been independently
+ * confirmed for resolution=60 via a live response (see fetchHourlyOHLCV's
+ * own comment) -- if the assumption is wrong, every candle below fails its
+ * boundary match and this returns an empty list, a safe failure (no bars,
+ * i.e. NO_DATA upstream) rather than a wrong or mislabeled bar.
+ *
+ * @param {{ts: number, open: number, high: number, low: number, close: number, volume: number}[]} rawCandles epoch-second timestamps, UTC
+ * @param {Date} [nowUtc]
+ * @returns {{sessionDate: string, ts: string, open: number, high: number, low: number, close: number, volume: number, isComplete: boolean}[]}
+ */
+export function normalizeHourlyBars(rawCandles, nowUtc = new Date()) {
+  const validStartTimes = new Set(hourlyBarBoundaries().map((b) => b.start));
+  const out = [];
+  for (const candle of rawCandles) {
+    const barStart = new Date(candle.ts * 1000);
+    const startTimeIst = new Intl.DateTimeFormat("en-GB", {
+      timeZone: NSE_TIMEZONE,
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).format(barStart);
+    if (!validStartTimes.has(startTimeIst)) continue; // the excluded 15:15-15:30 stub, or an off-boundary candle
+
+    const barEndUtc = new Date(barStart.getTime() + 60 * 60 * 1000); // each window is a full hour by construction
+    out.push({
+      sessionDate: isoDateInZone(barStart, NSE_TIMEZONE),
+      ts: barStart.toISOString(),
+      open: candle.open,
+      high: candle.high,
+      low: candle.low,
+      close: candle.close,
+      volume: candle.volume,
+      isComplete: barEndUtc.getTime() <= nowUtc.getTime(),
+    });
+  }
+  return out;
+}
