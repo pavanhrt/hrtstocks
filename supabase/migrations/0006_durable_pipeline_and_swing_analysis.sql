@@ -102,9 +102,12 @@ create table instrument_direction_runs (
   run_id uuid not null references screening_runs(id) on delete cascade,
   instrument_id text not null references instruments(id),
   timeframe text not null check (timeframe in ('daily', 'weekly', 'monthly')),
+  -- Matches structure.js's classifyDowStructure() output exactly (pre-existing,
+  -- tested code -- authoritative over this migration's own earlier draft, which
+  -- used 'sideways_range'/'mixed' before being reconciled against it).
   dow_state text not null check (dow_state in (
-    'uptrend_intact', 'downtrend_intact', 'sideways_range',
-    'confirmed_reversal_bullish', 'confirmed_reversal_bearish', 'mixed',
+    'uptrend_intact', 'downtrend_intact', 'sideways',
+    'confirmed_reversal_bullish', 'confirmed_reversal_bearish', 'ambiguous',
     'manual_review', 'unavailable'
   )),
   confirmed_pivots jsonb not null default '[]',

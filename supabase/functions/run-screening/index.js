@@ -28,11 +28,11 @@ import { fetchIndexConstituents } from "./providers/nse-archives.js";
 import { fetchOHLCV } from "./providers/fyers.js";
 import { validateBars } from "./quality.js";
 import { buildFeatureContext } from "./features/context.js";
-import { buildDirectionAnalysis } from "./features/direction.js";
+import { buildDirectionAnalysis, ALGORITHM_VERSION as DIRECTION_ALGORITHM_VERSION } from "./features/direction.js";
 import { detectCandlestickPatterns, detectDoubleExtremePatterns, PATTERN_PARAM_VERSION } from "./features/patterns.js";
 import { computeFinalAlignment } from "./features/alignment.js";
 import { computeAdjustedBars, ADJUSTMENT_VERSION } from "./features/corporate-actions.js";
-import { renderChartSvg } from "./charts/render.js";
+import { renderChartSvg, RENDER_VERSION } from "./charts/render.js";
 import { evaluateRules } from "./rules/evaluate.js";
 import { classify, scoreComponents, rankWithinTiers } from "./rank.js";
 import { reconcileCoverage } from "./reconcile.js";
@@ -609,6 +609,24 @@ async function upsertDirectionAnalysis({ supabase, runId, instrument, bars, docu
       { onConflict: "instrument_id,timeframe" }
     );
 
+    // Run-scoped schema (migration 0006, not yet applied -- degrades
+    // gracefully): instrument_direction above is latest-state only and gets
+    // overwritten every run, so it can never answer "what did we actually
+    // see on run X" -- these tables are this run's immutable evidence.
+    // Failure here must never block the legacy row above (still what the
+    // live Direction page reads) or pattern detection below.
+    try {
+      await persistDirectionRun({ supabase, runId, instrument, timeframe, tf, objectPath });
+    } catch (err) {
+      await logStage(
+        supabase,
+        runId,
+        "direction_run",
+        "warning",
+        `${instrument.instrumentId}/${timeframe}: run-scoped direction/wave persistence failed (likely migration 0006 not yet applied): ${err instanceof Error ? err.message : String(err)}`
+      );
+    }
+
     // Pattern detection is computed regardless of persistence success (the
     // in-memory hits still feed final_alignment below even if the insert
     // degrades because migration 0006 isn't applied). It's also fresh
@@ -649,6 +667,101 @@ async function upsertDirectionAnalysis({ supabase, runId, instrument, bars, docu
       `${instrument.instrumentId}: final_alignment computation/persistence failed (likely migration 0006 not yet applied): ${err instanceof Error ? err.message : String(err)}`
     );
   }
+}
+
+/**
+ * Persists one timeframe's direction/wave analysis into the new run-scoped
+ * schema: instrument_direction_runs (this run's own snapshot, unlike the
+ * latest-state instrument_direction table above), direction_pivots (the
+ * confirmed swing sequence, one row each), and elliott_hypotheses (primary +
+ * alternative, when a structured hypothesis actually exists).
+ *
+ * trend_defining_level/invalidation_level: smm-chart-analysis-SKILL.md names
+ * "the last HL in an uptrend (or last LH in a downtrend)" as THE
+ * trend-defining level, and separately describes invalidation for a bullish
+ * view as a close below that same level -- the source itself treats these as
+ * the same number for an intact/confirmed trend, which is why both columns
+ * get lastSwingLow/lastSwingHigh here. confirmation_trigger is left null:
+ * no document in this project defines a deterministic confirmation-trigger
+ * level (it's a live example in the source -- "weekly close above 24,800" --
+ * not a formula), so computing one would mean inventing it.
+ */
+async function persistDirectionRun({ supabase, runId, instrument, timeframe, tf, objectPath }) {
+  const directionalLevel = trendDefiningLevelFor(tf.dowState, tf.lastSwingHigh, tf.lastSwingLow);
+
+  const { error: runError } = await supabase.from("instrument_direction_runs").upsert(
+    {
+      run_id: runId,
+      instrument_id: instrument.instrumentId,
+      timeframe,
+      dow_state: tf.dowState,
+      confirmed_pivots: tf.pivots,
+      unconfirmed_leg: tf.unconfirmedLeg,
+      trend_defining_level: directionalLevel,
+      confirmation_trigger: null,
+      invalidation_level: directionalLevel,
+      chart_object_path: objectPath,
+      chart_input_hash: tf.inputHash,
+      chart_algorithm_version: DIRECTION_ALGORITHM_VERSION,
+      chart_renderer_version: RENDER_VERSION,
+      data_quality: "PASS",
+      computed_at: new Date().toISOString(),
+    },
+    { onConflict: "run_id,instrument_id,timeframe" }
+  );
+  if (runError) {
+    if (runError.code !== "PGRST205") throw runError;
+    return; // table not migrated yet -- pivots/hypotheses below would fail identically, skip them too
+  }
+
+  if (tf.pivots.length > 0) {
+    // Confirmed pivots only -- the unconfirmed leg has no honest HH/HL/LH/LL/
+    // EH/EL label yet (that's what makes it unconfirmed), so it stays in
+    // instrument_direction_runs.unconfirmed_leg above rather than being
+    // force-fit into this table's label enum.
+    const pivotRows = tf.pivots.map((p, i) => ({
+      run_id: runId,
+      instrument_id: instrument.instrumentId,
+      timeframe,
+      label: p.type,
+      price: p.price,
+      bar_date: p.date,
+      confidence: "confirmed",
+      sequence_index: i,
+    }));
+    const { error: pivotError } = await supabase.from("direction_pivots").insert(pivotRows);
+    if (pivotError && pivotError.code !== "PGRST205") throw pivotError;
+  }
+
+  const hypotheses = [
+    tf.wave?.structureType ? { rank: "primary", wave: tf.wave } : null,
+    tf.waveAlternative?.structureType ? { rank: "alternative", wave: tf.waveAlternative } : null,
+  ].filter(Boolean);
+  if (hypotheses.length > 0) {
+    const hypothesisRows = hypotheses.map(({ rank, wave }) => ({
+      run_id: runId,
+      instrument_id: instrument.instrumentId,
+      timeframe,
+      rank,
+      structure_type: wave.structureType,
+      current_wave: wave.currentWave,
+      wave_state: wave.waveState,
+      rule_arithmetic: wave.ruleArithmetic,
+      confidence: wave.confidence,
+      invalidation_price: wave.invalidationPrice,
+      invalidation_condition: wave.invalidationCondition,
+      source_locator: wave.structureType === "impulse" ? "strategies/gue.yaml GUE-IMPULSE-001/002/003" : "features/wave.js tryCorrectiveProgress (zigzag shape check)",
+      computed_at: new Date().toISOString(),
+    }));
+    const { error: waveError } = await supabase.from("elliott_hypotheses").insert(hypothesisRows);
+    if (waveError && waveError.code !== "PGRST205") throw waveError;
+  }
+}
+
+function trendDefiningLevelFor(dowState, lastSwingHigh, lastSwingLow) {
+  if (dowState === "uptrend_intact" || dowState === "confirmed_reversal_bullish") return lastSwingLow;
+  if (dowState === "downtrend_intact" || dowState === "confirmed_reversal_bearish") return lastSwingHigh;
+  return null; // sideways/ambiguous -- no single directional level to name without picking a side
 }
 
 /**

@@ -1,10 +1,13 @@
 # Direction/Analysis rebuild — lead-agent architecture plan
 
-Status: **Phase 0 (contracts) — in progress.** This is the shared-contracts document required
-before any parallel agent work starts, per the build authorization's own instruction ("first have
-the lead agent define shared schemas, types, status vocabulary, and file ownership"). Nothing in
-this document has been applied to the database or deployed. `supabase/migrations/` still only goes
-through `0005_direction_analysis.sql`.
+Status: **Phase 3 (Direction intelligence rewrite) — complete; Phase 4 (Analysis engine) not yet
+started.** Phases 0-3 (contracts, safe-redirect/error-handling/UI-copy fixes, durable
+pipeline/corporate-actions/rate-limiting/run-locking, and the Direction rewrite itself -- equal-pivot
+labels, unconfirmed-leg separation, the Elliott engine rewrite, pattern detection, server-side
+`final_alignment`, and run-scoped persistence) are done and locally committed on `develop`; see each
+phase's DONE/REMAINING bullets in §6 below. Nothing in this document has been applied to the
+database or deployed -- `supabase/migrations/` goes through `0007_provider_rate_limit_buckets.sql`,
+drafted and locally verified against the live schema's real constraint names, but not applied.
 
 Companion document (produced by the rules/provenance agent, separately): `docs/swing-strategy-extraction.md`
 — full extraction of the Weekly→Daily→1H BUY/SELL playbooks with source locators. Read that before
@@ -63,9 +66,14 @@ These are the canonical enums every new table/module must use. Do not invent par
 run_stage_status:        queued | running | completed | partial | failed
 run_lease_status:        active | released | expired
 instrument_terminal:     PASS | WATCH | MANUAL_REVIEW | FAIL | NO_DATA   (existing, unchanged)
-direction_state:         uptrend_intact | downtrend_intact | sideways_range
+direction_state:         uptrend_intact | downtrend_intact | sideways
                           | confirmed_reversal_bullish | confirmed_reversal_bearish
-                          | mixed | manual_review | unavailable
+                          | ambiguous | manual_review | unavailable
+                          (corrected from this doc's own original draft -- sideways_range/mixed --
+                          to match structure.js's classifyDowStructure, which is pre-existing,
+                          tested, working code and therefore authoritative over a draft vocabulary
+                          written before it was reconciled against; migration 0006's
+                          instrument_direction_runs.dow_state check constraint corrected to match)
 final_alignment:         ALIGNED_BULLISH | ALIGNED_BEARISH | SIDEWAYS | MIXED
                           | MANUAL_REVIEW | UNAVAILABLE
 pivot_label:             HH | HL | LH | LL | EH | EL | H | L   (EH/EL = equal-high/equal-low, new)
@@ -298,12 +306,39 @@ resolution between workstreams.
        (`UNAVAILABLE`/`MANUAL_REVIEW`), a `TRIGGERED` opposing pattern downgrading both bullish and
        bearish calls, an `OBSERVED` (not `TRIGGERED`) opposing pattern *not* downgrading, and an
        agreeing `TRIGGERED` pattern not downgrading.
-   - REMAINING: persisting the direction/wave side of Phase 3 into the new run-scoped schema
-     (`instrument_direction_runs`, `direction_pivots`, `elliott_hypotheses` -- migration 0006, still
-     unapplied). Today's richer wave/unconfirmed-leg data flows through to the existing
-     `instrument_direction` table and the rendered chart only; `pattern_detections` and
-     `instrument_alignment` are the first Phase 3 outputs actually reaching the new schema (see
-     above), which is why their FK columns back to the direction/wave tables stay null for now.
+   - DONE: run-scoped direction/wave persistence -- new `persistDirectionRun` in
+     `run-screening/index.js`, called once per instrument/timeframe alongside (not instead of) the
+     legacy `instrument_direction` upsert, which remains what the live Direction page reads until
+     Phase 5's UI rebuild switches it over.
+     - `instrument_direction_runs`: this run's own immutable snapshot (`confirmed_pivots`,
+       `unconfirmed_leg`, `dow_state`, chart path/hash/algorithm-version/renderer-version),
+       upserted on `(run_id, instrument_id, timeframe)`. `trend_defining_level` and
+       `invalidation_level` are both set to `lastSwingLow` (bullish states) /
+       `lastSwingHigh` (bearish states) -- `smm-chart-analysis-SKILL.md` names the last HL/LH as
+       *the* trend-defining level and separately describes invalidation for a bullish view as a
+       close below that same level, so the source itself treats these as one number for an
+       intact/confirmed trend. `confirmation_trigger` is deliberately left null: no document in
+       this project defines a deterministic confirmation-trigger level (the source gives a live
+       example -- "weekly close above 24,800" -- not a formula), so computing one would mean
+       inventing it.
+     - `direction_pivots`: one row per confirmed swing, in sequence. The unconfirmed leg is
+       deliberately NOT duplicated here -- it has no honest `HH`/`HL`/`LH`/`LL`/`EH`/`EL` label yet
+       (that's what "unconfirmed" means), so forcing it into this table's label enum would mean
+       inventing a label; it stays in `instrument_direction_runs.unconfirmed_leg` only.
+     - `elliott_hypotheses`: primary + alternative rows, but only when `wave.js` actually returned a
+       structured hypothesis (`structureType` non-null) -- the "nothing to report" placeholder
+       object never produces a row, matching this project's "never invent" discipline rather than
+       storing a fabricated empty hypothesis.
+     - Corrected an inconsistency found while wiring this up: migration 0006's
+       `instrument_direction_runs.dow_state` check constraint used placeholder values
+       (`sideways_range`, `mixed`) from this document's own original status-vocabulary draft,
+       written before `structure.js`'s pre-existing, tested `classifyDowStructure()` was reconciled
+       against it -- that function actually returns `sideways`/`ambiguous`. Corrected both the
+       migration (safe, still unapplied) and this document's §3 status vocabulary to match the real,
+       working code rather than the earlier draft.
+     - Not unit-tested directly (like `upsertDirectionAnalysis`/`persistFinalAlignment`, it's thin
+       DB-glue over already-tested pure modules -- `structure.js`, `wave.js`, `direction.js` each
+       have their own suites); verified via `npm test` (162/162 unchanged) + `npm run build`.
 5. **Phase 4 — Analysis engine.** Swing strategy YAML (from Phase 0's extraction) → indicators
    (DMI/ADX, EMA crossover series, Bollinger failure detection, divergence) → gates → routes →
    confirmations → BUY/WAIT, SELL/WAIT. Depends on Phase 3's `ALIGNED_BULLISH`/`ALIGNED_BEARISH`
