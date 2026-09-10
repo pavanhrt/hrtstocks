@@ -84,6 +84,18 @@ th {
   background: rgba(90, 98, 117, 0.2);
   color: var(--nodata);
 }
+.badge-WAIT {
+  background: rgba(90, 98, 117, 0.2);
+  color: var(--nodata);
+}
+.badge-BUY {
+  background: rgba(53, 201, 143, 0.15);
+  color: var(--pass);
+}
+.badge-SELL {
+  background: rgba(239, 91, 106, 0.15);
+  color: var(--fail);
+}
 
 input,
 button,

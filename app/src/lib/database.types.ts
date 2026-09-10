@@ -240,6 +240,126 @@ export type Database = {
           },
         ]
       }
+      direction_pivots: {
+        Row: {
+          bar_date: string
+          confidence: string
+          id: number
+          instrument_id: string
+          label: string
+          price: number
+          run_id: string
+          sequence_index: number
+          timeframe: string
+        }
+        Insert: {
+          bar_date: string
+          confidence?: string
+          id?: never
+          instrument_id: string
+          label: string
+          price: number
+          run_id: string
+          sequence_index: number
+          timeframe: string
+        }
+        Update: {
+          bar_date?: string
+          confidence?: string
+          id?: never
+          instrument_id?: string
+          label?: string
+          price?: number
+          run_id?: string
+          sequence_index?: number
+          timeframe?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "direction_pivots_instrument_id_fkey"
+            columns: ["instrument_id"]
+            isOneToOne: false
+            referencedRelation: "instruments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "direction_pivots_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "screening_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      elliott_hypotheses: {
+        Row: {
+          computed_at: string
+          confidence: string
+          current_wave: string
+          degree: string | null
+          id: number
+          instrument_id: string
+          invalidation_condition: string | null
+          invalidation_price: number | null
+          rank: string
+          rule_arithmetic: Json
+          run_id: string
+          source_locator: string | null
+          structure_type: string
+          timeframe: string
+          wave_state: string
+        }
+        Insert: {
+          computed_at?: string
+          confidence: string
+          current_wave: string
+          degree?: string | null
+          id?: never
+          instrument_id: string
+          invalidation_condition?: string | null
+          invalidation_price?: number | null
+          rank: string
+          rule_arithmetic?: Json
+          run_id: string
+          source_locator?: string | null
+          structure_type: string
+          timeframe: string
+          wave_state: string
+        }
+        Update: {
+          computed_at?: string
+          confidence?: string
+          current_wave?: string
+          degree?: string | null
+          id?: never
+          instrument_id?: string
+          invalidation_condition?: string | null
+          invalidation_price?: number | null
+          rank?: string
+          rule_arithmetic?: Json
+          run_id?: string
+          source_locator?: string | null
+          structure_type?: string
+          timeframe?: string
+          wave_state?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "elliott_hypotheses_instrument_id_fkey"
+            columns: ["instrument_id"]
+            isOneToOne: false
+            referencedRelation: "instruments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "elliott_hypotheses_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "screening_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       index_memberships: {
         Row: {
           created_at: string
@@ -278,6 +398,102 @@ export type Database = {
             columns: ["instrument_id"]
             isOneToOne: false
             referencedRelation: "instruments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      instrument_alignment: {
+        Row: {
+          computed_at: string
+          daily_direction_id: number | null
+          elliott_hypothesis_id: number | null
+          final_alignment: string
+          instrument_id: string
+          monthly_direction_id: number | null
+          run_id: string
+          triggered_bearish_pattern_id: number | null
+          triggered_bullish_pattern_id: number | null
+          weekly_direction_id: number | null
+        }
+        Insert: {
+          computed_at?: string
+          daily_direction_id?: number | null
+          elliott_hypothesis_id?: number | null
+          final_alignment: string
+          instrument_id: string
+          monthly_direction_id?: number | null
+          run_id: string
+          triggered_bearish_pattern_id?: number | null
+          triggered_bullish_pattern_id?: number | null
+          weekly_direction_id?: number | null
+        }
+        Update: {
+          computed_at?: string
+          daily_direction_id?: number | null
+          elliott_hypothesis_id?: number | null
+          final_alignment?: string
+          instrument_id?: string
+          monthly_direction_id?: number | null
+          run_id?: string
+          triggered_bearish_pattern_id?: number | null
+          triggered_bullish_pattern_id?: number | null
+          weekly_direction_id?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "instrument_alignment_daily_direction_id_fkey"
+            columns: ["daily_direction_id"]
+            isOneToOne: false
+            referencedRelation: "instrument_direction_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "instrument_alignment_elliott_hypothesis_id_fkey"
+            columns: ["elliott_hypothesis_id"]
+            isOneToOne: false
+            referencedRelation: "elliott_hypotheses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "instrument_alignment_instrument_id_fkey"
+            columns: ["instrument_id"]
+            isOneToOne: false
+            referencedRelation: "instruments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "instrument_alignment_monthly_direction_id_fkey"
+            columns: ["monthly_direction_id"]
+            isOneToOne: false
+            referencedRelation: "instrument_direction_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "instrument_alignment_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "screening_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "instrument_alignment_triggered_bearish_pattern_id_fkey"
+            columns: ["triggered_bearish_pattern_id"]
+            isOneToOne: false
+            referencedRelation: "pattern_detections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "instrument_alignment_triggered_bullish_pattern_id_fkey"
+            columns: ["triggered_bullish_pattern_id"]
+            isOneToOne: false
+            referencedRelation: "pattern_detections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "instrument_alignment_weekly_direction_id_fkey"
+            columns: ["weekly_direction_id"]
+            isOneToOne: false
+            referencedRelation: "instrument_direction_runs"
             referencedColumns: ["id"]
           },
         ]
@@ -342,6 +558,78 @@ export type Database = {
           },
           {
             foreignKeyName: "instrument_direction_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "screening_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      instrument_direction_runs: {
+        Row: {
+          chart_algorithm_version: string
+          chart_input_hash: string | null
+          chart_object_path: string | null
+          chart_renderer_version: string
+          computed_at: string
+          confirmation_trigger: number | null
+          confirmed_pivots: Json
+          data_quality: Database["public"]["Enums"]["data_quality_state"]
+          dow_state: string
+          id: number
+          instrument_id: string
+          invalidation_level: number | null
+          run_id: string
+          timeframe: string
+          trend_defining_level: number | null
+          unconfirmed_leg: Json | null
+        }
+        Insert: {
+          chart_algorithm_version: string
+          chart_input_hash?: string | null
+          chart_object_path?: string | null
+          chart_renderer_version: string
+          computed_at?: string
+          confirmation_trigger?: number | null
+          confirmed_pivots?: Json
+          data_quality: Database["public"]["Enums"]["data_quality_state"]
+          dow_state: string
+          id?: never
+          instrument_id: string
+          invalidation_level?: number | null
+          run_id: string
+          timeframe: string
+          trend_defining_level?: number | null
+          unconfirmed_leg?: Json | null
+        }
+        Update: {
+          chart_algorithm_version?: string
+          chart_input_hash?: string | null
+          chart_object_path?: string | null
+          chart_renderer_version?: string
+          computed_at?: string
+          confirmation_trigger?: number | null
+          confirmed_pivots?: Json
+          data_quality?: Database["public"]["Enums"]["data_quality_state"]
+          dow_state?: string
+          id?: never
+          instrument_id?: string
+          invalidation_level?: number | null
+          run_id?: string
+          timeframe?: string
+          trend_defining_level?: number | null
+          unconfirmed_leg?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "instrument_direction_runs_instrument_id_fkey"
+            columns: ["instrument_id"]
+            isOneToOne: false
+            referencedRelation: "instruments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "instrument_direction_runs_run_id_fkey"
             columns: ["run_id"]
             isOneToOne: false
             referencedRelation: "screening_runs"
@@ -448,6 +736,8 @@ export type Database = {
           high: number | null
           id: number
           instrument_id: string
+          interval: string
+          is_complete: boolean
           low: number | null
           open: number | null
           session_date: string
@@ -461,6 +751,8 @@ export type Database = {
           high?: number | null
           id?: never
           instrument_id: string
+          interval?: string
+          is_complete?: boolean
           low?: number | null
           open?: number | null
           session_date: string
@@ -474,6 +766,8 @@ export type Database = {
           high?: number | null
           id?: never
           instrument_id?: string
+          interval?: string
+          is_complete?: boolean
           low?: number | null
           open?: number | null
           session_date?: string
@@ -497,6 +791,8 @@ export type Database = {
           high: number | null
           id: number
           instrument_id: string
+          interval: string
+          is_complete: boolean
           low: number | null
           open: number | null
           provider: string
@@ -511,6 +807,8 @@ export type Database = {
           high?: number | null
           id?: never
           instrument_id: string
+          interval?: string
+          is_complete?: boolean
           low?: number | null
           open?: number | null
           provider: string
@@ -525,6 +823,8 @@ export type Database = {
           high?: number | null
           id?: never
           instrument_id?: string
+          interval?: string
+          is_complete?: boolean
           low?: number | null
           open?: number | null
           provider?: string
@@ -567,6 +867,75 @@ export type Database = {
         }
         Relationships: []
       }
+      pattern_detections: {
+        Row: {
+          anchor_points: Json
+          computed_at: string
+          direction: string
+          id: number
+          instrument_id: string
+          invalidation_price: number | null
+          neckline_or_boundary: Json | null
+          pattern_name: string
+          run_id: string
+          source_locator: string
+          state: string
+          target_price: number | null
+          timeframe: string
+          trigger_bar_ts: string | null
+          volume_evidence: Json | null
+        }
+        Insert: {
+          anchor_points?: Json
+          computed_at?: string
+          direction: string
+          id?: never
+          instrument_id: string
+          invalidation_price?: number | null
+          neckline_or_boundary?: Json | null
+          pattern_name: string
+          run_id: string
+          source_locator: string
+          state: string
+          target_price?: number | null
+          timeframe: string
+          trigger_bar_ts?: string | null
+          volume_evidence?: Json | null
+        }
+        Update: {
+          anchor_points?: Json
+          computed_at?: string
+          direction?: string
+          id?: never
+          instrument_id?: string
+          invalidation_price?: number | null
+          neckline_or_boundary?: Json | null
+          pattern_name?: string
+          run_id?: string
+          source_locator?: string
+          state?: string
+          target_price?: number | null
+          timeframe?: string
+          trigger_bar_ts?: string | null
+          volume_evidence?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pattern_detections_instrument_id_fkey"
+            columns: ["instrument_id"]
+            isOneToOne: false
+            referencedRelation: "instruments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pattern_detections_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "screening_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pipeline_audit_log: {
         Row: {
           created_at: string
@@ -602,6 +971,47 @@ export type Database = {
           },
         ]
       }
+      pipeline_batches: {
+        Row: {
+          attempt: number
+          cursor: string | null
+          id: number
+          last_error: string | null
+          run_id: string
+          stage: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempt?: number
+          cursor?: string | null
+          id?: never
+          last_error?: string | null
+          run_id: string
+          stage: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attempt?: number
+          cursor?: string | null
+          id?: never
+          last_error?: string | null
+          run_id?: string
+          stage?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pipeline_batches_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "screening_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
@@ -623,6 +1033,24 @@ export type Database = {
           email?: string
           id?: string
           role?: Database["public"]["Enums"]["user_role"]
+        }
+        Relationships: []
+      }
+      provider_rate_limit_buckets: {
+        Row: {
+          minute_bucket: string
+          provider: string
+          request_count: number
+        }
+        Insert: {
+          minute_bucket: string
+          provider: string
+          request_count?: number
+        }
+        Update: {
+          minute_bucket?: string
+          provider?: string
+          request_count?: number
         }
         Relationships: []
       }
@@ -817,6 +1245,33 @@ export type Database = {
           },
         ]
       }
+      screening_run_leases: {
+        Row: {
+          acquired_at: string | null
+          expires_at: string | null
+          heartbeat_at: string | null
+          run_id: string | null
+          run_type: string
+          status: string
+        }
+        Insert: {
+          acquired_at?: string | null
+          expires_at?: string | null
+          heartbeat_at?: string | null
+          run_id?: string | null
+          run_type: string
+          status?: string
+        }
+        Update: {
+          acquired_at?: string | null
+          expires_at?: string | null
+          heartbeat_at?: string | null
+          run_id?: string | null
+          run_type?: string
+          status?: string
+        }
+        Relationships: []
+      }
       screening_runs: {
         Row: {
           completed_at: string | null
@@ -909,6 +1364,144 @@ export type Database = {
         }
         Relationships: []
       }
+      swing_analysis_results: {
+        Row: {
+          computed_at: string
+          confirmation_groups: Json
+          confirmation_groups_passed: number
+          conservative_target: number | null
+          data_quality: Database["public"]["Enums"]["data_quality_state"]
+          entry_price: number | null
+          final_action: string
+          hypothesis: string
+          id: number
+          instrument_id: string
+          mandatory_gates: Json
+          pending_conditions: Json
+          reward: number | null
+          reward_risk_ratio: number | null
+          risk: number | null
+          route_evidence: Json | null
+          run_id: string
+          selected_route: string | null
+          strategy_version_id: string | null
+          structural_stop: number | null
+          vetoes: Json
+        }
+        Insert: {
+          computed_at?: string
+          confirmation_groups?: Json
+          confirmation_groups_passed?: number
+          conservative_target?: number | null
+          data_quality: Database["public"]["Enums"]["data_quality_state"]
+          entry_price?: number | null
+          final_action: string
+          hypothesis: string
+          id?: never
+          instrument_id: string
+          mandatory_gates?: Json
+          pending_conditions?: Json
+          reward?: number | null
+          reward_risk_ratio?: number | null
+          risk?: number | null
+          route_evidence?: Json | null
+          run_id: string
+          selected_route?: string | null
+          strategy_version_id?: string | null
+          structural_stop?: number | null
+          vetoes?: Json
+        }
+        Update: {
+          computed_at?: string
+          confirmation_groups?: Json
+          confirmation_groups_passed?: number
+          conservative_target?: number | null
+          data_quality?: Database["public"]["Enums"]["data_quality_state"]
+          entry_price?: number | null
+          final_action?: string
+          hypothesis?: string
+          id?: never
+          instrument_id?: string
+          mandatory_gates?: Json
+          pending_conditions?: Json
+          reward?: number | null
+          reward_risk_ratio?: number | null
+          risk?: number | null
+          route_evidence?: Json | null
+          run_id?: string
+          selected_route?: string | null
+          strategy_version_id?: string | null
+          structural_stop?: number | null
+          vetoes?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "swing_analysis_results_instrument_id_fkey"
+            columns: ["instrument_id"]
+            isOneToOne: false
+            referencedRelation: "instruments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "swing_analysis_results_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "screening_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "swing_analysis_results_strategy_version_id_fkey"
+            columns: ["strategy_version_id"]
+            isOneToOne: false
+            referencedRelation: "strategy_versions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      swing_analysis_rule_traces: {
+        Row: {
+          analysis_result_id: number
+          explanation: string | null
+          group_name: string | null
+          id: number
+          observed_values: Json | null
+          result: Database["public"]["Enums"]["rule_result"]
+          rule_id: string
+          source_locator: string | null
+          thresholds: Json | null
+        }
+        Insert: {
+          analysis_result_id: number
+          explanation?: string | null
+          group_name?: string | null
+          id?: never
+          observed_values?: Json | null
+          result: Database["public"]["Enums"]["rule_result"]
+          rule_id: string
+          source_locator?: string | null
+          thresholds?: Json | null
+        }
+        Update: {
+          analysis_result_id?: number
+          explanation?: string | null
+          group_name?: string | null
+          id?: never
+          observed_values?: Json | null
+          result?: Database["public"]["Enums"]["rule_result"]
+          rule_id?: string
+          source_locator?: string | null
+          thresholds?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "swing_analysis_rule_traces_analysis_result_id_fkey"
+            columns: ["analysis_result_id"]
+            isOneToOne: false
+            referencedRelation: "swing_analysis_results"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -917,6 +1510,12 @@ export type Database = {
       current_role_name: {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
+      }
+      try_acquire_rate_limit_slot: {
+        Args: { p_limit: number; p_minute_bucket: string; p_provider: string }
+        Returns: {
+          request_count: number
+        }[]
       }
     }
     Enums: {
