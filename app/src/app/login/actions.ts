@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { SITE_URL } from "@/lib/env";
+import { safeRedirectPath } from "@/lib/safe-redirect";
 
 export type ActionState = { error: string | null; notice: string | null };
 
@@ -15,7 +16,7 @@ export async function signIn(_prev: ActionState, formData: FormData): Promise<Ac
   const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) return { error: error.message, notice: null };
 
-  redirect(next || "/dashboard");
+  redirect(safeRedirectPath(next));
 }
 
 export async function signUp(_prev: ActionState, formData: FormData): Promise<ActionState> {

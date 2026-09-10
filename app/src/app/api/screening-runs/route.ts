@@ -41,8 +41,17 @@ export async function POST() {
   });
 
   if (!res.ok) {
+    // The Edge Function's raw response body is an internal implementation
+    // detail (stack traces, Fyers/Supabase error payloads) and must not reach
+    // the browser -- log it server-side with a correlation ID and return only
+    // that ID, so a user can report it without us leaking upstream internals.
+    const correlationId = crypto.randomUUID();
     const text = await res.text().catch(() => "");
-    return NextResponse.json({ error: `Edge Function returned ${res.status}: ${text}` }, { status: 502 });
+    console.error(`[screening-runs] correlationId=${correlationId} upstream_status=${res.status} body=${text}`);
+    return NextResponse.json(
+      { error: "The screening run could not be started. Please try again or contact support with this ID.", correlationId },
+      { status: 502 }
+    );
   }
 
   const body = await res.json().catch(() => ({}));

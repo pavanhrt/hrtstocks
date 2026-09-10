@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test": "node --test src/lib/*.test.ts src/lib/**/*.test.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.6",

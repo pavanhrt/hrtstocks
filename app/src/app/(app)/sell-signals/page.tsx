@@ -101,8 +101,9 @@ export default async function SellSignalsPage() {
           other four -- Elliott wave position and count (S2, S4a, S5), the PAPA price-action trigger
           (S6), and the reward:risk gate (S8) -- require Elliott wave labeling and an entry/stop/target
           this pipeline does not derive automatically, and are marked <Badge status="MANUAL_REVIEW" />{" "}
-          for every stock. <strong>&quot;Highly recommended&quot; below means a stock cleared every gate
-          this pipeline can check mechanically -- it is not a complete pass of the playbook</strong>,
+          for every stock. <strong>&quot;Codeable gates fully cleared&quot; below means a stock cleared
+          every gate this pipeline can check mechanically -- it is not a recommendation and not a
+          complete pass of the playbook</strong>,
           and still needs a human (or AI-assisted) Elliott wave read before it is an actual short
           candidate. As on the buy side, S7&apos;s Step 1 needs ~3 years of monthly history for a
           monthly MACD, which the current 365-day daily lookback does not provide -- expect NO_DATA
@@ -112,7 +113,7 @@ export default async function SellSignalsPage() {
 
       <div className="card">
         <h2 style={{ marginTop: 0, fontSize: 15 }}>
-          Highly recommended -- cleared every codeable gate ({highlyRecommended.length})
+          Codeable gates fully cleared -- not a recommendation ({highlyRecommended.length})
         </h2>
         <CandidateTable candidates={highlyRecommended} />
       </div>

@@ -15,7 +15,8 @@ export default function RunScreeningButton() {
       const res = await fetch("/api/screening-runs", { method: "POST" });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        throw new Error(body.error ?? `Request failed (${res.status})`);
+        const message = body.error ?? `Request failed (${res.status})`;
+        throw new Error(body.correlationId ? `${message} (ref: ${body.correlationId})` : message);
       }
       router.refresh();
     } catch (err) {
