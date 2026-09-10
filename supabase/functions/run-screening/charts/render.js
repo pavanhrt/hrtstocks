@@ -99,7 +99,7 @@ export function renderChartSvg({ symbol, timeframe, bars, pivots, wave, dowState
 
   return `<svg viewBox="0 0 ${WIDTH} ${HEIGHT}" xmlns="http://www.w3.org/2000/svg">
   <rect x="0" y="0" width="${WIDTH}" height="${HEIGHT}" fill="${BG}"/>
-  <text x="${MARGIN.left}" y="28" fill="${TEXT}" font-size="16" font-family="sans-serif" font-weight="bold">${esc(symbol)} &middot; ${esc(timeframe)}</text>
+  <text x="${MARGIN.left}" y="28" fill="${TEXT}" font-size="16" font-family="sans-serif" font-weight="bold">${esc(symbol)} · ${esc(timeframe)}</text>
   <text x="${MARGIN.left}" y="${HEIGHT - 8}" fill="${TEXT_DIM}" font-size="11" font-family="sans-serif">Dow state: ${esc(dowState)}</text>
   ${waveBadge}
   ${gridLines}
@@ -121,6 +121,6 @@ function renderWaveBadge(wave) {
 function emptyChart(symbol, timeframe) {
   return `<svg viewBox="0 0 ${WIDTH} ${HEIGHT}" xmlns="http://www.w3.org/2000/svg">
   <rect x="0" y="0" width="${WIDTH}" height="${HEIGHT}" fill="${BG}"/>
-  <text x="${WIDTH / 2}" y="${HEIGHT / 2}" fill="${TEXT_DIM}" font-size="14" font-family="sans-serif" text-anchor="middle">${esc(symbol)} &middot; ${esc(timeframe)}: not enough bars to chart</text>
+  <text x="${WIDTH / 2}" y="${HEIGHT / 2}" fill="${TEXT_DIM}" font-size="14" font-family="sans-serif" text-anchor="middle">${esc(symbol)} · ${esc(timeframe)}: not enough bars to chart</text>
 </svg>`;
 }

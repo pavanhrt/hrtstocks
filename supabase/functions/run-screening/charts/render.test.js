@@ -37,6 +37,14 @@ test("renderChartSvg produces well-formed SVG with the symbol/timeframe title an
   assert.match(svg, /Impulse wave 5 of 5 \(up\)/);
   // one candle wick <line> per bar, plus 4 horizontal grid lines
   assert.equal((svg.match(/<line /g) ?? []).length, bars.length + 4);
+
+  // Only XML's five predefined entities are legal without a DOCTYPE -- a named
+  // HTML entity like &middot; makes every XML parser (including <img> in a
+  // browser) reject the whole file. Regression test for exactly that bug.
+  const entities = svg.match(/&[a-zA-Z#][a-zA-Z0-9]*;/g) ?? [];
+  for (const entity of entities) {
+    assert.ok(["&amp;", "&lt;", "&gt;", "&quot;", "&apos;"].includes(entity), `illegal XML entity: ${entity}`);
+  }
 });
 
 test("renderChartSvg shows an 'unconfirmed' badge instead of fabricating a wave label", () => {
