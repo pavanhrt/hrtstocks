@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { detectWave3Ignition } from "./hourly-routes.js";
+import { detectWave3Ignition, detectWave2Pullback } from "./hourly-routes.js";
 
 function hbar({ date, sessionDate, slotIndex, low, high, close, open, volume }) {
   return { date, sessionDate, slotIndex, low, high, close, open: open ?? close, volume };
@@ -187,5 +187,114 @@ test("detectWave3Ignition: bearish mirror (SELL-3) detects a symmetric wave-3-do
   assert.equal(result.wave2.price, 92); // the bounce (wave 2) pivot
   assert.equal(result.trigger.close, 77);
   assert.equal(result.trigger.confirmed, true);
+  assert.equal(result.requiredChecksPassed, true);
+});
+
+// --- detectWave2Pullback (BUY-4 "Wave 2 Pullback" / SELL-4 "Bounce Failure") ---
+
+// origin L@100 -> wave1 H@141 (confirmed) -> a still-forming pullback that
+// declines gradually to a low of 120 (retracement fraction 0.512, inside
+// the 38.2-61.8% band) with a Bullish Engulfing (B5->B6) confirmed TRIGGERED
+// once the trailing 5-bar lookback genuinely reads "down" (the gradual
+// decline through C4-C6 is what gets the local trend context right, unlike
+// jumping straight from wave 1 to the pullback low).
+function pullbackHourlyBars({ finalLow = 120, finalHigh = 125.5, finalClose = 125 } = {}) {
+  return [
+    hbar({ date: "A0", sessionDate: "2026-09-08", slotIndex: 0, low: 100, high: 100, close: 100, volume: 400 }),
+    hbar({ date: "A1", sessionDate: "2026-09-08", slotIndex: 1, low: 100, high: 100, close: 100, volume: 400 }),
+    hbar({ date: "A2", sessionDate: "2026-09-08", slotIndex: 2, low: 100, high: 140, close: 138, open: 101, volume: 400 }),
+    hbar({ date: "A3", sessionDate: "2026-09-08", slotIndex: 3, low: 133, high: 141, close: 135, open: 140, volume: 400 }),
+    hbar({ date: "C4", sessionDate: "2026-09-09", slotIndex: 0, low: 130, high: 134, close: 131, open: 133, volume: 400 }),
+    hbar({ date: "C5", sessionDate: "2026-09-09", slotIndex: 1, low: 127, high: 131, close: 128, open: 130, volume: 400 }),
+    hbar({ date: "C6", sessionDate: "2026-09-09", slotIndex: 2, low: 124, high: 128, close: 125, open: 127, volume: 400 }),
+    hbar({ date: "B5", sessionDate: "2026-09-09", slotIndex: 3, low: 121, high: 125, close: 121.5, open: 124, volume: 400 }),
+    hbar({ date: "B6", sessionDate: "2026-09-09", slotIndex: 4, low: finalLow, high: finalHigh, close: finalClose, open: 121, volume: 600 }),
+  ];
+}
+
+test("detectWave2Pullback returns null when no wave-2-forming impulse shape is present at all", () => {
+  const bars = [
+    hbar({ date: "A0", sessionDate: "2026-09-08", slotIndex: 0, low: 100, high: 100, close: 100, volume: 400 }),
+    hbar({ date: "A1", sessionDate: "2026-09-08", slotIndex: 1, low: 100, high: 100, close: 100, volume: 400 }),
+  ];
+  assert.equal(detectWave2Pullback({ hourlyBars: bars, bullish: true, hourlyZigzagPct: 0.05 }), null);
+});
+
+test("detectWave2Pullback: a retracement inside the Fib band with a TRIGGERED bullish reversal candle passes", () => {
+  const result = detectWave2Pullback({ hourlyBars: pullbackHourlyBars(), bullish: true, hourlyZigzagPct: 0.05 });
+  assert.ok(result);
+  assert.equal(result.route, "BUY-4");
+  assert.equal(result.origin.price, 100);
+  assert.equal(result.wave1.price, 141);
+  assert.equal(result.currentRetracementLevel, 120);
+  assert.ok(Math.abs(result.retracementFraction - (141 - 120) / 41) < 1e-9);
+  assert.equal(result.breachedOrigin, false);
+  assert.equal(result.withinFibBand, true);
+  assert.equal(result.trigger.patternName, "Bullish Engulfing");
+  assert.equal(result.trigger.barDate, "B6");
+  assert.equal(result.stop, 100); // below the origin of wave 1
+  assert.equal(result.requiredChecksPassed, true);
+});
+
+test("detectWave2Pullback: a retracement that breaches wave 1's origin fails, even with a trigger pattern", () => {
+  const result = detectWave2Pullback({ hourlyBars: pullbackHourlyBars({ finalLow: 95, finalHigh: 99, finalClose: 98 }), bullish: true, hourlyZigzagPct: 0.05 });
+  assert.equal(result.breachedOrigin, true);
+  assert.equal(result.withinFibBand, false);
+  assert.equal(result.requiredChecksPassed, false);
+});
+
+test("detectWave2Pullback: a retracement outside the Fib band (too shallow) fails", () => {
+  // A ~24% retrace from wave 1 (141) down to 131 -- nowhere near the 38.2-61.8% band.
+  const shallowBars = [
+    hbar({ date: "A0", sessionDate: "2026-09-08", slotIndex: 0, low: 100, high: 100, close: 100, volume: 400 }),
+    hbar({ date: "A1", sessionDate: "2026-09-08", slotIndex: 1, low: 100, high: 100, close: 100, volume: 400 }),
+    hbar({ date: "A2", sessionDate: "2026-09-08", slotIndex: 2, low: 100, high: 140, close: 138, open: 101, volume: 400 }),
+    hbar({ date: "A3", sessionDate: "2026-09-08", slotIndex: 3, low: 133, high: 141, close: 135, open: 140, volume: 400 }),
+    hbar({ date: "C4", sessionDate: "2026-09-09", slotIndex: 0, low: 132.5, high: 134, close: 133, open: 133.5, volume: 400 }),
+    hbar({ date: "C5", sessionDate: "2026-09-09", slotIndex: 1, low: 132, high: 133.5, close: 132.5, open: 133, volume: 400 }),
+    hbar({ date: "C6", sessionDate: "2026-09-09", slotIndex: 2, low: 131.5, high: 133, close: 132, open: 132.5, volume: 400 }),
+    hbar({ date: "B5", sessionDate: "2026-09-09", slotIndex: 3, low: 131, high: 132.5, close: 131.5, open: 132, volume: 400 }),
+  ];
+  const result = detectWave2Pullback({ hourlyBars: shallowBars, bullish: true, hourlyZigzagPct: 0.05 });
+  assert.ok(result);
+  assert.ok(result.retracementFraction < 0.382);
+  assert.equal(result.withinFibBand, false);
+  assert.equal(result.requiredChecksPassed, false);
+});
+
+test("detectWave2Pullback: inside the Fib band but no reversal trigger pattern yet leaves requiredChecksPassed false", () => {
+  const bars = pullbackHourlyBars().map((b) => (b.date === "B6" ? { ...b, open: 118, close: 119, high: 121 } : b)); // no longer an engulfing
+  const result = detectWave2Pullback({ hourlyBars: bars, bullish: true, hourlyZigzagPct: 0.05 });
+  assert.equal(result.withinFibBand, true);
+  assert.equal(result.trigger, null);
+  assert.equal(result.requiredChecksPassed, false);
+});
+
+// Bearish mirror (SELL-4 "Bounce Failure"): origin H@100 -> wave1 L@59
+// (confirmed) -> a still-forming bounce rallying gradually to a high of 80
+// (retracement fraction 0.512) with a Bearish Engulfing trigger.
+function bounceFailureHourlyBars() {
+  return [
+    hbar({ date: "A0", sessionDate: "2026-09-08", slotIndex: 0, low: 100, high: 100, close: 100, volume: 400 }),
+    hbar({ date: "A1", sessionDate: "2026-09-08", slotIndex: 1, low: 100, high: 100, close: 100, volume: 400 }),
+    hbar({ date: "A2", sessionDate: "2026-09-08", slotIndex: 2, low: 60, high: 100, close: 62, open: 99, volume: 400 }),
+    hbar({ date: "A3", sessionDate: "2026-09-08", slotIndex: 3, low: 59, high: 67, close: 65, open: 60, volume: 400 }),
+    hbar({ date: "C4", sessionDate: "2026-09-09", slotIndex: 0, low: 68.5, high: 70, close: 69, open: 68.7, volume: 400 }),
+    hbar({ date: "C5", sessionDate: "2026-09-09", slotIndex: 1, low: 71.5, high: 73, close: 72, open: 71.7, volume: 400 }),
+    hbar({ date: "C6", sessionDate: "2026-09-09", slotIndex: 2, low: 74.5, high: 76, close: 75, open: 74.7, volume: 400 }),
+    hbar({ date: "B5", sessionDate: "2026-09-09", slotIndex: 3, low: 77.5, high: 79, close: 78.7, open: 77.6, volume: 400 }), // bullish c1
+    hbar({ date: "B6", sessionDate: "2026-09-09", slotIndex: 4, low: 76.5, high: 80, close: 77, open: 79.5, volume: 600 }), // bearish c2, engulfs c1
+  ];
+}
+
+test("detectWave2Pullback: bearish mirror (SELL-4) detects a symmetric bounce-failure setup", () => {
+  const result = detectWave2Pullback({ hourlyBars: bounceFailureHourlyBars(), bullish: false, hourlyZigzagPct: 0.05 });
+  assert.ok(result);
+  assert.equal(result.route, "SELL-4");
+  assert.equal(result.wave1.price, 59);
+  assert.equal(result.currentRetracementLevel, 80);
+  assert.equal(result.withinFibBand, true);
+  assert.equal(result.trigger.patternName, "Bearish Engulfing");
+  assert.equal(result.stop, 80); // above the rally high -- NOT the wave-1 origin, unlike BUY-4
   assert.equal(result.requiredChecksPassed, true);
 });

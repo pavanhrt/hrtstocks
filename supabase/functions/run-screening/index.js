@@ -32,7 +32,7 @@ import { buildDirectionAnalysis, ALGORITHM_VERSION as DIRECTION_ALGORITHM_VERSIO
 import { detectCandlestickPatterns, detectDoubleExtremePatterns, PATTERN_PARAM_VERSION } from "./features/patterns.js";
 import { computeFinalAlignment } from "./features/alignment.js";
 import { evaluateSwingHypothesis, directionLockPassed } from "./features/swing-analysis.js";
-import { detectWave3Ignition } from "./features/hourly-routes.js";
+import { detectWave3Ignition, detectWave2Pullback } from "./features/hourly-routes.js";
 import { computeAdjustedBars, ADJUSTMENT_VERSION } from "./features/corporate-actions.js";
 import { renderChartSvg, RENDER_VERSION } from "./charts/render.js";
 import { evaluateRules } from "./rules/evaluate.js";
@@ -613,20 +613,26 @@ async function persistSwingAnalysisResults({ supabase, runId, instrument, traces
     const analysis = evaluateSwingHypothesis(hypothesis, traces);
     if (!analysis) continue; // no WBP-/WSP- gates evaluated this run -- strategy not seeded/active yet
 
-    // Route evidence (features/hourly-routes.js's detectWave3Ignition,
-    // BUY-1/SELL-3 only -- see that file's own scope note) is supplementary,
-    // never authoritative on its own: WBP-M5/WSP-S5 requires ruling in/out
-    // all 5 routes, not just this one, so finding a fully-confirmed BUY-1/
-    // SELL-3 setup still doesn't flip final_action away from WAIT -- it's
-    // disclosed in pending_conditions instead, alongside the still-missing
-    // M6-M8.
-    const route = routeEvidence?.[hypothesis];
-    if (route) {
-      analysis.selectedRoute = route.route;
+    // Route evidence (features/hourly-routes.js -- BUY-1/SELL-3 and
+    // BUY-4/SELL-4 so far, see that file's own scope note for the rest) is
+    // supplementary, never authoritative on its own: WBP-M5/WSP-S5 requires
+    // ruling in/out all 5 routes, not just the ones implemented, so finding
+    // a fully-confirmed setup still doesn't flip final_action away from
+    // WAIT -- it's disclosed in pending_conditions instead, alongside the
+    // still-missing M6-M8. A wave hypothesis can only be in one Elliott
+    // position at a time, so at most one detector should match today, but
+    // this handles routeEvidence as an array (0, 1, or more matches) rather
+    // than assuming that stays true as more routes are added.
+    const routes = routeEvidence?.[hypothesis] ?? [];
+    const passingRoute = routes.find((r) => r.requiredChecksPassed);
+    if (passingRoute) {
+      analysis.selectedRoute = passingRoute.route;
+    }
+    for (const r of routes) {
       analysis.pendingConditions.push(
-        route.requiredChecksPassed
-          ? `${route.route}'s required checks (trigger, volume, rule-3 forward-check) all pass -- WAIT still stands: WBP-M5/WSP-S5 requires checking all 5 routes, not just this one, and M6-M8 remain unautomated`
-          : `${route.route} detected (wave 3 forming) but its required checks are not all confirmed yet -- see route_evidence`
+        r.requiredChecksPassed
+          ? `${r.route}'s required checks all pass -- WAIT still stands: WBP-M5/WSP-S5 requires checking all 5 routes, not just this one, and M6-M8 remain unautomated`
+          : `${r.route} detected (${r.state}) but its required checks are not all confirmed yet -- see route_evidence`
       );
     }
 
@@ -639,7 +645,7 @@ async function persistSwingAnalysisResults({ supabase, runId, instrument, traces
           hypothesis,
           selected_route: analysis.selectedRoute,
           mandatory_gates: analysis.mandatoryGates,
-          route_evidence: route ?? null,
+          route_evidence: routes.length > 0 ? routes : null,
           confirmation_groups: analysis.confirmationGroups,
           confirmation_groups_passed: analysis.confirmationGroupsPassed,
           vetoes: analysis.vetoes,
@@ -689,10 +695,14 @@ async function persistSwingAnalysisResults({ supabase, runId, instrument, traces
 /**
  * Fetches the trailing ~30 days of 1-hour bars (providers/fyers.js's
  * fetchHourlyOHLCV), upserts them into market_bars_raw with interval='1h'
- * (migration 0006, not yet applied), then runs BUY-1/SELL-3 "Wave 3
- * Ignition" detection (features/hourly-routes.js) against whichever
- * hypothesis actually qualified (bullishQualifiesForHourly/
- * bearishQualifiesForHourly, from directionLockPassed()).
+ * (migration 0006, not yet applied), then runs every implemented hourly
+ * route detector (features/hourly-routes.js: detectWave3Ignition and
+ * detectWave2Pullback so far) against whichever hypothesis actually
+ * qualified (bullishQualifiesForHourly/bearishQualifiesForHourly, from
+ * directionLockPassed()). A wave hypothesis can only be in one Elliott
+ * position at a time, so in practice at most one detector matches per
+ * hypothesis today -- but this collects an array rather than assuming
+ * that stays true as more routes are added.
  *
  * Unlike the daily bars write, there is NO safe old-schema fallback here:
  * the pre-migration unique constraint is (instrument_id, session_date,
@@ -704,11 +714,11 @@ async function persistSwingAnalysisResults({ supabase, runId, instrument, traces
  * evidence for the instrument, same as any other NO_DATA outcome -- never a
  * corrupted daily bar.
  *
- * @returns {{bullish: object|null, bearish: object|null}|null} detectWave3Ignition's
- *   result per hypothesis (only for the hypothesis(es) that qualified), or
- *   null if there were no hourly bars to work with (or the required
- *   zigzag_hourly_pct/hour_slot_volume_lookback_sessions parameters are
- *   unresolved -- never guessed)
+ * @returns {{bullish: object[], bearish: object[]}|null} every matching route
+ *   detector's result per hypothesis (only for the hypothesis(es) that
+ *   qualified), or null if there were no hourly bars to work with (or the
+ *   required zigzag_hourly_pct/dailyZigzagPct/hour_slot_volume_lookback_sessions
+ *   parameters are unresolved -- never guessed)
  */
 async function ingestHourlyBarsAndDetectRoutes({ supabase, instrument, dailyBars, parameterValues, bullishQualifiesForHourly, bearishQualifiesForHourly }) {
   const { data: rawCandles } = await fetchHourlyOHLCV(instrument.instrumentId, instrument.symbol, supabase);
@@ -737,10 +747,15 @@ async function ingestHourlyBarsAndDetectRoutes({ supabase, instrument, dailyBars
   const hourSlotVolumeLookbackSessions = parameterValues.hour_slot_volume_lookback_sessions;
   if (hourlyZigzagPct == null || dailyZigzagPct == null || hourSlotVolumeLookbackSessions == null) return null;
 
-  const detect = (bullish) => detectWave3Ignition({ hourlyBars, dailyBars, bullish, hourlyZigzagPct, dailyZigzagPct, hourSlotVolumeLookbackSessions });
+  const detectAll = (bullish) =>
+    [
+      detectWave3Ignition({ hourlyBars, dailyBars, bullish, hourlyZigzagPct, dailyZigzagPct, hourSlotVolumeLookbackSessions }),
+      detectWave2Pullback({ hourlyBars, bullish, hourlyZigzagPct }),
+    ].filter(Boolean);
+
   return {
-    bullish: bullishQualifiesForHourly ? detect(true) : null,
-    bearish: bearishQualifiesForHourly ? detect(false) : null,
+    bullish: bullishQualifiesForHourly ? detectAll(true) : [],
+    bearish: bearishQualifiesForHourly ? detectAll(false) : [],
   };
 }
 

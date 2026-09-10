@@ -1,30 +1,44 @@
-// BUY-1 "Wave 3 Ignition" / SELL-3 "Wave 3-Down Ignition" -- the two routes
-// swing-strategy-extraction.md calls "the flagship buy" and "the mirror of
-// the flagship buy" (§2 BUY-1, §3 SELL-3), the most completely documented
-// of the ten hourly Elliott setups (BUY-1..5/SELL-1..5) WBP-M5/WSP-S5 must
-// eventually choose among. Implemented here first, alone -- BUY-2..5 and
-// SELL-1,2,4,5 are NOT implemented (disclosed, never silently treated as
-// "doesn't apply"). A caller must NOT treat this module's null result as
-// proof no hourly setup exists at all -- only that THIS ONE doesn't, right
-// now.
+// Hourly Elliott setup detectors -- BUY-1..BUY-5 / SELL-1..SELL-5, the ten
+// entry routes swing-strategy-extraction.md's §2/§3 document for gate
+// WBP-M5/WSP-S5. Implemented incrementally, one mirror pair at a time. A
+// caller must NOT treat any detector's null/false result as proof no hourly
+// setup exists at all -- only that THIS ONE doesn't, right now. Implemented
+// so far:
 //
-// Scope, deliberately: this checks BUY-1/SELL-3's REQUIRED conditions only
-// (checks 6, 7, 8 in the source's own numbering -- trigger, volume,
-// rule-3 forward-check -- plus rule-1, which features/wave.js's labelWave
-// already enforces by construction whenever it reports an impulse
-// hypothesis at all). The "quality" (non-required) checks -- wave-2 depth/
-// alternation, hourly MACD positive/negative crossover near zero -- are NOT
-// computed here; the source is explicit that they only ever grade an
-// already-valid setup on the 100-point scorecard (Phase 4 REMAINING), never
-// gate it.
+//   - detectWave3Ignition: BUY-1 "Wave 3 Ignition" / SELL-3 "Wave 3-Down
+//     Ignition" -- the source calls these "the flagship buy" and "the
+//     mirror of the flagship buy" (§2 BUY-1, §3 SELL-3), the most
+//     completely documented pair.
+//   - detectWave2Pullback: BUY-4 "Wave 2 Pullback" / SELL-4 "Bounce
+//     Failure" -- both are a counter-trend retracement into the 38.2-61.8%
+//     Fibonacci band of the prior leg, failing there on a PAPA reversal
+//     trigger, resuming the dominant trend (§4 BUY-4 / §4 SELL-4 -- SELL-4
+//     doesn't use Elliott wave-2 labeling in its own text, but is the same
+//     structural setup described generically).
+//
+// NOT implemented: BUY-2 (Wave 4 Completion), BUY-3/SELL-2 (Ending Diagonal
+// Reversal/Breakdown), BUY-5/SELL-5 (Continuation Add), SELL-1 (Wave 5
+// Exhaustion). BUY-2 in particular was deliberately skipped over: its
+// documented trigger ("an hourly close above the wave-4 high") is
+// genuinely ambiguous in what swing-strategy-extraction.md transcribes --
+// wave 4 is itself a low-type pivot in a bullish impulse, so "the wave-4
+// high" cannot literally mean wave 4's own price without more context from
+// the fuller source table (§4.3) than this project has read. Implementing
+// it on a guessed interpretation would violate this project's own
+// never-invent discipline; it stays undone until that table is available.
 
 import { zigzagPivotsWithUnconfirmedLeg, labelPivotSequence, zigzagPivots } from "./structure.js";
 import { labelWave } from "./wave.js";
 import { hourSlotAverageVolume } from "./indicators.js";
+import { detectCandlestickPatterns } from "./patterns.js";
 
 // "1.62x/2.62x/4.25x wave 1 from the end of wave 2" -- swing-strategy-extraction.md
 // §2 BUY-1 targets, mirrored bearish in §3 SELL-3.
 const WAVE_TARGET_RATIOS = [1.62, 2.62, 4.25];
+
+// "wave-2 retracement of 38.2-61.8% of wave 1 (50%/61.8% ideal)" --
+// swing-strategy-extraction.md §4 BUY-4 check 3, mirrored in SELL-4 check 2.
+const PULLBACK_FIB_BAND = [0.382, 0.618];
 
 /**
  * @param {object} params
@@ -173,6 +187,117 @@ export function detectWave3Ignition({ hourlyBars, dailyBars, bullish, hourlyZigz
     ruleThreeForwardCheck,
     stops,
     targets,
+    requiredChecksPassed,
+  };
+}
+
+/**
+ * BUY-4 "Wave 2 Pullback" / SELL-4 "Bounce Failure" -- checks the three
+ * REQUIRED conditions (rule-1 arithmetic is again inherited for free from
+ * wave.js's own impulse validation, which never reports a wave-2-forming
+ * hypothesis unless the leg hasn't yet retraced 100%+ of wave 1):
+ *
+ *   1. A wave-2-forming shape is present (structureType='impulse',
+ *      currentWave='2', waveState='forming').
+ *   2. The CURRENT retracement level (the running extreme of the still-
+ *      forming pullback, i.e. unconfirmedLeg) sits within the documented
+ *      38.2-61.8% Fibonacci band of wave 1's length, and has not breached
+ *      wave 1's own origin (check 3 / SELL-4 check 2). SELL-4's own extra
+ *      "wave b may not exceed 78% of wave a" structural check (its check 6)
+ *      needs no separate code: 61.8% is already strictly tighter than 78%,
+ *      so the Fib-band check alone satisfies it.
+ *   3. A same-direction TRIGGERED candlestick pattern (features/patterns.js)
+ *      fired at some point during that still-forming pullback -- "a bullish
+ *      [bearish] reversal trigger prints at that Fibonacci level" (BUY-4
+ *      check 4 / SELL-4 check 4, both required, both citing the PAPA
+ *      trigger catalogue).
+ *
+ * NOT computed: the "quality" (non-required) EMA/daily-resistance
+ * confluence check (BUY-4 check 5 / SELL-4 check 3) and volume-contraction
+ * check (SELL-4 check 5) -- same "grades, never gates" reasoning as
+ * detectWave3Ignition's own scope note.
+ *
+ * @param {object} params
+ * @param {object[]} params.hourlyBars oldest-first, nse-calendar.js's normalizeHourlyBars() shape
+ * @param {boolean} params.bullish true evaluates BUY-4, false evaluates SELL-4
+ * @param {number} params.hourlyZigzagPct
+ * @returns {object|null} null when no wave-2-forming shape is present on the hourly chart at all
+ */
+export function detectWave2Pullback({ hourlyBars, bullish, hourlyZigzagPct }) {
+  if (hourlyBars.length < 2) return null;
+
+  const { confirmed: rawPivots, unconfirmedLeg } = zigzagPivotsWithUnconfirmedLeg(hourlyBars, hourlyZigzagPct);
+  const labeledPivots = labelPivotSequence(rawPivots);
+  // Same reasoning as detectWave3Ignition: supply the target direction
+  // directly rather than deriving it from classifyDowStructure, which would
+  // read "ambiguous" this early (only 2 confirmed pivots -- origin + wave 1
+  // -- exist while wave 2 is still forming).
+  const { primary, alternative } = labelWave(labeledPivots, unconfirmedLeg, bullish ? "uptrend_intact" : "downtrend_intact");
+
+  const wantDirection = bullish ? "bullish" : "bearish";
+  const candidate = [primary, alternative].find(
+    (w) => w && w.structureType === "impulse" && w.direction === wantDirection && w.currentWave === "2" && w.waveState === "forming"
+  );
+  if (!candidate || !candidate.pivotPrices || candidate.pivotPrices.length < 2 || !unconfirmedLeg) return null;
+
+  const [origin, wave1] = candidate.pivotPrices;
+  const wave1Length = Math.abs(wave1.price - origin.price);
+  const route = bullish ? "BUY-4" : "SELL-4";
+
+  const wave1Index = hourlyBars.findIndex((b) => b.date === wave1.date);
+  if (wave1Index === -1 || wave1Length === 0) {
+    return {
+      route,
+      state: "forming",
+      origin,
+      wave1,
+      currentRetracementLevel: unconfirmedLeg.price,
+      retracementFraction: null,
+      withinFibBand: false,
+      trigger: null,
+      stop: null,
+      requiredChecksPassed: false,
+      reason: "could not locate wave 1's own bar in the hourly series, or wave 1 has zero length",
+    };
+  }
+
+  // Check 3 (BUY-4) / check 2 (SELL-4), required: the current pullback
+  // extreme's retracement fraction, and that it hasn't breached wave 1's
+  // own origin.
+  const currentRetracementLevel = unconfirmedLeg.price;
+  const retracementFraction = Math.abs(wave1.price - currentRetracementLevel) / wave1Length;
+  const breachedOrigin = bullish ? currentRetracementLevel <= origin.price : currentRetracementLevel >= origin.price;
+  const withinFibBand = !breachedOrigin && retracementFraction >= PULLBACK_FIB_BAND[0] && retracementFraction <= PULLBACK_FIB_BAND[1];
+
+  // Check 4, required: a same-direction TRIGGERED candlestick pattern
+  // printing at some point during this still-forming pullback (from wave
+  // 1's own bar onward).
+  const legBars = hourlyBars.slice(wave1Index + 1);
+  const hits = detectCandlestickPatterns(hourlyBars, { lookback: Math.max(10, hourlyBars.length - wave1Index) });
+  const triggerHit = hits.find((h) => h.state === "TRIGGERED" && h.direction === wantDirection && legBars.some((b) => b.date === h.triggerBarDate));
+  const trigger = triggerHit ? { patternName: triggerHit.patternName, barDate: triggerHit.triggerBarDate } : null;
+
+  const requiredChecksPassed = Boolean(withinFibBand && trigger);
+
+  // Stops are NOT symmetric between the two sides, per their own documented
+  // text: BUY-4's is "below the origin of wave 1" (the whole impulse's own
+  // start -- a wide, structural stop); SELL-4's is "above the rally high"
+  // (the bounce's own peak so far -- a much tighter stop specific to this
+  // setup). Computed as documented for each side, not forced into a shared
+  // shape.
+  const stop = bullish ? origin.price : currentRetracementLevel;
+
+  return {
+    route,
+    state: "forming",
+    origin,
+    wave1,
+    currentRetracementLevel,
+    retracementFraction,
+    breachedOrigin,
+    withinFibBand,
+    trigger,
+    stop,
     requiredChecksPassed,
   };
 }

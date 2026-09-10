@@ -146,16 +146,20 @@ rules:
     note: >
       No longer blocked on 1-hour bar ingestion itself -- that now exists
       (run-screening/index.js's ingestHourlyBarsAndDetectRoutes, gated on
-      WBP-M1..M4 all passing), and BUY-1 "Wave 3 Ignition" (the most
-      completely documented of the five routes -- swing-strategy-extraction.md
-      §2) is detected by features/hourly-routes.js's detectWave3Ignition,
-      surfaced in swing_analysis_results.selected_route/route_evidence. This
-      gate still stays MANUAL_REVIEW: "one of BUY-1..BUY-5 identified" means
-      ruling in/out all five, and BUY-2..5 are NOT implemented yet (disclosed,
-      never silently treated as "doesn't apply") -- a BUY-1 non-match does
-      not mean M5 fails, since a different route might apply. Not UNRESOLVED
-      like BSP-M5: the source fully documents every route's exact mechanics
-      -- this is incomplete route coverage, not a missing specification.
+      WBP-M1..M4 all passing). Two of the five routes are now detected by
+      features/hourly-routes.js: BUY-1 "Wave 3 Ignition" (detectWave3Ignition,
+      the most completely documented route -- swing-strategy-extraction.md
+      §2) and BUY-4 "Wave 2 Pullback" (detectWave2Pullback, reusing the
+      candlestick-pattern detectors from features/patterns.js for its
+      required PAPA-trigger check), surfaced in
+      swing_analysis_results.selected_route/route_evidence. This gate still
+      stays MANUAL_REVIEW: "one of BUY-1..BUY-5 identified" means ruling
+      in/out all five, and BUY-2, BUY-3, BUY-5 are NOT implemented yet
+      (disclosed, never silently treated as "doesn't apply") -- a non-match
+      from the two implemented detectors does not mean M5 fails, since a
+      different route might apply. Not UNRESOLVED like BSP-M5: the source
+      fully documents every route's exact mechanics -- this is incomplete
+      route coverage, not a missing specification.
 
   - id: WBP-M6
     playbook_gate: M6

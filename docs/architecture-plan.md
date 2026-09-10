@@ -2,24 +2,25 @@
 
 Status: **Phase 3 (Direction intelligence rewrite) — complete; Phase 2 (durable pipeline) — 1-hour
 bar ingestion built, gated behind Phase 4's direction lock; Phase 4 (Analysis engine) — weekly+daily
-direction lock (WBP-M1..M4/WSP-S1..S4) done and persisted, plus the first hourly route (BUY-1/SELL-3
-"Wave 3 Ignition") detected end-to-end; 9 of 10 hourly routes, the confirmation groups, most
-vetoes, and reward/risk are still REMAINING.** Phases 0-3 (contracts, safe-redirect/error-handling/
-UI-copy fixes, durable pipeline/corporate-actions/rate-limiting/run-locking, and the Direction
-rewrite itself -- equal-pivot labels, unconfirmed-leg separation, the Elliott engine rewrite,
-pattern detection, server-side `final_alignment`, and run-scoped persistence) are done. Phase 4 so
-far: `strategies/buy-swing.yaml`/`sell-swing.yaml` (gates WBP-M1..M8/WSP-S1..S8, M1-M4/S1-S4
-automated) plus `features/swing-analysis.js`, turning those gate traces into a real
-`swing_analysis_results` row per hypothesis every run, and `features/hourly-routes.js`'s
-`detectWave3Ignition` (BUY-1/SELL-3 only), whose evidence now flows into that same row's
-`selected_route`/`route_evidence` -- `final_action` stays `WAIT` regardless (`WBP-M5`/`WSP-S5`
-needs all 5 routes ruled in/out, not just one), with the specific blocking reason disclosed in
-`pending_conditions` rather than a guessed BUY/SELL. Phase 2 now fetches and stores 1-hour bars
-(`providers/fyers.js`'s `fetchHourlyOHLCV`, `nse-calendar.js`'s `normalizeHourlyBars`,
-`index.js`'s `ingestHourlyBarsAndDetectRoutes`), gated on `directionLockPassed()` so it only spends
-request budget on instruments that have actually cleared M1-M4/S1-S4 -- real effect is still a
-no-op until `buy-swing.yaml`/`sell-swing.yaml` are seeded. All of the above is locally committed on
-`develop`; see each phase's DONE/REMAINING bullets in §6 below. Nothing in this document has been
+direction lock (WBP-M1..M4/WSP-S1..S4) done and persisted, plus 2 of 10 hourly routes (BUY-1/SELL-3
+"Wave 3 Ignition", BUY-4/SELL-4 "Wave 2 Pullback"/"Bounce Failure") detected end-to-end; 6 remaining
+routes, the confirmation groups, most vetoes, and reward/risk are still REMAINING.** Phases 0-3
+(contracts, safe-redirect/error-handling/UI-copy fixes, durable pipeline/corporate-actions/
+rate-limiting/run-locking, and the Direction rewrite itself -- equal-pivot labels, unconfirmed-leg
+separation, the Elliott engine rewrite, pattern detection, server-side `final_alignment`, and
+run-scoped persistence) are done. Phase 4 so far: `strategies/buy-swing.yaml`/`sell-swing.yaml`
+(gates WBP-M1..M8/WSP-S1..S8, M1-M4/S1-S4 automated) plus `features/swing-analysis.js`, turning
+those gate traces into a real `swing_analysis_results` row per hypothesis every run, and
+`features/hourly-routes.js`'s `detectWave3Ignition`/`detectWave2Pullback`, whose evidence now flows
+into that same row's `selected_route`/`route_evidence` -- `final_action` stays `WAIT` regardless
+(`WBP-M5`/`WSP-S5` needs all 5 routes ruled in/out, not just the two implemented), with the specific
+blocking reason disclosed in `pending_conditions` rather than a guessed BUY/SELL. Phase 2 now
+fetches and stores 1-hour bars (`providers/fyers.js`'s `fetchHourlyOHLCV`, `nse-calendar.js`'s
+`normalizeHourlyBars`, `index.js`'s `ingestHourlyBarsAndDetectRoutes`), gated on
+`directionLockPassed()` so it only spends request budget on instruments that have actually cleared
+M1-M4/S1-S4 -- real effect is still a no-op until `buy-swing.yaml`/`sell-swing.yaml` are seeded. All
+of the above is locally committed on `develop`; see each phase's DONE/REMAINING bullets in §6
+below. Nothing in this document has been
 applied to the database or deployed -- `supabase/migrations/` goes through
 `0007_provider_rate_limit_buckets.sql`, drafted and locally verified against the live schema's real
 constraint names, but not applied.
@@ -524,15 +525,49 @@ resolution between workstreams.
        failure, a rule-3-forward-check failure, and the bearish/SELL-3 mirror), 3 new cases in
        `features/indicators.test.js` for `hourSlotAverageVolume`, 2 new `pivotPrices` assertions in
        `wave.test.js`.
-   - REMAINING: BUY-2..5/SELL-1,2,4,5 (9 of the 10 hourly routes), `WBP-M6..M8`/`WSP-S6..S8`
-     (PAPA trigger, SMM Hat, reward/risk -- all still blocked, M7/S7 additionally on the open §13
-     conflict #11 decision), the 5 confirmation groups (§7 decision 3), vetoes (the "what kills a
-     live signal" list -- two of its ~11 items, "daily close below the last HL" and "weekly MACD
-     histogram downticking," are NOT hourly-dependent and could be automated before the rest; left
-     undone to avoid a half-implemented `vetoes` array that would look like "no vetoes triggered"
-     rather than "vetoes not yet computed"), the 15-minute-stub rule's own `PROJECT_DEFAULT` (§10,
-     `HOURLY_STUB_POLICY` already resolved this for chart rendering, not yet cross-checked against
-     this route-detection use), and DMI/ADX (still uncomputed -- no gate needs it yet).
+   - DONE: BUY-4 "Wave 2 Pullback" / SELL-4 "Bounce Failure" route detection -- new
+     `detectWave2Pullback()` in `features/hourly-routes.js`. Picked as the second route because
+     BUY-4/SELL-4 are a genuine structural mirror pair (a counter-trend retracement into the
+     38.2-61.8% Fibonacci band of the prior leg, failing there on a reversal trigger, resuming the
+     dominant trend) and, unlike `BUY-2`'s ambiguous "wave-4 high" trigger text (see this file's own
+     scope note on why `BUY-2` was skipped), its required conditions are unambiguous. Reuses
+     `wave.js`'s wave-2-forming detection (same `currentWave`/`waveState` pattern
+     `detectWave3Ignition` already established, one wave earlier) plus, newly, `features/patterns.js`'s
+     candlestick detectors for the required PAPA-trigger check ("a bullish/bearish reversal trigger
+     prints at that Fibonacci level") -- the first cross-use of the pattern-detection engine outside
+     the Direction feature it was originally built for.
+     - `wave.js`'s own `ruleArithmetic` doesn't cover a still-*forming* wave 2 (it only computes
+       `wave2RetracementFraction` once wave 2 is a *confirmed* pivot, i.e. wave 3 has begun) -- this
+       module computes the retracement fraction itself from the live `unconfirmedLeg` extreme, and
+       separately checks it hasn't breached wave 1's own origin.
+     - `SELL-4`'s own extra "wave b may not exceed 78% of wave a" structural check (its check 6)
+       needed no separate code: the 38.2-61.8% Fib band the shared check already enforces is
+       strictly tighter than 78%.
+     - Stops are computed as documented per side, not forced into a shared shape: `BUY-4`'s is
+       "below the origin of wave 1" (the whole impulse's own start); `SELL-4`'s is "above the rally
+       high" (the bounce's own peak) -- a materially different, much tighter stop, a real asymmetry
+       in the source text, not an implementation inconsistency.
+     - `index.js`'s `ingestHourlyBarsAndDetectRoutes` now runs every implemented detector per
+       hypothesis and collects an array (`routeEvidence.bullish`/`.bearish`), since a hypothesis
+       could in principle match more than one detector as more routes are added (today at most one
+       ever does, since a wave hypothesis can only be in one Elliott position at once).
+       `persistSwingAnalysisResults` picks the first `requiredChecksPassed` route (if any) as
+       `selected_route`, and discloses every detected-but-unconfirmed route in `pending_conditions`
+       too, not just the passing one.
+     - Tests: 6 new cases in `hourly-routes.test.js` (no-shape-present, a fully-passing setup, a
+       breached-origin failure, a too-shallow-retracement failure, an in-band-but-no-trigger
+       failure, and the bearish/`SELL-4` mirror).
+   - REMAINING: BUY-2, BUY-3/SELL-2 (Ending Diagonal Reversal/Breakdown), BUY-5/SELL-5
+     (Continuation Add), SELL-1 (Wave 5 Exhaustion) -- 6 of the 10 hourly routes -- `WBP-M6..M8`/
+     `WSP-S6..S8` (PAPA trigger, SMM Hat, reward/risk -- all still blocked, M7/S7 additionally on
+     the open §13 conflict #11 decision), the 5 confirmation groups (§7 decision 3), vetoes (the
+     "what kills a live signal" list -- two of its ~11 items, "daily close below the last HL" and
+     "weekly MACD histogram downticking," are NOT hourly-dependent and could be automated before
+     the rest; left undone to avoid a half-implemented `vetoes` array that would look like "no
+     vetoes triggered" rather than "vetoes not yet computed"), the 15-minute-stub rule's own
+     `PROJECT_DEFAULT` (§10, `HOURLY_STUB_POLICY` already resolved this for chart rendering, not
+     yet cross-checked against this route-detection use), and DMI/ADX (still uncomputed -- no gate
+     needs it yet).
 6. **Phase 5 — UI.** Direction table rebuild (server pagination, filters, lazy charts — #25),
    Analysis pages + multi-panel charts, nav/login/accessibility pass.
 7. **Phase 6 — QA/integration.** The full test list from the spec, run against Phases 2-5's real

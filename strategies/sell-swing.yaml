@@ -123,10 +123,12 @@ rules:
     missing_result: MANUAL_REVIEW
     hard_gate: false
     note: >
-      SELL-3 "Wave 3-Down Ignition" (the mirror of BUY-1) is now detected by
-      features/hourly-routes.js's detectWave3Ignition -- see buy-swing.yaml's
-      WBP-M5 note. Still MANUAL_REVIEW: SELL-1,2,4,5 are not implemented, so
-      a SELL-3 non-match does not mean S5 fails.
+      SELL-3 "Wave 3-Down Ignition" (the mirror of BUY-1) and SELL-4 "Bounce
+      Failure" (the mirror of BUY-4) are now detected by
+      features/hourly-routes.js's detectWave3Ignition/detectWave2Pullback --
+      see buy-swing.yaml's WBP-M5 note. Still MANUAL_REVIEW: SELL-1, SELL-2,
+      SELL-5 are not implemented, so a non-match from the two implemented
+      detectors does not mean S5 fails.
 
   - id: WSP-S6
     playbook_gate: S6
