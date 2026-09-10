@@ -31,6 +31,7 @@ import { buildFeatureContext } from "./features/context.js";
 import { buildDirectionAnalysis, ALGORITHM_VERSION as DIRECTION_ALGORITHM_VERSION } from "./features/direction.js";
 import { detectCandlestickPatterns, detectDoubleExtremePatterns, PATTERN_PARAM_VERSION } from "./features/patterns.js";
 import { computeFinalAlignment } from "./features/alignment.js";
+import { evaluateSwingHypothesis } from "./features/swing-analysis.js";
 import { computeAdjustedBars, ADJUSTMENT_VERSION } from "./features/corporate-actions.js";
 import { renderChartSvg, RENDER_VERSION } from "./charts/render.js";
 import { evaluateRules } from "./rules/evaluate.js";
@@ -524,6 +525,24 @@ async function evaluateInstrument({ supabase, runId, instrument, ruleDefinitions
       .insert(traces.map((t) => ({ run_id: runId, instrument_id: instrument.instrumentId, ...t })));
   }
 
+  // Swing (Weekly->Daily->1H) mandatory-gate synthesis -- bullish and
+  // bearish are always separate rows (problem #15). A no-op until
+  // strategies/buy-swing.yaml/sell-swing.yaml are seeded (not yet, per this
+  // task's no-remote-writes constraint) -- evaluateSwingHypothesis returns
+  // null when neither hypothesis has any WBP-/WSP- traces to work with.
+  // Failure here must never block instrument_run_results below.
+  try {
+    await persistSwingAnalysisResults({ supabase, runId, instrument, traces });
+  } catch (err) {
+    await logStage(
+      supabase,
+      runId,
+      "swing_analysis",
+      "warning",
+      `${instrument.instrumentId}: swing analysis persistence failed (likely migration 0006 not yet applied): ${err instanceof Error ? err.message : String(err)}`
+    );
+  }
+
   const { terminalState, tier } = classify(traces, failedGates, dataQuality);
   const tracesByFramework = groupBy(traces, (t) => t.rule_id.split("-")[0]);
   const { total, componentScores } = scoreComponents(tracesByFramework);
@@ -543,6 +562,76 @@ async function evaluateInstrument({ supabase, runId, instrument, ruleDefinitions
   await supabase.from("instrument_run_results").insert(resultRow);
 
   return { resultRow, componentScores };
+}
+
+/**
+ * Persists evaluateSwingHypothesis's bullish and bearish results (when
+ * present) into swing_analysis_results, plus each hypothesis's own gate
+ * traces into swing_analysis_rule_traces -- migration 0006, not yet applied,
+ * degrades gracefully. swing_analysis_results is upserted per
+ * (run_id, instrument_id, hypothesis) since a run only ever evaluates an
+ * instrument once; swing_analysis_rule_traces is delete-then-insert under
+ * that result's id so a re-run within the same run_id (should not happen in
+ * normal operation, but is not assumed) never leaves stale duplicate traces.
+ */
+async function persistSwingAnalysisResults({ supabase, runId, instrument, traces }) {
+  for (const hypothesis of ["bullish", "bearish"]) {
+    const analysis = evaluateSwingHypothesis(hypothesis, traces);
+    if (!analysis) continue; // no WBP-/WSP- gates evaluated this run -- strategy not seeded/active yet
+
+    const { data: resultRow, error: resultError } = await supabase
+      .from("swing_analysis_results")
+      .upsert(
+        {
+          run_id: runId,
+          instrument_id: instrument.instrumentId,
+          hypothesis,
+          selected_route: analysis.selectedRoute,
+          mandatory_gates: analysis.mandatoryGates,
+          confirmation_groups: analysis.confirmationGroups,
+          confirmation_groups_passed: analysis.confirmationGroupsPassed,
+          vetoes: analysis.vetoes,
+          pending_conditions: analysis.pendingConditions,
+          entry_price: analysis.entryPrice,
+          structural_stop: analysis.structuralStop,
+          conservative_target: analysis.conservativeTarget,
+          risk: analysis.risk,
+          reward: analysis.reward,
+          reward_risk_ratio: analysis.rewardRiskRatio,
+          final_action: analysis.finalAction,
+          data_quality: analysis.dataQuality,
+          computed_at: new Date().toISOString(),
+        },
+        { onConflict: "run_id,instrument_id,hypothesis" }
+      )
+      .select("id")
+      .single();
+
+    if (resultError) {
+      if (resultError.code === "PGRST205") return; // table not migrated yet -- rule_traces below would fail identically
+      throw resultError;
+    }
+
+    const gatePrefix = hypothesis === "bullish" ? "WBP-" : "WSP-";
+    const gateTraces = traces.filter((t) => t.rule_id.startsWith(gatePrefix));
+
+    await supabase.from("swing_analysis_rule_traces").delete().eq("analysis_result_id", resultRow.id);
+    if (gateTraces.length > 0) {
+      const { error: traceError } = await supabase.from("swing_analysis_rule_traces").insert(
+        gateTraces.map((t) => ({
+          analysis_result_id: resultRow.id,
+          rule_id: t.rule_id,
+          group_name: null,
+          result: t.result,
+          observed_values: t.observed_values,
+          thresholds: t.thresholds,
+          explanation: t.explanation,
+          source_locator: t.source_locator,
+        }))
+      );
+      if (traceError) throw traceError;
+    }
+  }
 }
 
 /**

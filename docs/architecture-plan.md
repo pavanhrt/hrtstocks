@@ -1,14 +1,18 @@
 # Direction/Analysis rebuild — lead-agent architecture plan
 
 Status: **Phase 3 (Direction intelligence rewrite) — complete; Phase 4 (Analysis engine) — in
-progress, weekly+daily direction lock (WBP-M1..M4/WSP-S1..S4) done.** Phases 0-3 (contracts,
-safe-redirect/error-handling/UI-copy fixes, durable pipeline/corporate-actions/rate-limiting/
-run-locking, and the Direction rewrite itself -- equal-pivot labels, unconfirmed-leg separation,
-the Elliott engine rewrite, pattern detection, server-side `final_alignment`, and run-scoped
-persistence) are done. Phase 4 has its first real slice: `strategies/buy-swing.yaml`/
-`sell-swing.yaml` (gates WBP-M1..M8/WSP-S1..S8), with M1-M4/S1-S4 automated and M5-M8/S5-S8
-disclosed as blocked on Phase 2's still-missing 1-hour ingestion. All of the above is locally
-committed on `develop`; see each phase's DONE/REMAINING bullets in §6 below. Nothing in this document has been applied to the
+progress: weekly+daily direction lock (WBP-M1..M4/WSP-S1..S4) and its swing_analysis_results
+persistence layer are done, everything downstream of the hourly chart is blocked on Phase 2's
+missing 1-hour ingestion.** Phases 0-3 (contracts, safe-redirect/error-handling/UI-copy fixes,
+durable pipeline/corporate-actions/rate-limiting/run-locking, and the Direction rewrite itself --
+equal-pivot labels, unconfirmed-leg separation, the Elliott engine rewrite, pattern detection,
+server-side `final_alignment`, and run-scoped persistence) are done. Phase 4 so far:
+`strategies/buy-swing.yaml`/`sell-swing.yaml` (gates WBP-M1..M8/WSP-S1..S8, M1-M4/S1-S4 automated,
+M5-M8/S5-S8 disclosed as blocked) plus `features/swing-analysis.js`, which turns those gate traces
+into a real `swing_analysis_results` row per hypothesis every run -- always `final_action: WAIT`
+today, with the specific blocking reason disclosed in `pending_conditions` rather than a guessed
+BUY/SELL. All of the above is locally committed on `develop`; see each phase's DONE/REMAINING
+bullets in §6 below. Nothing in this document has been applied to the
 database or deployed -- `supabase/migrations/` goes through `0007_provider_rate_limit_buckets.sql`,
 drafted and locally verified against the live schema's real constraint names, but not applied.
 
@@ -393,12 +397,33 @@ resolution between workstreams.
        just hand-copied), plus new coverage in `wave.test.js` (direction field) and
        `context.test.js` (5 new cases for `daily_dow_state`, weekly/daily Elliott position, and the
        pattern-veto booleans).
-   - REMAINING: `WBP-M5..M8`/`WSP-S5..S8` (blocked on 1-hour ingestion, Phase 2), route
-     identification (BUY-1..5/SELL-1..5), the 5 confirmation groups (§7 decision 3), vetoes, the
-     gap/first-candle and 15-minute-stub rules (§9-10, both still open `PROJECT_DEFAULT` decisions),
-     DMI/ADX (still uncomputed -- no gate needs it yet, same `null_policy` reasoning as before), and
-     the `swing_analysis_results`/`swing_analysis_rule_traces` persistence layer (migration 0006
-     tables already drafted, nothing writes to them yet).
+   - DONE: `swing_analysis_results`/`swing_analysis_rule_traces` persistence -- new
+     `features/swing-analysis.js`, `evaluateSwingHypothesis(hypothesis, traces)`: filters the
+     already-pooled `evaluateRules()` trace array to its own `WBP-`/`WSP-` prefix, producing one
+     row per hypothesis (never pooled, closing problem #15 for the swing side too) with
+     `mandatory_gates` populated for all 8 gates (M1-M4's real PASS/FAIL/NO_DATA, M5-M8's
+     MANUAL_REVIEW), `data_quality` derived from whether the 4 direction-lock gates actually
+     resolved, and `final_action` **always `WAIT`** -- since `WBP-M5..M8`/`WSP-S5..S8` can never
+     resolve to PASS yet, this module has no honest basis to claim BUY/SELL, and says exactly why in
+     `pending_conditions` (which direction-lock gate failed or lacked data, that the hourly gates are
+     blocked on missing 1-hour ingestion, and that route selection/confirmation groups/vetoes/
+     reward-risk aren't computed here at all) rather than silently omitting the reason. Returns
+     `null` (not a fabricated NO_DATA row) when neither hypothesis has any swing-gate traces at all
+     -- today's actual state, since `buy-swing.yaml`/`sell-swing.yaml` aren't seeded yet.
+     Wired into `run-screening/index.js`'s `persistSwingAnalysisResults`, called once per instrument
+     right after the existing `rule_traces` insert: upserts `swing_analysis_results` per
+     `(run_id, instrument_id, hypothesis)`, then delete-then-inserts that result's own
+     `swing_analysis_rule_traces` (idempotent against an unexpected re-evaluation within one run).
+     Degrades gracefully (migration 0006 not yet applied). 7 new tests in
+     `features/swing-analysis.test.js`.
+   - REMAINING: `WBP-M5..M8`/`WSP-S5..S8` themselves (blocked on 1-hour ingestion, Phase 2), route
+     identification (BUY-1..5/SELL-1..5), the 5 confirmation groups (§7 decision 3), vetoes (the
+     "what kills a live signal" list -- note two of its ~11 items, "daily close below the last HL"
+     and "weekly MACD histogram downticking," are NOT hourly-dependent and could be automated before
+     the rest; left undone this increment to avoid a half-implemented `vetoes` array that would look
+     like "no vetoes triggered" rather than "vetoes not yet computed"), the gap/first-candle and
+     15-minute-stub rules (§9-10, both still open `PROJECT_DEFAULT` decisions), and DMI/ADX (still
+     uncomputed -- no gate needs it yet, same `null_policy` reasoning as before).
 6. **Phase 5 — UI.** Direction table rebuild (server pagination, filters, lazy charts — #25),
    Analysis pages + multi-panel charts, nav/login/accessibility pass.
 7. **Phase 6 — QA/integration.** The full test list from the spec, run against Phases 2-5's real
