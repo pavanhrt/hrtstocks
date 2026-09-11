@@ -561,6 +561,31 @@ to the break point; target = neckline ± D, projected in the direction of the br
    PROJECT_DEFAULT for the swing strategy specifically (it would not apply to the
    positional strategy, which the existing YAML does not encode ADX for either).
 
+   **RESOLVED (2026-09-11), as a disclosed `PROJECT_DEFAULT`, scoped narrowly:** the swing
+   (Weekly→Daily→1H) hourly combination-matrix WAIT check ("Hourly ADX below 14, or flat
+   under 25 → WAIT", `BUY...` §11 / `SELL...` §13) uses **14** (and **25** for the
+   flat-ceiling half of that same rule), implemented in
+   `features/hourly-conditions.js`'s `evaluateHourlyAdxCondition`, thresholds in
+   `config/parameters.yaml` (`swing_hourly_adx_wait_below`, `swing_hourly_adx_flat_ceiling`).
+   Reasoning, per `AGENTS.md`'s own Evidence Priority order (§ "Evidence Priority" —
+   "dedicated setup checklist or decision sheet" outranks "concept document dedicated to
+   the subject"): the swing playbooks *are* the dedicated setup checklist for this exact
+   strategy and this exact timeframe, and their 14/25 reading is not a copy error but a
+   self-aware, explicitly reasoned override of the general concept document's 20 — the
+   playbook argues its own case for the deviation in the text quoted above. That argument
+   does not extend to any other context, so this decision changes nothing else: the
+   general PAPA/ADX **20** no-trend reading is untouched and remains what any *other*
+   future rule should use (weekly/daily ADX reads, the positional BSP-/SSP- strategy, or
+   any general PAPA no-trend read) — no such rule exists in this codebase today, so there
+   is nothing else to update. Scope is explicitly **hourly-only**, matching this entry's
+   own unresolved-scope note above: the weekly/daily gates M1–M4/S1–S4 still reference no
+   ADX condition at all, and this resolution does not add one. This is a strategy-owner
+   decision made by the acting engineering agent in this session, per this project's
+   established practice of disclosing rather than escalating scoped, reversible
+   `PROJECT_DEFAULT` picks (see e.g. conflict #6, #7, #9's own resolutions) — a human
+   reviewer can revisit it by editing the two parameters above; nothing about this
+   decision is hardcoded or hidden.
+
 5. **Zig-zag swing-detection thresholds are ranges, not fixed values**, at every degree:
    ~5% weekly, 2–3% daily, 1–1.5% hourly (`BUY...` §1.1 table; consistent with
    `smm-chart-analysis-SKILL.md` §0). **Decision needed:** pin exact percentages per

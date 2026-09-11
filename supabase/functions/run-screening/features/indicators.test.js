@@ -15,6 +15,7 @@ import {
   macdHistogramPhase,
   hourSlotAverageVolume,
   adx,
+  adxSlope,
 } from "./indicators.js";
 
 /** Synthetic OHLC series with a steady per-bar drift, for ADX/DMI fixtures. */
@@ -257,4 +258,32 @@ test("adx values stay within the valid 0-100 range", () => {
   for (const v of [result.plusDI, result.minusDI, result.adx]) {
     assert.ok(v >= 0 && v <= 100, `expected value in [0,100], got ${v}`);
   }
+});
+
+/** Concatenates fixture bar series end-to-end, for slope tests that need a regime change. */
+function concatBars(...seriesList) {
+  return seriesList.reduce(
+    (acc, s) => ({ highs: [...acc.highs, ...s.highs], lows: [...acc.lows, ...s.lows], closes: [...acc.closes, ...s.closes] }),
+    { highs: [], lows: [], closes: [] }
+  );
+}
+
+test("adxSlope returns null before enough ADX history exists", () => {
+  const { highs, lows, closes } = trendingBars(10, 1);
+  assert.equal(adxSlope(highs, lows, closes, 14), null);
+});
+
+test("adxSlope reads 'flat' for a pure, single-direction trend once ADX has seeded", () => {
+  const { highs, lows, closes } = trendingBars(60, 2);
+  assert.equal(adxSlope(highs, lows, closes, 14), "flat");
+});
+
+test("adxSlope reads 'rising' when a choppy period gives way to a strong sustained trend", () => {
+  const { highs, lows, closes } = concatBars(choppyBars(45), trendingBars(20, 3));
+  assert.equal(adxSlope(highs, lows, closes, 14), "rising");
+});
+
+test("adxSlope reads 'falling' when a strong trend decays into a choppy, directionless period", () => {
+  const { highs, lows, closes } = concatBars(trendingBars(45, 3), choppyBars(20));
+  assert.equal(adxSlope(highs, lows, closes, 14), "falling");
 });

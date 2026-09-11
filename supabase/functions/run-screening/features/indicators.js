@@ -9,12 +9,15 @@
 // and ADX... Use Wilder's smoothing... Discard the first ~28 bars"). ATR's
 // period remains unresolved and is NOT implemented here -- no gate needs it
 // yet, and per the null_policy a parameter is only marked documented once
-// code actually depends on the specific value. Note: the ADX threshold a
-// future gate should trigger on is a separate, still-unresolved CONFLICT
-// (docs/swing-strategy-extraction.md flags "ADX < 20" vs. a swing-specific
-// "ADX < 14" as competing source readings) -- implementing the indicator
-// itself does not resolve which threshold to gate on; no rule consumes
-// `adx()` yet.
+// code actually depends on the specific value. The ADX threshold a gate
+// triggers on was a separate, previously-unresolved CONFLICT
+// (docs/swing-strategy-extraction.md flagged "ADX < 20" vs. a swing-specific
+// "ADX < 14" as competing source readings) -- resolved 2026-09-11 as a
+// disclosed PROJECT_DEFAULT scoped to the swing hourly combination-matrix
+// WAIT check only (see that doc's §13 conflict #4 resolution note and
+// config/parameters.yaml's swing_hourly_adx_wait_below/
+// swing_hourly_adx_flat_ceiling comment). `adx()`/`adxSlope()` are now
+// consumed by features/hourly-conditions.js's evaluateHourlyAdxCondition.
 
 /** Simple moving average of the last `period` closes, or null if not enough bars. */
 export function sma(closes, period) {
@@ -385,4 +388,26 @@ export function adx(highs, lows, closes, period = 14) {
     minusDI: series.minusDI[series.minusDI.length - 1],
     adx: series.adx[series.adx.length - 1],
   };
+}
+
+/**
+ * ADX line slope classification -- "rising" / "falling" / "flat" -- mirroring
+ * macdSlope's monotonic-tail convention exactly, applied to the ADX series
+ * instead of the MACD line. Needed by the swing playbooks' hourly
+ * combination-matrix WAIT condition ("ADX below 14, or flat under 25"),
+ * which reads ADX's own trajectory, not just its latest level -- see
+ * features/hourly-conditions.js. Returns null until `lookback` consecutive
+ * non-null ADX values exist (i.e. not before `2*period` bars, same as adx()
+ * itself -- never a guessed slope over a partially-seeded series).
+ */
+export function adxSlope(highs, lows, closes, period = 14, lookback = 3) {
+  const { adx: series } = adxSeries(highs, lows, closes, period);
+  const tail = series.slice(-lookback);
+  if (tail.length < lookback || tail.some((v) => v === null)) return null;
+
+  const rising = tail.every((v, i) => i === 0 || v >= tail[i - 1]);
+  const falling = tail.every((v, i) => i === 0 || v <= tail[i - 1]);
+  if (rising && !falling) return "rising";
+  if (falling && !rising) return "falling";
+  return "flat";
 }

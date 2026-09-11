@@ -248,6 +248,16 @@ create table swing_analysis_results (
   confirmation_groups jsonb not null default '{}',
   confirmation_groups_passed integer not null default 0,
   vetoes jsonb not null default '[]',
+  -- Evidence from the source documents' "combination matrix" section
+  -- (BUY_Signal_Playbook_Weekly_Daily_1H.md §11 / SELL...§13), which is
+  -- distinct from the 8 mandatory gates (mandatory_gates above) -- currently
+  -- just the hourly ADX WAIT condition (features/hourly-conditions.js),
+  -- shaped { adxCondition: { adx, plusDI, minusDI, slope, wait, reason } }.
+  -- Null until that condition has been evaluated for this row (not enough
+  -- hourly bars yet, or the strategy isn't seeded). Added alongside
+  -- features/hourly-conditions.js in the same local session that added this
+  -- column -- migration still unapplied.
+  combination_matrix jsonb,
   pending_conditions jsonb not null default '[]',
   entry_price numeric,
   structural_stop numeric,
