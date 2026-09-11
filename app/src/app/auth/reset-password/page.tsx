@@ -27,10 +27,16 @@ export default function ResetPasswordPage() {
     <div className="card" style={{ maxWidth: 360, margin: "80px auto" }}>
       <h1 style={{ fontSize: 18, marginTop: 0 }}>Set a new password</h1>
       {done ? (
-        <p style={{ color: "var(--pass)" }}>Password updated. Redirecting...</p>
+        <p role="status" aria-live="polite" style={{ color: "var(--pass)" }}>
+          Password updated. Redirecting...
+        </p>
       ) : (
         <form onSubmit={handleSubmit} style={{ display: "grid", gap: 10 }}>
+          <label htmlFor="new-password" style={{ fontSize: 13, color: "var(--text-dim)" }}>
+            New password
+          </label>
           <input
+            id="new-password"
             type="password"
             placeholder="New password"
             required
@@ -40,7 +46,11 @@ export default function ResetPasswordPage() {
             autoComplete="new-password"
           />
           <button type="submit">Update password</button>
-          {error && <p style={{ color: "var(--fail)", fontSize: 13 }}>{error}</p>}
+          {error && (
+            <p role="status" aria-live="polite" style={{ color: "var(--fail)", fontSize: 13 }}>
+              {error}
+            </p>
+          )}
         </form>
       )}
     </div>

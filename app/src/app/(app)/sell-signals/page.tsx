@@ -33,35 +33,37 @@ function CandidateTable({ candidates }: { candidates: SignalCandidate[] }) {
     return <p style={{ color: "var(--text-dim)", fontSize: 13 }}>None this run.</p>;
   }
   return (
-    <table>
-      <thead>
-        <tr>
-          <th>Instrument</th>
-          <th>Codeable gates (S1/S3/S4b/S7)</th>
-          <th>Passed</th>
-          <th>Still needs manual review</th>
-        </tr>
-      </thead>
-      <tbody>
-        {candidates.map((c) => (
-          <tr key={c.instrumentId}>
-            <td>
-              <Link href={`/stocks/${c.instrumentId}`}>{c.name}</Link>{" "}
-              <span style={{ color: "var(--text-dim)", fontSize: 12 }}>({c.symbol})</span>
-            </td>
-            <td>
-              <GateRow candidate={c} gates={SELL_CODEABLE_GATES} />
-            </td>
-            <td>
-              {c.codeableGatesPassed} / {c.codeableGatesTotal}
-            </td>
-            <td>
-              <GateRow candidate={c} gates={SELL_MANUAL_GATES} />
-            </td>
+    <div style={{ overflowX: "auto" }}>
+      <table>
+        <thead>
+          <tr>
+            <th>Instrument</th>
+            <th>Codeable gates (S1/S3/S4b/S7)</th>
+            <th>Passed</th>
+            <th>Still needs manual review</th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {candidates.map((c) => (
+            <tr key={c.instrumentId}>
+              <td>
+                <Link href={`/stocks/${c.instrumentId}`}>{c.name}</Link>{" "}
+                <span style={{ color: "var(--text-dim)", fontSize: 12 }}>({c.symbol})</span>
+              </td>
+              <td>
+                <GateRow candidate={c} gates={SELL_CODEABLE_GATES} />
+              </td>
+              <td>
+                {c.codeableGatesPassed} / {c.codeableGatesTotal}
+              </td>
+              <td>
+                <GateRow candidate={c} gates={SELL_MANUAL_GATES} />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 

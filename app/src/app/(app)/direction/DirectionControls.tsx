@@ -56,12 +56,13 @@ export default function DirectionControls({
   return (
     <div style={{ display: "flex", gap: 10, marginBottom: 12, flexWrap: "wrap", alignItems: "center" }}>
       <input
+        aria-label="Search symbol or name"
         placeholder="Search symbol or name..."
         value={query}
         onChange={(e) => onQueryChange(e.target.value)}
         style={{ flex: 1, minWidth: 200, padding: "6px 10px" }}
       />
-      <select value={initialAlignment} onChange={(e) => onAlignmentChange(e.target.value)}>
+      <select aria-label="Filter by confluence" value={initialAlignment} onChange={(e) => onAlignmentChange(e.target.value)}>
         <option value="all">All confluence</option>
         {FINAL_ALIGNMENT_VALUES.map((v) => (
           <option key={v} value={v}>

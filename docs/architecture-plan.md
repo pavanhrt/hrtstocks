@@ -1000,3 +1000,70 @@ The two DOCUMENTED-mechanism PAPA formations Cycle 2 deferred for scope, not pri
 - Verification: `npm test` (318/318 passing, up from 310 — 6 new detector tests plus 2 aggregator
   tests), `npm run build` (passes). Detector logic verified against hand-built fixtures interactively
   before finalizing the test file (same discipline as Cycle 2's RSI-divergence fixture work).
+
+## 14. Workstreams 6+7 — UI corrections + security headers (2026-09-11)
+
+Two Explore agents surveyed the app's actual current UI/accessibility and security state before this
+was scoped, rather than guessing at a redesign — see the plan file's own Context section for the
+full findings list. One finding was far more urgent than either workstream: the repo root has a
+tracked, pushed `.env.local` on a **public** GitHub repo (confirmed via the GitHub API,
+`"private": false`), and git history contains a prior incident ("Remove committed .env.local (leaked
+service role key)"). **The user took ownership of key rotation and repo cleanup themselves — no code
+in this section touches either `.env.local` file, rotates any credential, or rewrites git history.**
+
+The rest of the security survey found the app's actual posture already solid: RLS enabled with a
+real policy on every table (one intentional trigger-only exception, `bootstrap_admin_emails`),
+server-side role checks via `lib/auth.ts`'s `requireRole`/`getCurrentUser` (not just client-side),
+no raw SQL string interpolation, no secrets in logs, current-major dependencies. The only concrete
+gap: no security headers anywhere.
+
+- DONE — **`app/next.config.mjs`**: added a `headers()` export applying a CSP + `X-Frame-Options:
+  DENY` + `X-Content-Type-Options: nosniff` + `Referrer-Policy` to every route. `script-src`/
+  `style-src` both need `'unsafe-inline'` — verified live in the Browser pane (both against `next
+  dev` and, after discovering `next dev`'s own HMR/eval runtime triggers an *unrelated* eval-based
+  CSP violation that a real `next build && next start` production server does NOT, against the
+  actual production build) that a plain `script-src 'self'` blocks Next.js's own inline
+  RSC-hydration bootstrap entirely, leaving the app server-rendered-only with zero client
+  interactivity. A nonce-per-request CSP would avoid the trade-off but needs `middleware.ts` changes
+  — a real, larger change, disclosed as out of scope rather than silently downgraded to. Confirmed
+  via a fresh browser tab against the production server: zero console errors, the CSP header present
+  and correctly formed, and a real client interaction (the login page's "Forgot password?" toggle)
+  working end to end.
+- DONE — **App-wide `loading.tsx`/`error.tsx`/`not-found.tsx`**: none existed anywhere before this
+  (every navigation showed a blank page during a fetch; any thrown error fell through to Next's
+  default unstyled screen). Added `(app)/loading.tsx` + `(app)/error.tsx` (inside the route group, so
+  the nav/header from `(app)/layout.tsx` stays stable and only the `<main>` content area shows the
+  fallback) plus root-level `error.tsx` + `not-found.tsx` for pages outside `(app)` (login, auth
+  callbacks). Confirmed via `next build`'s own route listing that `/_not-found` compiles as a real
+  route; could not exercise `(app)/loading.tsx`/`(app)/error.tsx` live without an authenticated
+  session (`middleware.ts` redirects every unauthenticated request to `/login` before Next's own
+  routing would reach a nonexistent authenticated-side route) — disclosed, not silently skipped.
+- DONE — **`aria-live` on 3 previously-missed error/status regions** (`RunScreeningButton.tsx`,
+  `auth/reset-password/page.tsx`, `news/page.tsx`), matching the pattern the original login
+  accessibility pass already established on `LoginForm.tsx`.
+- DONE — **Missing accessible names**: a real `<label htmlFor>` on `reset-password/page.tsx`'s
+  password input (the exact placeholder-only gap the login pass fixed everywhere else, just missed
+  on this separate page) — confirmed live via the accessibility tree, the input's accessible name is
+  now "New password", not the placeholder text. `DirectionControls.tsx`'s and
+  `StockLedgerTable.tsx`'s filter inputs/selects got `aria-label` instead of a visible `<label>` (a
+  valid WCAG technique) since a visible label would need real layout changes to these dense filter
+  toolbars, unlike the reset-password page's own spare vertical space.
+- DONE — **`overflow-x: auto` wrappers on every wide table that lacked one** (dashboard, buy/sell
+  signals, analysis, indexes, the stock ledger, the stock detail page's 3 rule-trace tables,
+  strategies, and data-health's 3 tables), matching the pattern already used on `indexes/page.tsx`'s
+  history table and `DirectionTable.tsx`.
+- DONE — **`data-health/page.tsx`'s audit-log status column** now uses the shared `<Badge>` component
+  like every other status column in the app, instead of plain text — added `badge-OK`/`badge-WARNING`/
+  `badge-FAILED` CSS classes (`pipeline_audit_log`'s own status vocabulary, uppercased to match
+  `Badge`'s existing convention) to `globals.css`.
+- **Explicitly OUT of scope, disclosed**: consolidating the app's pervasive (but internally
+  consistent) inline-style duplication into shared CSS classes, and adding a light theme/toggle (the
+  app is deliberately single-theme today — a new feature, not a correction, and wasn't asked for).
+- Verification: `npm run build` (passes). Live Browser-pane verification against a real `next build &&
+  next start` production server (not just `next dev`, after the CSP/eval discovery above): security
+  headers present and correctly formed, zero console errors on a fresh tab, login page and
+  reset-password page both render and are interactive, the reset-password label change confirmed via
+  the accessibility tree. Authenticated `(app)/*` pages (the table wrappers, `(app)/loading.tsx`,
+  `(app)/error.tsx`) could not be visually verified without a real login session — disclosed as the
+  one thing still owed a real look once someone can log in, same caveat this doc's own Phase 5 entry
+  already recorded for an earlier UI pass.

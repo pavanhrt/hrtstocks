@@ -102,35 +102,37 @@ export default async function DashboardPage() {
 
       <div className="card">
         <h2 style={{ marginTop: 0, fontSize: 15 }}>Index regime summary</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>Index</th>
-              <th>Direction</th>
-              <th>Result</th>
-              <th>Data quality</th>
-            </tr>
-          </thead>
-          <tbody>
-            {indexResults.length === 0 && (
+        <div style={{ overflowX: "auto" }}>
+          <table>
+            <thead>
               <tr>
-                <td colSpan={4} style={{ color: "var(--text-dim)" }}>
-                  No index results for this run.
-                </td>
+                <th>Index</th>
+                <th>Direction</th>
+                <th>Result</th>
+                <th>Data quality</th>
               </tr>
-            )}
-            {indexResults.map((r) => (
-              <tr key={r.id}>
-                <td>{(r as any).instruments?.name ?? r.instrument_id}</td>
-                <td>{r.direction ?? "-"}</td>
-                <td>
-                  <Badge status={r.terminal_state} />
-                </td>
-                <td>{r.data_quality ?? "-"}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {indexResults.length === 0 && (
+                <tr>
+                  <td colSpan={4} style={{ color: "var(--text-dim)" }}>
+                    No index results for this run.
+                  </td>
+                </tr>
+              )}
+              {indexResults.map((r) => (
+                <tr key={r.id}>
+                  <td>{(r as any).instruments?.name ?? r.instrument_id}</td>
+                  <td>{r.direction ?? "-"}</td>
+                  <td>
+                    <Badge status={r.terminal_state} />
+                  </td>
+                  <td>{r.data_quality ?? "-"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
         <p style={{ marginTop: 8 }}>
           <Link href="/indexes">Full index analysis -&gt;</Link>
         </p>
@@ -138,39 +140,41 @@ export default async function DashboardPage() {
 
       <div className="card">
         <h2 style={{ marginTop: 0, fontSize: 15 }}>Highest-ranked research candidates</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>Rank</th>
-              <th>Instrument</th>
-              <th>Tier</th>
-              <th>Direction</th>
-              <th>Score</th>
-            </tr>
-          </thead>
-          <tbody>
-            {candidates.length === 0 && (
+        <div style={{ overflowX: "auto" }}>
+          <table>
+            <thead>
               <tr>
-                <td colSpan={5} style={{ color: "var(--text-dim)" }}>
-                  No Tier A/B candidates this run.
-                </td>
+                <th>Rank</th>
+                <th>Instrument</th>
+                <th>Tier</th>
+                <th>Direction</th>
+                <th>Score</th>
               </tr>
-            )}
-            {candidates.map((c) => (
-              <tr key={c.id}>
-                <td>{c.rank_within_tier ?? "-"}</td>
-                <td>
-                  <Link href={`/stocks/${c.instrument_id}`}>
-                    {(c as any).instruments?.name ?? c.instrument_id}
-                  </Link>
-                </td>
-                <td>{TIER_LABELS[c.tier] ?? c.tier}</td>
-                <td>{c.direction ?? "-"}</td>
-                <td>{c.total_score ?? "-"}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {candidates.length === 0 && (
+                <tr>
+                  <td colSpan={5} style={{ color: "var(--text-dim)" }}>
+                    No Tier A/B candidates this run.
+                  </td>
+                </tr>
+              )}
+              {candidates.map((c) => (
+                <tr key={c.id}>
+                  <td>{c.rank_within_tier ?? "-"}</td>
+                  <td>
+                    <Link href={`/stocks/${c.instrument_id}`}>
+                      {(c as any).instruments?.name ?? c.instrument_id}
+                    </Link>
+                  </td>
+                  <td>{TIER_LABELS[c.tier] ?? c.tier}</td>
+                  <td>{c.direction ?? "-"}</td>
+                  <td>{c.total_score ?? "-"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
         <p style={{ marginTop: 8 }}>
           <Link href="/stocks">Complete stock ledger -&gt;</Link>
         </p>

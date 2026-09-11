@@ -50,53 +50,55 @@ export default async function StockDetailPage({
   function TraceTable({ rows }: { rows: typeof traces }) {
     if (rows.length === 0) return <p style={{ color: "var(--text-dim)", fontSize: 13 }}>No rules in this group.</p>;
     return (
-      <table>
-        <thead>
-          <tr>
-            <th>Rule</th>
-            <th>Framework</th>
-            <th>Result</th>
-            <th>Observed</th>
-            <th>Threshold</th>
-            <th>Source</th>
-            <th>Explanation</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((t) => {
-            const def = definitions[t.rule_id];
-            return (
-              <tr key={t.id}>
-                <td>
-                  {t.rule_id}
-                  {def?.hard_gate && (
-                    <span style={{ marginLeft: 6, fontSize: 10, color: "var(--watch)" }} title="Hard gate">
-                      GATE
-                    </span>
-                  )}
-                  <div style={{ fontSize: 11, color: "var(--text-dim)" }}>{def?.name}</div>
-                </td>
-                <td>{t.rule_id.split("-")[0]}</td>
-                <td>
-                  <Badge status={t.result} />
-                </td>
-                <td style={{ fontFamily: "monospace", fontSize: 12 }}>
-                  {t.observed_values ? JSON.stringify(t.observed_values) : "-"}
-                </td>
-                <td style={{ fontFamily: "monospace", fontSize: 12 }}>
-                  {t.thresholds ? JSON.stringify(t.thresholds) : "-"}
-                </td>
-                <td style={{ fontSize: 12, color: "var(--text-dim)" }}>
-                  {t.source_document ?? "-"}
-                  {t.source_locator ? ` (${t.source_locator})` : ""}
-                  <div>{def?.source_status}</div>
-                </td>
-                <td style={{ fontSize: 12 }}>{t.explanation ?? "-"}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+      <div style={{ overflowX: "auto" }}>
+        <table>
+          <thead>
+            <tr>
+              <th>Rule</th>
+              <th>Framework</th>
+              <th>Result</th>
+              <th>Observed</th>
+              <th>Threshold</th>
+              <th>Source</th>
+              <th>Explanation</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((t) => {
+              const def = definitions[t.rule_id];
+              return (
+                <tr key={t.id}>
+                  <td>
+                    {t.rule_id}
+                    {def?.hard_gate && (
+                      <span style={{ marginLeft: 6, fontSize: 10, color: "var(--watch)" }} title="Hard gate">
+                        GATE
+                      </span>
+                    )}
+                    <div style={{ fontSize: 11, color: "var(--text-dim)" }}>{def?.name}</div>
+                  </td>
+                  <td>{t.rule_id.split("-")[0]}</td>
+                  <td>
+                    <Badge status={t.result} />
+                  </td>
+                  <td style={{ fontFamily: "monospace", fontSize: 12 }}>
+                    {t.observed_values ? JSON.stringify(t.observed_values) : "-"}
+                  </td>
+                  <td style={{ fontFamily: "monospace", fontSize: 12 }}>
+                    {t.thresholds ? JSON.stringify(t.thresholds) : "-"}
+                  </td>
+                  <td style={{ fontSize: 12, color: "var(--text-dim)" }}>
+                    {t.source_document ?? "-"}
+                    {t.source_locator ? ` (${t.source_locator})` : ""}
+                    <div>{def?.source_status}</div>
+                  </td>
+                  <td style={{ fontSize: 12 }}>{t.explanation ?? "-"}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     );
   }
 

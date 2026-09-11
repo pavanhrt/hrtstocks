@@ -21,36 +21,38 @@ export default async function IndexesPage() {
       <div className="card">
         <h1 style={{ marginTop: 0, fontSize: 20 }}>Index analysis</h1>
         <p style={{ color: "var(--text-dim)", fontSize: 13 }}>Run {run.run_date}</p>
-        <table>
-          <thead>
-            <tr>
-              <th>Index</th>
-              <th>Direction</th>
-              <th>Result</th>
-              <th>Tier</th>
-              <th>Score</th>
-              <th>Data quality</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {indexResults.map((r) => (
-              <tr key={r.id}>
-                <td>{(r as any).instruments?.name ?? r.instrument_id}</td>
-                <td>{r.direction ?? "-"}</td>
-                <td>
-                  <Badge status={r.terminal_state} />
-                </td>
-                <td>{r.tier ?? "-"}</td>
-                <td>{r.score ?? "-"}</td>
-                <td>{r.data_quality ?? "-"}</td>
-                <td>
-                  <Link href={`/stocks/${r.instrument_id}`}>Rule trace -&gt;</Link>
-                </td>
+        <div style={{ overflowX: "auto" }}>
+          <table>
+            <thead>
+              <tr>
+                <th>Index</th>
+                <th>Direction</th>
+                <th>Result</th>
+                <th>Tier</th>
+                <th>Score</th>
+                <th>Data quality</th>
+                <th></th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {indexResults.map((r) => (
+                <tr key={r.id}>
+                  <td>{(r as any).instruments?.name ?? r.instrument_id}</td>
+                  <td>{r.direction ?? "-"}</td>
+                  <td>
+                    <Badge status={r.terminal_state} />
+                  </td>
+                  <td>{r.tier ?? "-"}</td>
+                  <td>{r.score ?? "-"}</td>
+                  <td>{r.data_quality ?? "-"}</td>
+                  <td>
+                    <Link href={`/stocks/${r.instrument_id}`}>Rule trace -&gt;</Link>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <div className="card">

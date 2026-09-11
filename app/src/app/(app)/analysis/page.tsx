@@ -27,30 +27,32 @@ const HOURLY_ROUTES_NOTE =
 
 function ConditionsTable({ candidate }: { candidate: SwingCandidate }) {
   return (
-    <table>
-      <thead>
-        <tr>
-          <th>Gate</th>
-          <th>Result</th>
-          <th>Observed values</th>
-          <th>Explanation</th>
-        </tr>
-      </thead>
-      <tbody>
-        {candidate.conditions.map((c) => (
-          <tr key={c.ruleId}>
-            <td style={{ whiteSpace: "nowrap" }}>{GATE_LABELS[c.ruleId] ?? c.ruleId}</td>
-            <td>
-              <Badge status={c.result} />
-            </td>
-            <td style={{ fontFamily: "monospace", fontSize: 12 }}>
-              {c.observedValues && Object.keys(c.observedValues).length > 0 ? JSON.stringify(c.observedValues) : "-"}
-            </td>
-            <td style={{ fontSize: 12 }}>{c.explanation ?? "-"}</td>
+    <div style={{ overflowX: "auto" }}>
+      <table>
+        <thead>
+          <tr>
+            <th>Gate</th>
+            <th>Result</th>
+            <th>Observed values</th>
+            <th>Explanation</th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {candidate.conditions.map((c) => (
+            <tr key={c.ruleId}>
+              <td style={{ whiteSpace: "nowrap" }}>{GATE_LABELS[c.ruleId] ?? c.ruleId}</td>
+              <td>
+                <Badge status={c.result} />
+              </td>
+              <td style={{ fontFamily: "monospace", fontSize: 12 }}>
+                {c.observedValues && Object.keys(c.observedValues).length > 0 ? JSON.stringify(c.observedValues) : "-"}
+              </td>
+              <td style={{ fontSize: 12 }}>{c.explanation ?? "-"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 

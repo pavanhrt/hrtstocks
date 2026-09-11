@@ -96,12 +96,43 @@ th {
   background: rgba(239, 91, 106, 0.15);
   color: var(--fail);
 }
+/* pipeline_audit_log's own status vocabulary (logStage's callers use "ok"/
+   "warning"/"failed", uppercased before reaching Badge -- see data-health/page.tsx). */
+.badge-OK {
+  background: rgba(53, 201, 143, 0.15);
+  color: var(--pass);
+}
+.badge-WARNING {
+  background: rgba(224, 178, 60, 0.15);
+  color: var(--watch);
+}
+.badge-FAILED {
+  background: rgba(239, 91, 106, 0.15);
+  color: var(--fail);
+}
 
 input,
 button,
 select {
   font-family: inherit;
   font-size: 14px;
+}
+
+/* (app)/loading.tsx's fallback spinner. */
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--panel-border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 button {

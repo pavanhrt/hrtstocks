@@ -45,39 +45,41 @@ export default async function DataHealthPage() {
 
       <div className="card">
         <h2 style={{ marginTop: 0, fontSize: 15 }}>Pipeline history</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Status</th>
-              <th>Trigger</th>
-              <th>Universe</th>
-              <th>Started</th>
-              <th>Completed</th>
-            </tr>
-          </thead>
-          <tbody>
-            {recentRuns.length === 0 && (
+        <div style={{ overflowX: "auto" }}>
+          <table>
+            <thead>
               <tr>
-                <td colSpan={6} style={{ color: "var(--text-dim)" }}>
-                  No runs recorded yet.
-                </td>
+                <th>Date</th>
+                <th>Status</th>
+                <th>Trigger</th>
+                <th>Universe</th>
+                <th>Started</th>
+                <th>Completed</th>
               </tr>
-            )}
-            {recentRuns.map((r) => (
-              <tr key={r.id}>
-                <td>{r.run_date}</td>
-                <td>
-                  <Badge status={r.status.toUpperCase()} />
-                </td>
-                <td>{r.trigger_type}</td>
-                <td>{r.universe_version}</td>
-                <td>{r.started_at ?? "-"}</td>
-                <td>{r.completed_at ?? "-"}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {recentRuns.length === 0 && (
+                <tr>
+                  <td colSpan={6} style={{ color: "var(--text-dim)" }}>
+                    No runs recorded yet.
+                  </td>
+                </tr>
+              )}
+              {recentRuns.map((r) => (
+                <tr key={r.id}>
+                  <td>{r.run_date}</td>
+                  <td>
+                    <Badge status={r.status.toUpperCase()} />
+                  </td>
+                  <td>{r.trigger_type}</td>
+                  <td>{r.universe_version}</td>
+                  <td>{r.started_at ?? "-"}</td>
+                  <td>{r.completed_at ?? "-"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
@@ -116,32 +118,34 @@ async function QuarantinedInstruments({ runId }: { runId: string }) {
       {groups.length === 0 ? (
         <p style={{ color: "var(--text-dim)", fontSize: 13 }}>No data-quality failures for this run.</p>
       ) : (
-        <table>
-          <thead>
-            <tr>
-              <th>Check</th>
-              <th>Result</th>
-              <th>Count</th>
-              <th>Sample instruments</th>
-              <th>First / last seen</th>
-            </tr>
-          </thead>
-          <tbody>
-            {groups.map((g) => (
-              <tr key={`${g.check_name}::${g.result}`}>
-                <td>{g.check_name}</td>
-                <td>
-                  <Badge status={g.result} />
-                </td>
-                <td>{g.count}</td>
-                <td style={{ fontFamily: "monospace", fontSize: 12 }}>{g.sample_instrument_ids.join(", ") || "-"}</td>
-                <td style={{ fontSize: 12, color: "var(--text-dim)" }}>
-                  {g.first_seen} &rarr; {g.last_seen}
-                </td>
+        <div style={{ overflowX: "auto" }}>
+          <table>
+            <thead>
+              <tr>
+                <th>Check</th>
+                <th>Result</th>
+                <th>Count</th>
+                <th>Sample instruments</th>
+                <th>First / last seen</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {groups.map((g) => (
+                <tr key={`${g.check_name}::${g.result}`}>
+                  <td>{g.check_name}</td>
+                  <td>
+                    <Badge status={g.result} />
+                  </td>
+                  <td>{g.count}</td>
+                  <td style={{ fontFamily: "monospace", fontSize: 12 }}>{g.sample_instrument_ids.join(", ") || "-"}</td>
+                  <td style={{ fontSize: 12, color: "var(--text-dim)" }}>
+                    {g.first_seen} &rarr; {g.last_seen}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );
@@ -156,30 +160,34 @@ async function PipelineLog({ runId }: { runId: string }) {
       {groups.length === 0 ? (
         <p style={{ color: "var(--text-dim)", fontSize: 13 }}>No stage log recorded.</p>
       ) : (
-        <table>
-          <thead>
-            <tr>
-              <th>Stage</th>
-              <th>Status</th>
-              <th>Count</th>
-              <th>Sample message(s)</th>
-              <th>First / last seen</th>
-            </tr>
-          </thead>
-          <tbody>
-            {groups.map((g) => (
-              <tr key={`${g.stage}::${g.status}`}>
-                <td>{g.stage}</td>
-                <td>{g.status}</td>
-                <td>{g.count}</td>
-                <td style={{ fontSize: 12 }}>{g.sample_messages.join(" | ") || "-"}</td>
-                <td style={{ fontSize: 12, color: "var(--text-dim)" }}>
-                  {g.first_seen} &rarr; {g.last_seen}
-                </td>
+        <div style={{ overflowX: "auto" }}>
+          <table>
+            <thead>
+              <tr>
+                <th>Stage</th>
+                <th>Status</th>
+                <th>Count</th>
+                <th>Sample message(s)</th>
+                <th>First / last seen</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {groups.map((g) => (
+                <tr key={`${g.stage}::${g.status}`}>
+                  <td>{g.stage}</td>
+                  <td>
+                    <Badge status={g.status.toUpperCase()} />
+                  </td>
+                  <td>{g.count}</td>
+                  <td style={{ fontSize: 12 }}>{g.sample_messages.join(" | ") || "-"}</td>
+                  <td style={{ fontSize: 12, color: "var(--text-dim)" }}>
+                    {g.first_seen} &rarr; {g.last_seen}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );

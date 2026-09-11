@@ -31,7 +31,11 @@ export default function RunScreeningButton() {
       <button onClick={trigger} disabled={pending}>
         {pending ? "Starting run..." : "Run screening now"}
       </button>
-      {error && <p style={{ color: "var(--fail)", fontSize: 13 }}>{error}</p>}
+      {error && (
+        <p role="status" aria-live="polite" style={{ color: "var(--fail)", fontSize: 13 }}>
+          {error}
+        </p>
+      )}
     </div>
   );
 }

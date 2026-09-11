@@ -30,30 +30,32 @@ export default async function StrategiesPage() {
               <code>strategies/shared-gates.yaml</code> for the tier and hard-gate definitions.
             </p>
           ) : (
-            <table>
-              <thead>
-                <tr>
-                  <th>Rule ID</th>
-                  <th>Name</th>
-                  <th>Status</th>
-                  <th>Direction</th>
-                  <th>Hard gate</th>
-                  <th>Expression</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rules.map((r) => (
-                  <tr key={r.id}>
-                    <td>{r.rule_id}</td>
-                    <td>{r.name}</td>
-                    <td>{r.source_status}</td>
-                    <td>{r.direction ?? "-"}</td>
-                    <td>{r.hard_gate ? "yes" : "no"}</td>
-                    <td style={{ fontFamily: "monospace", fontSize: 12 }}>{r.expression}</td>
+            <div style={{ overflowX: "auto" }}>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Rule ID</th>
+                    <th>Name</th>
+                    <th>Status</th>
+                    <th>Direction</th>
+                    <th>Hard gate</th>
+                    <th>Expression</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {rules.map((r) => (
+                    <tr key={r.id}>
+                      <td>{r.rule_id}</td>
+                      <td>{r.name}</td>
+                      <td>{r.source_status}</td>
+                      <td>{r.direction ?? "-"}</td>
+                      <td>{r.hard_gate ? "yes" : "no"}</td>
+                      <td style={{ fontFamily: "monospace", fontSize: 12 }}>{r.expression}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       ))}

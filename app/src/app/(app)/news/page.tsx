@@ -55,7 +55,7 @@ export default async function NewsPage() {
       )}
 
       {fetchError && (
-        <div className="card" style={{ borderColor: "var(--fail)" }}>
+        <div className="card" role="status" aria-live="polite" style={{ borderColor: "var(--fail)" }}>
           <p style={{ color: "var(--fail)", fontSize: 13 }}>Could not load news feeds: {fetchError}</p>
         </div>
       )}

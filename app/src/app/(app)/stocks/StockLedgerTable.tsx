@@ -38,12 +38,13 @@ export default function StockLedgerTable({ rows, runId }: { rows: LedgerRow[]; r
     <div className="card">
       <div style={{ display: "flex", gap: 10, marginBottom: 12, flexWrap: "wrap", alignItems: "center" }}>
         <input
+          aria-label="Search symbol or name"
           placeholder="Search symbol or name..."
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           style={{ flex: 1, minWidth: 200, padding: "6px 10px" }}
         />
-        <select value={tierFilter} onChange={(e) => setTierFilter(e.target.value)}>
+        <select aria-label="Filter by tier" value={tierFilter} onChange={(e) => setTierFilter(e.target.value)}>
           <option value="all">All tiers</option>
           <option value="tier_a">Tier A</option>
           <option value="tier_b">Tier B</option>
@@ -52,7 +53,7 @@ export default function StockLedgerTable({ rows, runId }: { rows: LedgerRow[]; r
           <option value="rejected">Rejected</option>
           <option value="unavailable">Unavailable</option>
         </select>
-        <select value={stateFilter} onChange={(e) => setStateFilter(e.target.value)}>
+        <select aria-label="Filter by result" value={stateFilter} onChange={(e) => setStateFilter(e.target.value)}>
           <option value="all">All results</option>
           <option value="PASS">PASS</option>
           <option value="WATCH">WATCH</option>
@@ -69,38 +70,40 @@ export default function StockLedgerTable({ rows, runId }: { rows: LedgerRow[]; r
         Showing {filtered.length} of {rows.length} unique constituents.
       </p>
 
-      <table>
-        <thead>
-          <tr>
-            <th>Symbol</th>
-            <th>Name</th>
-            <th>Result</th>
-            <th>Tier</th>
-            <th>Direction</th>
-            <th>Score</th>
-            <th>Data quality</th>
-            <th>Failed gates</th>
-          </tr>
-        </thead>
-        <tbody>
-          {filtered.map((r) => (
-            <tr key={r.id}>
-              <td>
-                <Link href={`/stocks/${r.instrument_id}`}>{r.instruments?.symbol ?? r.instrument_id}</Link>
-              </td>
-              <td>{r.instruments?.name ?? "-"}</td>
-              <td>
-                <Badge status={r.terminal_state} />
-              </td>
-              <td>{r.tier ?? "-"}</td>
-              <td>{r.direction ?? "-"}</td>
-              <td>{r.score ?? "-"}</td>
-              <td>{r.data_quality ?? "-"}</td>
-              <td style={{ fontSize: 12, color: "var(--text-dim)" }}>{r.failed_gates?.join(", ") || "-"}</td>
+      <div style={{ overflowX: "auto" }}>
+        <table>
+          <thead>
+            <tr>
+              <th>Symbol</th>
+              <th>Name</th>
+              <th>Result</th>
+              <th>Tier</th>
+              <th>Direction</th>
+              <th>Score</th>
+              <th>Data quality</th>
+              <th>Failed gates</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {filtered.map((r) => (
+              <tr key={r.id}>
+                <td>
+                  <Link href={`/stocks/${r.instrument_id}`}>{r.instruments?.symbol ?? r.instrument_id}</Link>
+                </td>
+                <td>{r.instruments?.name ?? "-"}</td>
+                <td>
+                  <Badge status={r.terminal_state} />
+                </td>
+                <td>{r.tier ?? "-"}</td>
+                <td>{r.direction ?? "-"}</td>
+                <td>{r.score ?? "-"}</td>
+                <td>{r.data_quality ?? "-"}</td>
+                <td style={{ fontSize: 12, color: "var(--text-dim)" }}>{r.failed_gates?.join(", ") || "-"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
