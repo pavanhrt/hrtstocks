@@ -48,6 +48,39 @@ async function throttle() {
   if (wait > 0) await sleep(wait);
 }
 
+// throttle() above only paces the START of each request (a shared
+// "earliest next start time" cursor) -- it never waits for a PREVIOUS
+// request to actually finish before letting the next one begin. That was
+// harmless when this pipeline evaluated one instrument at a time (at most
+// one Fyers call in flight, ever), but index.ts's INSTRUMENT_CONCURRENCY
+// now runs several evaluateInstrument() calls concurrently within one
+// isolate -- if a single history response takes longer than
+// MIN_INTERVAL_MS to arrive (very plausible for ~250 trading days of daily
+// candles), multiple Fyers requests can genuinely be in flight
+// simultaneously, all using the same access token. Confirmed live
+// (2026-09-11): a run with a freshly-regenerated, correctly-paired token
+// still saw ~90% of requests intermittently fail with Fyers' generic
+// `401 {"code":-16,"message":"Could not authenticate the user"}` scattered
+// with no pattern by symbol or time -- not explained by a stale or
+// mismatched token, but consistent with a broker API rejecting concurrent
+// use of one session/token. `serializeFyersRequest` below is a proper
+// queue: it waits for every previously-queued request to fully SETTLE
+// (not just start) before running the next one, guaranteeing at most one
+// Fyers HTTP request is ever in flight from this isolate at a time,
+// regardless of how many callers invoke it concurrently -- throttle()
+// stays in place underneath it as a minimum-spacing floor even when
+// responses come back faster than MIN_INTERVAL_MS.
+let requestQueue = Promise.resolve();
+
+export function serializeFyersRequest(task) {
+  const result = requestQueue.then(task, task);
+  requestQueue = result.then(
+    () => undefined,
+    () => undefined
+  );
+  return result;
+}
+
 function authHeader() {
   const accessToken = Deno.env.get("FYERS_ACCESS_TOKEN");
   if (!accessToken) {
@@ -81,6 +114,10 @@ function fmtDate(d) {
  * slot are resolution-independent, no reason to duplicate them per caller.
  */
 async function requestHistory(url, symbol, supabase) {
+  return serializeFyersRequest(() => requestHistoryOnce(url, symbol, supabase));
+}
+
+async function requestHistoryOnce(url, symbol, supabase) {
   let res, body;
   for (let attempt = 0; ; attempt++) {
     await throttle();
