@@ -179,6 +179,62 @@ export async function getDataQualityIssues(runId: string) {
   return data ?? [];
 }
 
+export type RunProgress = {
+  expectedCount: number;
+  processedCount: number;
+  batchesPending: number;
+  batchesInProgress: number;
+  batchesDone: number;
+  batchesFailed: number;
+};
+
+/**
+ * Live progress for a run, computed on read from pipeline_batches +
+ * instrument_run_results -- deliberately not stored as mutable columns on
+ * screening_runs (avoids redundant state that could drift from the truth).
+ * `expectedCount` is the union of every 'incremental' batch's own
+ * instrument list (the real expected non-index universe for this run, not
+ * a guess) -- see supabase/functions/run-screening/index.ts's
+ * uniqueInstrumentsFromCursors, the same logic mirrored here for display.
+ * Returns null if pipeline_batches has no rows for this run (migration 0008
+ * not applied yet, or RLS hid them from a non-researcher caller) so the
+ * page can simply skip this section rather than show a misleading zero.
+ */
+export async function getRunProgress(runId: string): Promise<RunProgress | null> {
+  const supabase = await createClient();
+  const { data: batches, error } = await supabase.from("pipeline_batches").select("stage, status, cursor").eq("run_id", runId);
+  if (error || !batches || batches.length === 0) return null;
+
+  const expectedIds = new Set<string>();
+  for (const b of batches) {
+    if (b.stage !== "incremental" || !b.cursor) continue;
+    const items = JSON.parse(b.cursor) as { instrumentId: string; isIndex: boolean }[];
+    for (const item of items) {
+      if (!item.isIndex) expectedIds.add(item.instrumentId);
+    }
+  }
+
+  const { count: processedCount } = await supabase
+    .from("instrument_run_results")
+    .select("instrument_id", { count: "exact", head: true })
+    .eq("run_id", runId)
+    .eq("is_index", false);
+
+  const counts: Record<string, number> = { pending: 0, in_progress: 0, done: 0, failed: 0 };
+  for (const b of batches) {
+    if (b.status in counts) counts[b.status]++;
+  }
+
+  return {
+    expectedCount: expectedIds.size,
+    processedCount: processedCount ?? 0,
+    batchesPending: counts.pending,
+    batchesInProgress: counts.in_progress,
+    batchesDone: counts.done,
+    batchesFailed: counts.failed,
+  };
+}
+
 export async function getPipelineAuditLog(runId: string) {
   const supabase = await createClient();
   const { data, error } = await supabase

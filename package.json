@@ -4,7 +4,7 @@
   "type": "module",
   "description": "Local tooling: strategy seeding and rule-engine tests. The deployable app lives in app/; the Edge Function lives in supabase/functions/.",
   "scripts": {
-    "test": "node --test supabase/functions/run-screening/rules/*.test.js supabase/functions/run-screening/features/*.test.js supabase/functions/run-screening/charts/*.test.js supabase/functions/run-screening/providers/*.test.js supabase/functions/run-screening/*.test.js",
+    "test": "node --test supabase/functions/run-screening/rules/*.test.js supabase/functions/run-screening/features/*.test.js supabase/functions/run-screening/charts/*.test.js supabase/functions/run-screening/providers/*.test.js supabase/functions/run-screening/pipeline/*.test.js supabase/functions/run-screening/*.test.js",
     "seed:strategies": "node supabase/seed/seed-strategies.mjs"
   },
   "dependencies": {

@@ -14,7 +14,37 @@ import {
   stochastic,
   macdHistogramPhase,
   hourSlotAverageVolume,
+  adx,
 } from "./indicators.js";
+
+/** Synthetic OHLC series with a steady per-bar drift, for ADX/DMI fixtures. */
+function trendingBars(count, drift, startPrice = 100) {
+  const highs = [];
+  const lows = [];
+  const closes = [];
+  let price = startPrice;
+  for (let i = 0; i < count; i++) {
+    price += drift;
+    highs.push(price + 1);
+    lows.push(price - 1);
+    closes.push(price);
+  }
+  return { highs, lows, closes };
+}
+
+/** Synthetic OHLC series that oscillates with no net directional movement, for a low-ADX fixture. */
+function choppyBars(count, startPrice = 100) {
+  const highs = [];
+  const lows = [];
+  const closes = [];
+  for (let i = 0; i < count; i++) {
+    const price = startPrice + (i % 2 === 0 ? 1 : -1);
+    highs.push(price + 0.5);
+    lows.push(price - 0.5);
+    closes.push(price);
+  }
+  return { highs, lows, closes };
+}
 
 test("sma returns null with insufficient history", () => {
   assert.equal(sma([1, 2], 5), null);
@@ -174,4 +204,57 @@ test("hourSlotAverageVolume returns null (never a guess) when there is no prior 
   const bars = [{ sessionDate: "2026-09-10", slotIndex: 3, volume: 500 }];
   const target = { sessionDate: "2026-09-10", slotIndex: 1 }; // different slot, and not strictly before
   assert.equal(hourSlotAverageVolume(bars, target, 15), null);
+});
+
+test("adx: +DI/-DI stabilize after `period` bars, but ADX itself needs another full period of DX (2*period total)", () => {
+  const { highs, lows, closes } = trendingBars(20, 1); // > 14 (period) but < 28 (2*period)
+  const result = adx(highs, lows, closes, 14);
+  assert.notEqual(result.plusDI, null);
+  assert.notEqual(result.minusDI, null);
+  assert.equal(result.adx, null); // ADX itself isn't seeded yet
+});
+
+test("adx returns nulls for everything with fewer than `period` bars", () => {
+  const { highs, lows, closes } = trendingBars(10, 1);
+  const result = adx(highs, lows, closes, 14);
+  assert.equal(result.adx, null);
+  assert.equal(result.plusDI, null);
+  assert.equal(result.minusDI, null);
+});
+
+test("adx becomes available once 2*period bars exist", () => {
+  const { highs, lows, closes } = trendingBars(30, 1);
+  const result = adx(highs, lows, closes, 14);
+  assert.notEqual(result.adx, null);
+  assert.notEqual(result.plusDI, null);
+  assert.notEqual(result.minusDI, null);
+});
+
+test("adx: a clean, steady uptrend shows +DI clearly above -DI", () => {
+  const { highs, lows, closes } = trendingBars(60, 2);
+  const result = adx(highs, lows, closes, 14);
+  assert.ok(result.plusDI > result.minusDI, `expected +DI (${result.plusDI}) > -DI (${result.minusDI})`);
+});
+
+test("adx: a clean, steady downtrend shows -DI clearly above +DI", () => {
+  const { highs, lows, closes } = trendingBars(60, -2);
+  const result = adx(highs, lows, closes, 14);
+  assert.ok(result.minusDI > result.plusDI, `expected -DI (${result.minusDI}) > +DI (${result.plusDI})`);
+});
+
+test("adx: a strong sustained trend produces a materially higher ADX than a choppy, directionless series", () => {
+  const trending = trendingBars(60, 2);
+  const choppy = choppyBars(60);
+  const trendingAdx = adx(trending.highs, trending.lows, trending.closes, 14).adx;
+  const choppyAdx = adx(choppy.highs, choppy.lows, choppy.closes, 14).adx;
+  assert.ok(trendingAdx !== null && choppyAdx !== null);
+  assert.ok(trendingAdx > choppyAdx, `expected trending ADX (${trendingAdx}) > choppy ADX (${choppyAdx})`);
+});
+
+test("adx values stay within the valid 0-100 range", () => {
+  const { highs, lows, closes } = trendingBars(60, 2);
+  const result = adx(highs, lows, closes, 14);
+  for (const v of [result.plusDI, result.minusDI, result.adx]) {
+    assert.ok(v >= 0 && v <= 100, `expected value in [0,100], got ${v}`);
+  }
 });

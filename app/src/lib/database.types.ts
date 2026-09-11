@@ -639,6 +639,7 @@ export type Database = {
       }
       instrument_run_results: {
         Row: {
+          component_scores: Json | null
           created_at: string
           data_quality: Database["public"]["Enums"]["data_quality_state"] | null
           direction: string | null
@@ -652,6 +653,7 @@ export type Database = {
           tier: Database["public"]["Enums"]["run_tier"] | null
         }
         Insert: {
+          component_scores?: Json | null
           created_at?: string
           data_quality?:
             | Database["public"]["Enums"]["data_quality_state"]
@@ -667,6 +669,7 @@ export type Database = {
           tier?: Database["public"]["Enums"]["run_tier"] | null
         }
         Update: {
+          component_scores?: Json | null
           created_at?: string
           data_quality?:
             | Database["public"]["Enums"]["data_quality_state"]
@@ -1507,9 +1510,51 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      claim_next_pipeline_batch: {
+        Args: { p_run_id: string }
+        Returns: {
+          attempt: number
+          cursor: string | null
+          id: number
+          last_error: string | null
+          run_id: string
+          stage: string
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "pipeline_batches"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       current_role_name: {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
+      }
+      reset_stale_pipeline_batches: {
+        Args: {
+          p_max_attempts: number
+          p_run_id: string
+          p_stale_after_seconds: number
+        }
+        Returns: {
+          attempt: number
+          cursor: string | null
+          id: number
+          last_error: string | null
+          run_id: string
+          stage: string
+          status: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "pipeline_batches"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       try_acquire_rate_limit_slot: {
         Args: { p_limit: number; p_minute_bucket: string; p_provider: string }

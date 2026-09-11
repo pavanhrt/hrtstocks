@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { getCurrentUser, roleAtLeast } from "@/lib/auth";
-import { getLatestRun, getCoverage, getTierCounts, getIndexResults, getTopCandidates } from "@/lib/data/runs";
+import { getLatestRun, getCoverage, getTierCounts, getIndexResults, getTopCandidates, getRunProgress } from "@/lib/data/runs";
 import { Badge } from "../Badge";
 import RunScreeningButton from "../RunScreeningButton";
 
@@ -31,11 +31,13 @@ export default async function DashboardPage() {
     );
   }
 
-  const [coverage, tierCounts, indexResults, candidates] = await Promise.all([
+  const isInFlight = run.status === "queued" || run.status === "running";
+  const [coverage, tierCounts, indexResults, candidates, progress] = await Promise.all([
     getCoverage(run.id),
     getTierCounts(run.id),
     getIndexResults(run.id),
     getTopCandidates(run.id, 10),
+    isInFlight ? getRunProgress(run.id) : Promise.resolve(null),
   ]);
 
   return (
@@ -50,6 +52,24 @@ export default async function DashboardPage() {
         </div>
         {user && roleAtLeast(user.role, "researcher") && <RunScreeningButton />}
       </div>
+
+      {isInFlight && progress && (
+        <div className="card" style={{ borderColor: "var(--watch)" }}>
+          <h2 style={{ marginTop: 0, fontSize: 15 }}>
+            Run in progress -- {progress.processedCount}/{progress.expectedCount || "?"} instruments attempted
+          </h2>
+          <div style={{ display: "flex", gap: 20, flexWrap: "wrap", fontSize: 13 }}>
+            <span>Chunks done: <strong>{progress.batchesDone}</strong></span>
+            <span>In progress: <strong>{progress.batchesInProgress}</strong></span>
+            <span>Pending: <strong>{progress.batchesPending}</strong></span>
+            <span>Failed: <strong>{progress.batchesFailed}</strong></span>
+          </div>
+          <p style={{ fontSize: 12, color: "var(--text-dim)", marginBottom: 0 }}>
+            Runs resume automatically (self-continuation, with a recovery sweep as a safety net) --
+            refresh this page to see progress advance. Full detail on <Link href="/data-health">Data health</Link>.
+          </p>
+        </div>
+      )}
 
       <div className="card">
         <h2 style={{ marginTop: 0, fontSize: 15 }}>Tier totals</h2>

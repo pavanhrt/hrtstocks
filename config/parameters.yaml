@@ -1,4 +1,4 @@
-parameter_version: 1.2.0
+parameter_version: 1.3.0
 status: partially_resolved_from_buy_sell_signal_playbooks
 
 documented:
@@ -43,9 +43,19 @@ documented:
   # (swing-strategy-extraction.md §7, hour-slot volume row) -- midpoint of
   # the stated range.
   hour_slot_volume_lookback_sessions: 15
+  # Was mislabeled under project_defaults_requiring_backtest (implying a
+  # guessed default) -- docs/swing-strategy-extraction.md's indicator table
+  # and playbooks/concepts/papa-price-action-SKILL.md §9 both independently
+  # state "14, 14... Wilder confirmed" as an explicit source value, not a
+  # backtest-derived guess. Moved here once features/indicators.js's adx()
+  # actually depended on the specific value (null_policy's own condition for
+  # promoting an entry). The ADX threshold a future gate should trigger on
+  # is a SEPARATE, still-unresolved CONFLICT (the same doc flags "ADX < 20"
+  # vs. a swing-specific "ADX < 14" as competing readings) -- this only
+  # resolves the smoothing period, not that threshold.
+  adx_dmi_period: 14
 
 project_defaults_requiring_backtest:
-  adx_dmi_period: null
   atr_period: null
   pivot_left_window: null
   pivot_right_window: null

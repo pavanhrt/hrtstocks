@@ -112,24 +112,27 @@ async function requestHistory(url, symbol, supabase) {
 }
 
 /**
+ * Daily-resolution history for an explicit [fromDate, toDate] window --
+ * the primitive both `fetchOHLCV` (a fixed trailing lookback, used for a
+ * first-ever fetch or a full backfill leg) and the pipeline's incremental
+ * fetch (only the days since the last stored bar, see `nextIncrementalRange`
+ * below) are built on. `fromDate`/`toDate` are `Date` objects, inclusive.
  * @param {string} instrumentId
  * @param {string} symbol
- * @param {number} days
+ * @param {Date} fromDate
+ * @param {Date} toDate
  * @param {import("@supabase/supabase-js").SupabaseClient} [supabase] when
  *   provided, also claims a slot in the cross-invocation rate-limit bucket
  *   before calling Fyers -- omit only for tests/local scripts that don't
  *   have a Supabase client handy; production callers must pass it.
  */
-export async function fetchOHLCV(instrumentId, symbol, days, supabase = null) {
-  const to = new Date();
-  const from = new Date(to.getTime() - days * 24 * 60 * 60 * 1000);
-
+export async function fetchOHLCVRange(instrumentId, symbol, fromDate, toDate, supabase = null) {
   const url = new URL(`${DATA_BASE_URL}/history`);
   url.searchParams.set("symbol", toFyersSymbol(instrumentId, symbol));
   url.searchParams.set("resolution", "D");
   url.searchParams.set("date_format", "1");
-  url.searchParams.set("range_from", fmtDate(from));
-  url.searchParams.set("range_to", fmtDate(to));
+  url.searchParams.set("range_from", fmtDate(fromDate));
+  url.searchParams.set("range_to", fmtDate(toDate));
   url.searchParams.set("cont_flag", "1");
 
   const body = await requestHistory(url, symbol, supabase);
@@ -152,6 +155,42 @@ export async function fetchOHLCV(instrumentId, symbol, days, supabase = null) {
     provider: "fyers",
     retrievedAt: new Date().toISOString(),
   };
+}
+
+/**
+ * @param {string} instrumentId
+ * @param {string} symbol
+ * @param {number} days
+ * @param {import("@supabase/supabase-js").SupabaseClient} [supabase]
+ */
+export async function fetchOHLCV(instrumentId, symbol, days, supabase = null) {
+  const to = new Date();
+  const from = new Date(to.getTime() - days * 24 * 60 * 60 * 1000);
+  return fetchOHLCVRange(instrumentId, symbol, from, to, supabase);
+}
+
+/**
+ * Pure date-range decision for the pipeline's incremental daily fetch
+ * (index.ts's processIncrementalBatch): fetch only what's missing since the
+ * last stored bar, instead of always re-fetching the full lookback window
+ * every run. Returns `null` when there is nothing new to fetch (the latest
+ * stored session is already the target run date or later -- e.g. a retry
+ * of an already-processed instrument).
+ * @param {string|null} latestStoredSessionDate 'YYYY-MM-DD', or null if no bar has ever been stored for this instrument
+ * @param {string} runDate 'YYYY-MM-DD' -- the target session (latestCompletedNseSession())
+ * @param {number} fallbackLookbackDays used verbatim when latestStoredSessionDate is null (first-ever fetch)
+ * @returns {{from: Date, to: Date}|null}
+ */
+export function nextIncrementalRange(latestStoredSessionDate, runDate, fallbackLookbackDays) {
+  const to = new Date(`${runDate}T00:00:00Z`);
+  if (!latestStoredSessionDate) {
+    const from = new Date(to.getTime() - fallbackLookbackDays * 24 * 60 * 60 * 1000);
+    return { from, to };
+  }
+  const latest = new Date(`${latestStoredSessionDate}T00:00:00Z`);
+  const from = new Date(latest.getTime() + 24 * 60 * 60 * 1000);
+  if (from.getTime() > to.getTime()) return null; // already up to date
+  return { from, to };
 }
 
 // The swing playbooks only ever reason about a handful of the most recent

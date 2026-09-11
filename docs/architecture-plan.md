@@ -280,11 +280,12 @@ resolution between workstreams.
      off-boundary rejection, mid-session completeness, empty input), 3 new cases in
      `swing-analysis.test.js` for `directionLockPassed`. No test added for `fetchHourlyOHLCV` itself
      (network I/O, same as the pre-existing `fetchOHLCV` -- untested for the same reason).
+   - DONE (2026-09-11, "Correction Cycle 1" — see §9 below): `pipeline_batches` multi-invocation
+     resumability, and multi-request historical backfill (5-year target, >365 days, for monthly
+     MACD/Primary-degree Elliott per problem #8).
    - REMAINING: corporate-action *data ingestion* (a source for `corporate_actions` rows -- the
-     adjustment math above is ready, nothing feeds it), wiring `pipeline_batches` for true
-     multi-invocation resumability (today's loop is still one long sequential pass within a single
-     invocation, just no longer timing out the caller), multi-request historical backfill (>365
-     days, needed for monthly MACD/Primary-degree Elliott per problem #8).
+     adjustment math above is ready, nothing feeds it; separately, whether Fyers' own history API
+     already returns split/bonus-adjusted prices is itself UNRESOLVED, see §11).
 4. **Phase 3 — Direction intelligence rewrite.**
    - DONE: equal-pivot labels (#5) -- `labelPivotSequence` now emits explicit `EH`/`EL` for a
      within-tolerance repeat instead of folding it into `HH`/`HL` (which biased structure toward
@@ -673,3 +674,123 @@ These three were blocking Phase 4 and have been decided:
   *strategy-specific* versioned decision, distinct from the existing `minimum_reward_risk: 3.0`
   in `config/parameters.yaml` used by other strategies — confirm this should be a new parameter
   key (e.g. `swing_minimum_reward_risk_strict`) rather than changing the shared one.
+
+## 9. Correction Cycle 1 (2026-09-11) — durable pipeline + data foundations
+
+Trigger: the QA site's authenticated review found the latest run rendering `COMPLETED` with 14 of
+501 stocks actually evaluated (487 `Unavailable`) — a real dishonesty bug, not a display issue (see
+below). A much larger 7-workstream correction request came with it (Direction/Analysis page
+rebuilds, full BUY/SELL playbook logic, UI overhaul, security pass); by explicit agreement with the
+project owner, this cycle's scope is Workstream 1 (durable pipeline) + Workstream 2 (data
+foundations) only — a complete, independently-tested, independently-pushed correction. Workstreams
+3-7 are unstarted, tracked for a future cycle.
+
+**Root cause (confirmed by reading the code, not assumed):** two bugs stacked. (1)
+`recordSkippedForTimeBudgetBulk` (the old `index.ts`) converted every un-attempted instrument
+straight into a fake terminal `NO_DATA`/`unavailable` row once the old 125s per-invocation time
+budget ran out. (2) `reconcile.js`'s `reconcileCoverage()` only ever checks that whatever results
+*were* collected sum to a internally consistent tier count — it has no notion of the expected
+universe size, so a fabricated 501-length array (14 real + 487 fake-unavailable) trivially
+"reconciles." Fixing this needed a real "did every expected instrument get a genuine attempt" gate
+that neither existing mechanism provided.
+
+**Also confirmed before designing the fix:** this Supabase project (`yqxpucjtzrmwjniruebt`) is on
+the **free plan** — Edge Functions hard-kill at ~150s wall clock — and Fyers' rate limit (paced to
+180 req/min) means fetching 501 instruments' daily bars takes a mathematical minimum of ~2.8
+minutes. One invocation can never cover the full universe no matter how optimized; multi-invocation
+execution is structurally required, not an optimization choice.
+
+- DONE: **`supabase/migrations/0008_durable_pipeline.sql`** (applied to the live project) —
+  `claim_next_pipeline_batch(p_run_id)` (atomic `FOR UPDATE SKIP LOCKED` claim, `returns setof` per
+  this codebase's established RPC convention — verified live via a fixture test using a throwaway
+  test `run_id`, not a real screening run: confirmed the exact claim order
+  universe→incremental→reconcile→backfill, confirmed `reconcile` is ineligible while
+  `incremental` batches remain pending, confirmed zero rows returned rather than null/error when
+  nothing is claimable); `reset_stale_pipeline_batches(p_run_id, stale_after_seconds, max_attempts)`
+  (reclaims a batch abandoned by a dead invocation, or marks it permanently `failed` once its
+  attempt budget is exhausted — also fixture-verified for both branches); two supporting indexes;
+  `instrument_run_results.component_scores jsonb` (ranking's component breakdown now has to survive
+  across invocations/isolates, not just live in one request's memory); a `pg_cron` job
+  (`eod-screening-recovery-sweep`, every minute) that resumes a stuck/interrupted run via
+  `net.http_post` — confirmed via `select * from cron.job` that no cron job existed on this project
+  before this migration, and confirmed via the same query mechanism that the sweep is a no-op
+  (matches zero rows) whenever nothing is actually stuck. This is explicitly **not** the standing
+  daily auto-trigger cron `README.md` describes — that stays unscheduled, a separate future decision
+  requiring its own authorization, since it would make the pipeline initiate new runs on its own
+  schedule rather than only ever reacting to a run a human already started.
+- DONE: **`supabase/functions/run-screening/index.ts`** rewritten around the batch-claim loop above
+  instead of one long sequential per-instrument pass: a resume-aware `Deno.serve` handler
+  (`resume_run_id` in the body skips run creation and jumps straight to claiming), self-chain
+  hand-off when an invocation's own wall-clock budget is nearly spent (releases the lease *before*
+  firing the continuation request — verified by reasoning through `run-lease.js`'s CAS: the next
+  invocation's own `acquireRunLease` call would otherwise see the lease as still "active" and fail
+  to acquire it), a whole-run `MAX_TOTAL_RUN_DURATION_MS` (40 min) give-up path that force-fails
+  remaining batches and records *honest* terminal rows citing the real reason (never the old "ran
+  out of time" wording used to mean "never even tried"), idempotent per-instrument retry (skip
+  already-done instruments before spending any Fyers budget; `instrument_run_results` writes are
+  upserts, not inserts; an instrument's own prior `data_quality_results`/`rule_traces` rows are
+  cleared before rewriting), a seeded day-to-day shuffle of the processing order (fixes "always
+  processes alphabetically-early symbols first"), and closes a previously-flagged gap where
+  `index_memberships` rows for a dropped constituent were never retired.
+- DONE: **`supabase/functions/run-screening/pipeline/`** (new directory) — `shuffle.js`
+  (`seededShuffle`, FNV-1a + mulberry32, pure/deterministic), `chunks.js` (`buildChunks`,
+  `CHUNK_SIZE=60` justified against the 180/min shared rate limit, `BACKFILL_CHUNK_SIZE=12`),
+  `run-status.js` (`decideRunStatus` — the actual fix for the core dishonesty bug: a run is
+  `completed` only when every `universe`/`incremental` batch is resolved AND every expected
+  instrument has a real result row; `backfill` never blocks completion by design), `group-issues.js`
+  (Data Health de-duplication). All four fully unit-tested (`*.test.js` alongside each), including
+  the specific edge cases that would have silently reintroduced the original bug (a "slow but fully
+  covered" run must still be `completed`, not punished for taking a long time; a batch that
+  permanently failed must force `partial` even if every instrument technically has a row, since
+  those rows are the honest "gave up" kind, not genuine attempts).
+- DONE: **Incremental OHLCV fetch** — `providers/fyers.js`'s `fetchOHLCV` split into a
+  `fetchOHLCVRange(instrumentId, symbol, fromDate, toDate, supabase)` primitive plus a pure,
+  unit-tested `nextIncrementalRange(latestStoredSessionDate, runDate, fallbackLookbackDays)`: each
+  instrument now fetches only the days missing since its last stored bar (typically 1-5) instead of
+  re-fetching the full 365-day window every run, then `index.ts` re-reads the complete window back
+  from storage for every downstream feature (EMA-200/MACD warm-up etc. still need the full window —
+  only the *fetch* is incremental, never the analysis input).
+- DONE: **Bounded historical backfill** — a new `backfill` `pipeline_batches` stage (self-limiting:
+  created only for instruments with zero stored daily bars, so an instrument never generates a new
+  one once it has any history), fetching up to 5 years via up to 5 sequential ≤366-day legs.
+  PROJECT_DEFAULT: no source document specifies an exact bar/year count for "Primary-degree Elliott"
+  or monthly structure validation; sanity-checked against MACD's own documented ~35-monthly-bar
+  (~3-year) warm-up (`docs/swing-strategy-extraction.md`) with real margin to spare.
+- DONE: **ADX/DMI** — `features/indicators.js`'s new `adx(highs, lows, closes, period=14)`,
+  Wilder-smoothed +DI/−DI/ADX, unavailable until `2*period` bars exist (matching
+  `papa-price-action-SKILL.md` §9's "discard the first ~28 bars"). Unit-tested against synthetic
+  trending/choppy fixtures (directional dominance, relative strength, valid 0-100 range) since no
+  canonical reference calculation was available to check against exactly. `config/parameters.yaml`
+  correction: `adx_dmi_period` moved from `project_defaults_requiring_backtest` to `documented: 14`
+  — two independent source documents state "14, 14... Wilder confirmed," so leaving it under the
+  guessed-default section was itself a small mislabeling bug. The indicator is implemented; no rule
+  consumes it yet, and the ADX<14-vs-ADX<20 threshold conflict this doc already flagged stays
+  unresolved (implementing the math doesn't resolve which threshold a future gate should use).
+- NOT DONE / disclosed, not silently skipped: **corporate-action ingestion**. No source for real
+  `corporate_actions` rows was identified this cycle (the adjustment math, `computeAdjustedBars`,
+  was already correct from an earlier session and is unchanged). A genuinely new finding from this
+  cycle's research: whether Fyers' `/data/history` REST endpoint itself already returns
+  split/bonus-adjusted prices could **not** be confirmed from public documentation — only that the
+  separate charting UI is confirmed adjusted, with a user-facing toggle. This must be empirically
+  verified (compare a known past split's pre/post prices) before corporate-action ingestion is ever
+  built, to avoid double-adjusting.
+- Verification: `npm test` from `stock-platform/` (256 tests: 244 Edge Function + 12 app-side, all
+  passing), `npm run build` from `stock-platform/app` (passes), the live RPC fixture test described
+  above (applied the migration, exercised both new functions against a throwaway `run_id` with real
+  Postgres locking semantics, deleted the fixture rows). Deliberately **not** verified: an actual
+  live screening run — the project owner's standing constraint against triggering one without
+  separate explicit authorization was maintained throughout. This means `index.ts`'s Deno-only
+  runtime paths (everything gated behind `Deno.serve`) are verified by code review, unit tests of
+  every extracted pure function, and the live database-level fixture test, but not by an end-to-end
+  execution — flagged honestly as the one thing that still needs a real run to fully confirm.
+- Bugs caught and fixed during this cycle's own code review, before they ever shipped (worth
+  recording since they're exactly the kind of subtle correctness issues this whole correction is
+  about avoiding): (1) releasing the run lease *after* firing the self-chain request would have
+  raced the handed-off invocation's own lease acquisition; (2) the first draft of
+  `claim_next_pipeline_batch` returned a single composite row rather than a set, inconsistent with
+  how every other RPC in this codebase is called (`data[0]`, never `.single()`); (3) the first draft
+  ranked `backfill` above `reconcile` in claim priority, which would have let a run with many
+  pending backfill chunks block its own completion indefinitely — exactly the kind of contradiction
+  with `decideRunStatus`'s "backfill never blocks completion" rule that this whole exercise exists
+  to prevent; (4) the first draft's idempotency guard on the `universe` batch could skip re-seeding
+  entirely after a partial crash, permanently stranding a run at `queued`.

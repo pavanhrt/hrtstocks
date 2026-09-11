@@ -1,14 +1,20 @@
 // Deterministic technical-indicator calculations over OHLCV bar arrays.
 // Bars are oldest-first: [{ date, open, high, low, close, volume }, ...].
 //
-// RSI period (14), Stochastic (14,3,3), Bollinger (20, 2SD) and volume
-// lookback (20) were resolved into config/parameters.yaml's `documented`
-// section in parameter_version 1.1.0, sourced from the BUY/SELL Signal
-// Playbooks' Stage 0 data tables (see that file's `source` field). ADX/DMI
-// and ATR periods remain unresolved and are NOT implemented here -- no
-// gate in strategies/buy-signal-playbook.yaml or sell-signal-playbook.yaml
-// needs them yet, and per the null_policy a parameter is only marked
-// documented once code actually depends on the specific value.
+// RSI period (14), Stochastic (14,3,3), Bollinger (20, 2SD), volume
+// lookback (20), and ADX/DMI (14,14) were resolved into
+// config/parameters.yaml's `documented` section, sourced from the BUY/SELL
+// Signal Playbooks' Stage 0 data tables and
+// playbooks/concepts/papa-price-action-SKILL.md §9 ("DMI is made of +DI, -DI
+// and ADX... Use Wilder's smoothing... Discard the first ~28 bars"). ATR's
+// period remains unresolved and is NOT implemented here -- no gate needs it
+// yet, and per the null_policy a parameter is only marked documented once
+// code actually depends on the specific value. Note: the ADX threshold a
+// future gate should trigger on is a separate, still-unresolved CONFLICT
+// (docs/swing-strategy-extraction.md flags "ADX < 20" vs. a swing-specific
+// "ADX < 14" as competing source readings) -- implementing the indicator
+// itself does not resolve which threshold to gate on; no rule consumes
+// `adx()` yet.
 
 /** Simple moving average of the last `period` closes, or null if not enough bars. */
 export function sma(closes, period) {
@@ -280,4 +286,103 @@ export function macdHistogramPhase(closes, fastPeriod, slowPeriod, signalPeriod,
   else priorPhase = "flat";
 
   return { change, priorPhase };
+}
+
+function trueRange(highs, lows, closes, i) {
+  return Math.max(highs[i] - lows[i], Math.abs(highs[i] - closes[i - 1]), Math.abs(lows[i] - closes[i - 1]));
+}
+
+function directionalMovement(highs, lows, i) {
+  const upMove = highs[i] - highs[i - 1];
+  const downMove = lows[i - 1] - lows[i];
+  const plusDM = upMove > downMove && upMove > 0 ? upMove : 0;
+  const minusDM = downMove > upMove && downMove > 0 ? downMove : 0;
+  return { plusDM, minusDM };
+}
+
+/**
+ * Wilder-smoothed +DI/-DI/ADX series (same length as input; entries null
+ * until enough history exists). Standard Wilder methodology: smoothed
+ * TR/+DM/-DM are seeded as a plain sum of the first `period` values (bars
+ * index 1..period), Wilder-smoothed thereafter (`smoothed - smoothed/period
+ * + current`); DX = 100*|+DI - -DI|/(+DI + -DI); ADX is itself a
+ * Wilder-smoothed average of DX, first seeded as a plain average of the
+ * first `period` DX values -- so ADX only becomes available from index
+ * `2*period - 1` onward, i.e. the first `2*period - 1` bars (~27 for
+ * period=14) never get a value, matching
+ * `papa-price-action-SKILL.md`'s "discard the first ~28 bars."
+ */
+function adxSeries(highs, lows, closes, period) {
+  const n = closes.length;
+  const plusDI = new Array(n).fill(null);
+  const minusDI = new Array(n).fill(null);
+  const adxOut = new Array(n).fill(null);
+  if (n <= period) return { plusDI, minusDI, adx: adxOut };
+
+  const tr = new Array(n).fill(null);
+  const plusDM = new Array(n).fill(null);
+  const minusDM = new Array(n).fill(null);
+  for (let i = 1; i < n; i++) {
+    tr[i] = trueRange(highs, lows, closes, i);
+    const dm = directionalMovement(highs, lows, i);
+    plusDM[i] = dm.plusDM;
+    minusDM[i] = dm.minusDM;
+  }
+
+  let smoothedTR = 0;
+  let smoothedPlusDM = 0;
+  let smoothedMinusDM = 0;
+  for (let i = 1; i <= period; i++) {
+    smoothedTR += tr[i];
+    smoothedPlusDM += plusDM[i];
+    smoothedMinusDM += minusDM[i];
+  }
+
+  const dx = new Array(n).fill(null);
+  const computeDiAndDx = (i) => {
+    plusDI[i] = smoothedTR === 0 ? null : (100 * smoothedPlusDM) / smoothedTR;
+    minusDI[i] = smoothedTR === 0 ? null : (100 * smoothedMinusDM) / smoothedTR;
+    const sum = plusDI[i] === null || minusDI[i] === null ? null : plusDI[i] + minusDI[i];
+    dx[i] = sum === null || sum === 0 ? null : (100 * Math.abs(plusDI[i] - minusDI[i])) / sum;
+  };
+  computeDiAndDx(period);
+
+  for (let i = period + 1; i < n; i++) {
+    smoothedTR = smoothedTR - smoothedTR / period + tr[i];
+    smoothedPlusDM = smoothedPlusDM - smoothedPlusDM / period + plusDM[i];
+    smoothedMinusDM = smoothedMinusDM - smoothedMinusDM / period + minusDM[i];
+    computeDiAndDx(i);
+  }
+
+  const dxWindowStart = period;
+  const dxWindowEnd = period * 2 - 1;
+  if (dxWindowEnd >= n) return { plusDI, minusDI, adx: adxOut };
+
+  let dxSum = 0;
+  for (let i = dxWindowStart; i <= dxWindowEnd; i++) {
+    if (dx[i] === null) return { plusDI, minusDI, adx: adxOut }; // an undefined-DX bar (flat TR) anywhere in the seed window -- never guess a seed average over missing data
+    dxSum += dx[i];
+  }
+  let prevAdx = dxSum / period;
+  adxOut[dxWindowEnd] = prevAdx;
+  for (let i = dxWindowEnd + 1; i < n; i++) {
+    if (dx[i] === null) break;
+    prevAdx = (prevAdx * (period - 1) + dx[i]) / period;
+    adxOut[i] = prevAdx;
+  }
+  return { plusDI, minusDI, adx: adxOut };
+}
+
+/**
+ * Latest +DI/-DI/ADX (documented period 14,14 -- config/parameters.yaml).
+ * Returns nulls for any value not yet available (see adxSeries for exactly
+ * when each becomes available) rather than a guessed/partial number.
+ */
+export function adx(highs, lows, closes, period = 14) {
+  const series = adxSeries(highs, lows, closes, period);
+  return {
+    plusDI: series.plusDI[series.plusDI.length - 1],
+    minusDI: series.minusDI[series.minusDI.length - 1],
+    adx: series.adx[series.adx.length - 1],
+  };
 }
