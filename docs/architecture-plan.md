@@ -939,3 +939,64 @@ require inventing a genuinely undocumented method, not just picking a point in a
   NOT verified by triggering a live screening run — same standing constraint as every prior cycle;
   the next user-triggered run will be the first real end-to-end confirmation that a genuine BUY/SELL
   can now appear on the Analysis page for a stock that legitimately earns one.
+
+## 12. First live run of Correction Cycle 2, two production bugs found and fixed (2026-09-11)
+
+The user manually triggered the first live run after Cycle 2's Edge Function deploy. It came back
+`partial` (run `383a8781`), and the Direction page (a separate, earlier-built feature, unrelated to
+the swing/BUY-SELL work) started showing "Unavailable" for nearly every stock. Both were real,
+diagnosed bugs, fixed and pushed the same session:
+
+- **`swing_analysis_results` was missing `combination_matrix`.** An earlier session's ADX/DMI work
+  (§10) added this column to migration 0006's *file* but never deployed it live — the file's own
+  comment said so ("migration still unapplied"). Every swing-analysis upsert this cycle's new
+  BUY/SELL logic depends on was silently failing with a real (non-"table missing") Postgrest error
+  on every single instrument, logged only as a `warning`, never surfaced loudly. Fixed live via
+  `execute_sql`/`apply_migration` with the user's explicit authorization, recorded locally as
+  `supabase/migrations/0009_add_combination_matrix.sql` so the migration history matches what's
+  deployed.
+- **The Direction page's `instrument_direction` query filtered by the published run's `run_id`.**
+  That table is a mutable "latest write wins" store (`onConflict: "instrument_id,timeframe"`, no
+  run_id in the unique key) — index.ts's `upsertDirectionAnalysis` stamps whichever run last touched
+  an instrument onto its row, including a run that ends up `partial` and never gets published.
+  Confirmed live: the manually-triggered run overwrote ~497 of 501 instruments' `run_id` this way,
+  and the page's strict `.eq("run_id", run.id)` filter made every one of them vanish even though
+  their dow_state/chart data was completely current. Fixed by dropping that filter — `lib/data/
+  direction.ts` now reads `instrument_direction` as genuine latest-state (instrument_id only), which
+  is both simpler and matches what the table's own write path actually guarantees. The properly
+  run-scoped equivalent (`instrument_direction_runs`, unique on `run_id, instrument_id, timeframe`,
+  never overwritten cross-run) exists and is unaffected, but isn't used by the page today.
+- Verified live directly against the database (not just unit tests) before pushing: confirmed the
+  missing column now exists, and confirmed a specific previously-invisible instrument
+  (`NSE_LAURUSLABS`) has real, current daily/weekly/monthly `dow_state` data that the old filtered
+  query was excluding.
+
+## 13. Correction Cycle 3 — remaining PAPA formations from Cycle 2's own deferred scope (2026-09-11)
+
+The two DOCUMENTED-mechanism PAPA formations Cycle 2 deferred for scope, not principle:
+
+- **Sandwich breakout/breakdown** (`features/papa-formations.js#detectSandwich`) — alternating red/
+  green candles form a range (no separate "compactness" number needed: the range IS the alternating
+  run's own high/low, so requiring the breakout to clear that same boundary already enforces
+  compactness), then a candle closes beyond both the immediately preceding candle's close and that
+  range's edge. No follow-up candle is documented for this row (unlike Counter Attack/Gap) — TRIGGERS
+  on the breakout candle itself.
+- **Rounding bottom/top** (`features/papa-formations.js#detectRounding`) — reuses
+  `rounding_pattern_body_size_multiplier` (disclosed in Cycle 2, unused until now) as one ratio in
+  three places: the initiating same-colour candles' bodies must be at least that multiple of the
+  base's own average body, the base candles must be no more than that same multiple below the
+  initiating candles' own average, and the breakout candle must clear that multiple again against the
+  base — one disclosed number, not three invented ones.
+- Both wired into `detectTriggeredPapaFormations`/`index.ts`'s M6 evidence gathering; Analysis page
+  banner updated to no longer list them as unimplemented.
+- **Still explicitly NOT implemented, disclosed rather than forced**: the 2 cross-check-only vetoes
+  from conflict #10 (swing-strategy-extraction.md §6/§13). Re-examined this cycle, not just carried
+  over unchanged: "EMA tangled while ADX shows a range" would need inventing a numeric "tangled"
+  threshold no source document states (the ADX half alone reuses existing evidence, but the EMA half
+  doesn't); "monthly/weekly Elliott count invalid/ambiguous" would need monthly-timeframe Elliott
+  position data `features/context.js` doesn't compute at all today (only weekly and daily get
+  `withElliott: true` in `applyTimeframe` — monthly never has). Both stay open, for the same
+  never-invent reason as before, now with the specific blocker named rather than left generic.
+- Verification: `npm test` (318/318 passing, up from 310 — 6 new detector tests plus 2 aggregator
+  tests), `npm run build` (passes). Detector logic verified against hand-built fixtures interactively
+  before finalizing the test file (same discipline as Cycle 2's RSI-divergence fixture work).

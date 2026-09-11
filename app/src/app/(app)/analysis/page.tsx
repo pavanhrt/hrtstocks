@@ -183,13 +183,16 @@ export default async function AnalysisPage() {
           confirmation groups are supportive, and zero vetoes have fired --{" "}
           <strong>otherwise it stays WAIT</strong>, with the specific blocking gate/group/veto
           named below, never a bare unexplained WAIT. Three of the ten hourly routes (BUY-2, BUY-3/
-          SELL-2, BUY-5/SELL-5) and a few PAPA formations (Sandwich, Rounding Bottom/Top,
-          Accumulation/Distribution, Tweezers) remain unimplemented -- each for its own disclosed
-          reason (see <code>docs/swing-strategy-extraction.md</code> and each module&apos;s own
-          header comment) -- so a WAIT verdict does not always mean a setup failed; it can also
-          mean no implemented route/formation matched yet. Expand a stock to see every gate&apos;s
-          real observed values and explanation, the full 1-hour route evidence when one exists, and
-          exactly which condition is still open.
+          SELL-2, BUY-5/SELL-5) and two PAPA formations (Accumulation/Distribution, Tweezers) remain
+          unimplemented -- each for its own disclosed reason (see{" "}
+          <code>docs/swing-strategy-extraction.md</code> and each module&apos;s own header comment) --
+          so a WAIT verdict does not always mean a setup failed; it can also mean no implemented
+          route/formation matched yet. Two cross-check-only vetoes ("EMA tangled while ADX ranges";
+          "monthly/weekly Elliott count invalid") stay unimplemented too -- one would need inventing
+          an unquantified "tangled" threshold, the other needs monthly Elliott position data this
+          pipeline doesn&apos;t compute yet. Expand a stock to see every gate&apos;s real observed
+          values and explanation, the full 1-hour route evidence when one exists, and exactly which
+          condition is still open.
         </p>
       </div>
 

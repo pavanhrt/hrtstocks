@@ -7,13 +7,30 @@
 // Genuinely UNRESOLVED formations (Accumulation/Distribution, Tweezers -- no
 // number anywhere in any source for "no major follow-up" / "almost the same
 // level") are NOT implemented -- inventing a threshold for those would
-// violate this project's own never-invent discipline. Sandwich
-// breakout/breakdown and Rounding bottom/top ARE documented with an exact or
-// disclosed-approximate mechanism but are not yet built in this pass --
-// disclosed as incomplete route coverage (same status as
-// hourly-routes.js's "2 of 10 routes" note), not a specification gap.
+// violate this project's own never-invent discipline.
 // Double Top/Bottom already exist via patterns.js#detectDoubleExtremePatterns
 // and are reused there, not reimplemented here.
+//
+// Correction Cycle 3 (2026-09-11) added the last two DOCUMENTED-mechanism
+// formations deferred from Cycle 2 for scope:
+//   - Sandwich breakout/breakdown -- "alternate red/green candles in a
+//     compact range, no candle-count limit" (observation) then "close above/
+//     below the previous candle AND the range edge" (trigger). No follow-up
+//     candle is required by the source (unlike Counter Attack/Gap), so this
+//     TRIGGERS on the breakout candle itself. "Compact range" needs no
+//     separate invented tolerance: the range IS the alternating run's own
+//     high/low, so requiring the breakout to clear that same boundary is
+//     already the compactness check, not a new threshold.
+//   - Rounding bottom/top -- "multiple big same-colour candles... mostly
+//     neutral candles forming a base/top" then "a strong close beyond the
+//     range." "Big"/"strong" reuse config/parameters.yaml's
+//     rounding_pattern_body_size_multiplier (already disclosed in Cycle 2,
+//     unused until now) as the SAME ratio in both directions: the initiating
+//     candles' bodies must be at least that multiple of the base's own
+//     average body size, the base candles must be no more than that same
+//     multiple below the initiating candles' own average, and the breakout
+//     candle must again clear that multiple against the base -- one
+//     disclosed number, not three separate invented ones.
 //
 // Every detector follows patterns.js's own two-part discipline: an
 // OBSERVATION is never itself actionable; only a TRIGGERED close counts. Two
@@ -47,6 +64,9 @@ function isBullish(bar) {
 }
 function isBearish(bar) {
   return bar.close < bar.open;
+}
+function bodySize(bar) {
+  return Math.abs(bar.close - bar.open);
 }
 
 function detection({ patternName, direction, state, anchorPoints, triggerBarDate = null, targetPrice = null, invalidationPrice = null, level = null, sourceLocator = PAPA_FORMATIONS_LOCATOR }) {
@@ -301,12 +321,117 @@ export function detectMotherCandle(hourlyBars, hourlyPivots, dailyPivots, bullis
 }
 
 /**
+ * Sandwich breakout/breakdown -- alternating red/green candles form a
+ * compact range (no candle-count limit per the source; MIN_ALTERNATING_RUN
+ * is a disclosed floor so "the range" means something), then a candle
+ * closes beyond BOTH the immediately preceding candle's close AND that
+ * range's own high/low edge. No follow-up candle is documented for this row
+ * (unlike Counter Attack/Gap) -- the breakout candle itself is the trigger.
+ * Stop is the opposite side of the sandwich, per the source's own table.
+ */
+const MIN_ALTERNATING_RUN = 3; // "no candle-count limit" upward; this is the disclosed floor for a run to define a meaningful range at all
+
+function isAlternating(prev, cur) {
+  return (isBullish(prev) && isBearish(cur)) || (isBearish(prev) && isBullish(cur));
+}
+
+export function detectSandwich(hourlyBars, bullish) {
+  const results = [];
+  for (let i = MIN_ALTERNATING_RUN; i < hourlyBars.length; i++) {
+    let runStart = i - 1;
+    while (runStart > 0 && isAlternating(hourlyBars[runStart - 1], hourlyBars[runStart])) runStart--;
+    const rangeBars = hourlyBars.slice(runStart, i);
+    if (rangeBars.length < MIN_ALTERNATING_RUN) continue;
+
+    const rangeHigh = Math.max(...rangeBars.map((b) => b.high));
+    const rangeLow = Math.min(...rangeBars.map((b) => b.low));
+    const prev = hourlyBars[i - 1];
+    const breakoutBar = hourlyBars[i];
+    const breaksLevel = bullish ? breakoutBar.close > prev.close && breakoutBar.close > rangeHigh : breakoutBar.close < prev.close && breakoutBar.close < rangeLow;
+    if (!breaksLevel) continue;
+
+    results.push(
+      detection({
+        patternName: bullish ? "Sandwich Breakout" : "Sandwich Breakdown",
+        direction: bullish ? "bullish" : "bearish",
+        state: "TRIGGERED",
+        anchorPoints: [
+          { date: rangeBars[0].date, price: rangeBars[0].close },
+          { date: prev.date, price: prev.close },
+        ],
+        triggerBarDate: breakoutBar.date,
+        invalidationPrice: bullish ? rangeLow : rangeHigh,
+      })
+    );
+  }
+  return results;
+}
+
+/**
+ * Rounding bottom/top -- multiple big same-colour candles (RED for a
+ * bottom, GREEN for a top), then a base/top of mostly neutral (small-body)
+ * candles, then a strong close beyond the whole range. "Big"/"strong"/
+ * "neutral" all reuse the SAME disclosed
+ * `rounding_pattern_body_size_multiplier` ratio (config/parameters.yaml) --
+ * initiating candles' bodies >= multiple x the base's own average body;
+ * base candles' bodies <= the initiating candles' own average / multiple;
+ * the breakout candle's body >= multiple x the base's own average again.
+ * MIN_BIG_CANDLES ("multiple") and MIN_BASE_CANDLES mirror Mother Candle's
+ * own documented N=3 base-window precedent (papa-price-action-SKILL.md
+ * §4/§6) for consistency, since this row gives no number of its own for
+ * either.
+ */
+const MIN_BIG_CANDLES = 2;
+const MIN_BASE_CANDLES = 3;
+
+export function detectRounding(hourlyBars, bullish, bodySizeMultiplier) {
+  const results = [];
+  const sameColor = bullish ? isBearish : isBullish; // rounding BOTTOM forms from big RED candles; rounding TOP from big GREEN candles
+
+  for (let i = MIN_BIG_CANDLES + MIN_BASE_CANDLES; i < hourlyBars.length; i++) {
+    const breakoutBar = hourlyBars[i];
+    const base = hourlyBars.slice(i - MIN_BASE_CANDLES, i);
+    const bigCandles = hourlyBars.slice(i - MIN_BASE_CANDLES - MIN_BIG_CANDLES, i - MIN_BASE_CANDLES);
+
+    if (!bigCandles.every((b) => sameColor(b))) continue;
+
+    const bigAvgBody = bigCandles.reduce((sum, b) => sum + bodySize(b), 0) / bigCandles.length;
+    const baseAvgBody = base.reduce((sum, b) => sum + bodySize(b), 0) / base.length;
+    if (bigAvgBody === 0) continue; // a zero-range "big" candle can never satisfy the multiplier check honestly
+
+    const bigCandlesAreBig = bigCandles.every((b) => bodySize(b) >= bodySizeMultiplier * baseAvgBody);
+    const baseIsNeutral = base.every((b) => bodySize(b) <= bigAvgBody / bodySizeMultiplier);
+    if (!bigCandlesAreBig || !baseIsNeutral) continue;
+
+    const rangeBars = [...bigCandles, ...base];
+    const rangeHigh = Math.max(...rangeBars.map((b) => b.high));
+    const rangeLow = Math.min(...rangeBars.map((b) => b.low));
+    const strongBreak = bodySize(breakoutBar) >= bodySizeMultiplier * baseAvgBody;
+    const breaksRange = bullish ? breakoutBar.close > rangeHigh : breakoutBar.close < rangeLow;
+    if (!strongBreak || !breaksRange) continue;
+
+    results.push(
+      detection({
+        patternName: bullish ? "Rounding Bottom" : "Rounding Top",
+        direction: bullish ? "bullish" : "bearish",
+        state: "TRIGGERED",
+        anchorPoints: rangeBars.map((b) => ({ date: b.date, price: bullish ? b.low : b.high })),
+        triggerBarDate: breakoutBar.date,
+        invalidationPrice: bullish ? rangeLow : rangeHigh,
+      })
+    );
+  }
+  return results;
+}
+
+/**
  * Runs every implemented detector for one direction and returns every
  * TRIGGERED (never merely OBSERVED) result -- the M6/S6 gate's own
  * requirement ("a close through it, not an observation").
+ * @param {number} bodySizeMultiplier config/parameters.yaml rounding_pattern_body_size_multiplier
  * @returns {object[]}
  */
-export function detectTriggeredPapaFormations({ hourlyBars, hourlyPivots, dailyPivots, bullish }) {
+export function detectTriggeredPapaFormations({ hourlyBars, hourlyPivots, dailyPivots, bullish, bodySizeMultiplier }) {
   const all = [
     ...detectCounterAttack(hourlyBars, hourlyPivots, dailyPivots, bullish),
     ...detectGap(hourlyBars, hourlyPivots, dailyPivots, bullish),
@@ -314,6 +439,8 @@ export function detectTriggeredPapaFormations({ hourlyBars, hourlyPivots, dailyP
     ...detectFakeBreak(hourlyBars, hourlyPivots, dailyPivots, bullish),
     ...detectMotherCandle(hourlyBars, hourlyPivots, dailyPivots, bullish, true),
     ...detectMotherCandle(hourlyBars, hourlyPivots, dailyPivots, bullish, false),
+    ...detectSandwich(hourlyBars, bullish),
+    ...(bodySizeMultiplier != null ? detectRounding(hourlyBars, bullish, bodySizeMultiplier) : []),
   ];
   return all.filter((d) => d.state === "TRIGGERED");
 }

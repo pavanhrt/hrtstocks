@@ -1258,7 +1258,8 @@ async function ingestHourlyBarsAndDetectRoutes({ supabase, instrument, dailyBars
   const dailyMacdHistogramPhase = macdParamsResolved ? macdHistogramPhase(dailyBars.map((b) => b.close), macdFast, macdSlow, macdSignal, 4) : { change: null, priorPhase: null };
   const weeklyMacdHistogramChange = macdParamsResolved ? macdHistogramPhase(aggregateBars(dailyBars, "weekly").map((b) => b.close), macdFast, macdSlow, macdSignal, 4).change : null;
 
-  const papaFormationsFor = (bullish) => detectTriggeredPapaFormations({ hourlyBars, hourlyPivots, dailyPivots, bullish });
+  const bodySizeMultiplier = parameterValues.rounding_pattern_body_size_multiplier;
+  const papaFormationsFor = (bullish) => detectTriggeredPapaFormations({ hourlyBars, hourlyPivots, dailyPivots, bullish, bodySizeMultiplier });
   const smmHatFor = (bullish) =>
     evaluateSmmHat({ dailyMacdHistogramPhase, dailyDowState: dailyDowStructure.state, hourlyBars, hourSlotVolumeLookbackSessions, bullish });
 
