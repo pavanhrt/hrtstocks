@@ -41,15 +41,48 @@ export type DirectionPageResult = {
 };
 
 /**
- * Server-paginated, server-filtered Direction listing, scoped to a single
- * run_id throughout -- closes architecture-plan.md problems #1 (confluence
- * computed client-side from raw dow_state strings), #6 (no run_id coherence
- * check across a stock's 3 timeframe rows -- a stale daily row from an
- * older run could silently get mixed with a fresh weekly/monthly one), and
- * #25 (every chart's signed URL requested in one shot, ~1,500 at full
- * coverage). final_alignment comes from instrument_alignment
- * (features/alignment.js's computeFinalAlignment, run server-side) rather
- * than being re-derived here.
+ * Server-paginated, server-filtered Direction listing -- closes
+ * architecture-plan.md problems #1 (confluence computed client-side from
+ * raw dow_state strings) and #25 (every chart's signed URL requested in one
+ * shot, ~1,500 at full coverage). final_alignment comes from
+ * instrument_alignment (features/alignment.js's computeFinalAlignment, run
+ * server-side, one immutable row per (run_id, instrument_id) -- never
+ * overwritten by a later run) rather than being re-derived here; pagination
+ * and the confluence filter are scoped to `run.id`, the latest run with
+ * status='completed'.
+ *
+ * `instrument_direction` (Monthly/Weekly/Daily dow_state + chart) is
+ * deliberately NOT filtered by that same run_id. It is a genuine
+ * latest-state table -- index.ts's upsertDirectionAnalysis writes it with
+ * `onConflict: "instrument_id,timeframe"` (no run_id in the unique key), so
+ * ANY run that later processes an instrument -- including one that never
+ * gets published (ends 'partial'/'failed') -- stamps its own run_id over
+ * that instrument's row. An earlier version of this function filtered
+ * `instrument_direction` by the page's own `run.id` to fix problem #6 (a
+ * stale daily row from an older run silently blending with a fresh
+ * weekly/monthly one) -- but that assumed run_id was a stable per-run key on
+ * a table whose own write path never guaranteed that, and it fails exactly
+ * the way problem #6's fix was supposed to prevent: the instant a newer,
+ * not-yet-published run touches even one instrument, every OTHER instrument
+ * whose row still carries the older published run_id keeps showing real
+ * data, while every instrument the newer run DID reach vanishes from the
+ * query entirely (confirmed live 2026-09-11: a manually-triggered run that
+ * ended 'partial' overwrote ~497 of 501 instruments' run_id, and the page
+ * rendered "Unavailable" for all of them even though their dow_state/chart
+ * data was completely current). Problem #6's real guarantee -- an
+ * instrument's own daily/weekly/monthly rows never blend across two
+ * different runs -- already holds independently of any run_id filter here:
+ * upsertDirectionAnalysis processes all 3 timeframes for one instrument
+ * together, in the same call, every time that instrument gets a fresh
+ * dataQuality=PASS evaluation, so its 3 rows are always stamped by the same
+ * run as each other. Reading this table as pure latest-state (instrument_id
+ * only) is therefore both simpler and more honest than the run_id-filtered
+ * version: an instrument touched only by an older run still shows its real,
+ * current-as-of-that-run data (with its own real `updated_at`) instead of
+ * silently disappearing. The properly run-scoped equivalent, if a strict
+ * per-run snapshot is ever needed again, is instrument_direction_runs
+ * (migration 0006, unique on `run_id, instrument_id, timeframe` -- never
+ * overwritten by a different run) -- not used here today.
  */
 export async function getDirectionPage({
   page = 1,
@@ -110,7 +143,6 @@ export async function getDirectionPage({
   const { data: directionRows, error: directionError } = await supabase
     .from("instrument_direction")
     .select("instrument_id, timeframe, dow_state, wave_label, wave_confidence, chart_object_path, data_quality, updated_at")
-    .eq("run_id", run.id)
     .in("instrument_id", instrumentIds);
   if (directionError) throw directionError;
 
@@ -157,11 +189,14 @@ export async function getDirectionPage({
 }
 
 /**
- * Same shape, scoped to one instrument and the latest published run -- for
- * the stock detail page's Direction section. Unlike the old version, this
- * only ever returns data if the instrument was actually part of that run
- * (via instrument_alignment), rather than whatever instrument_direction
- * happened to hold last regardless of which run wrote it (#6).
+ * Same shape, for the stock detail page's Direction section.
+ * `final_alignment` is still scoped to the latest published run (via
+ * instrument_alignment, and this returns null if the instrument wasn't part
+ * of that run at all), but `instrument_direction` itself is read as pure
+ * latest-state, not filtered by that run's id -- see getDirectionPage's own
+ * header comment for why a run_id filter on this specific table causes real
+ * data to silently disappear the moment any later (even unpublished) run
+ * touches the instrument.
  */
 export async function getDirectionForInstrument(instrumentId: string): Promise<StockDirection | null> {
   const run = await getLatestPublishedRun();
@@ -188,7 +223,6 @@ export async function getDirectionForInstrument(instrumentId: string): Promise<S
   const { data: directionRows, error: directionError } = await supabase
     .from("instrument_direction")
     .select("instrument_id, timeframe, dow_state, wave_label, wave_confidence, chart_object_path, data_quality, updated_at")
-    .eq("run_id", run.id)
     .eq("instrument_id", instrumentId);
   if (directionError) throw directionError;
 

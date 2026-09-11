@@ -256,7 +256,10 @@ create table swing_analysis_results (
   -- Null until that condition has been evaluated for this row (not enough
   -- hourly bars yet, or the strategy isn't seeded). Added alongside
   -- features/hourly-conditions.js in the same local session that added this
-  -- column -- migration still unapplied.
+  -- column. Applied live 2026-09-11 (migration
+  -- 0009_add_combination_matrix.sql) after a real run surfaced that this
+  -- specific column had been added to this file but never deployed --
+  -- every swing_analysis_results upsert was failing silently until then.
   combination_matrix jsonb,
   pending_conditions jsonb not null default '[]',
   entry_price numeric,
