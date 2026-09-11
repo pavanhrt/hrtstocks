@@ -146,20 +146,28 @@ rules:
     note: >
       No longer blocked on 1-hour bar ingestion itself -- that now exists
       (run-screening/index.js's ingestHourlyBarsAndDetectRoutes, gated on
-      WBP-M1..M4 all passing). Two of the five routes are now detected by
+      WBP-M1..M4 all passing). Two of the five BUY routes are detected by
       features/hourly-routes.js: BUY-1 "Wave 3 Ignition" (detectWave3Ignition,
       the most completely documented route -- swing-strategy-extraction.md
       §2) and BUY-4 "Wave 2 Pullback" (detectWave2Pullback, reusing the
       candlestick-pattern detectors from features/patterns.js for its
-      required PAPA-trigger check), surfaced in
-      swing_analysis_results.selected_route/route_evidence. This gate still
-      stays MANUAL_REVIEW: "one of BUY-1..BUY-5 identified" means ruling
-      in/out all five, and BUY-2, BUY-3, BUY-5 are NOT implemented yet
-      (disclosed, never silently treated as "doesn't apply") -- a non-match
-      from the two implemented detectors does not mean M5 fails, since a
-      different route might apply. Not UNRESOLVED like BSP-M5: the source
-      fully documents every route's exact mechanics -- this is incomplete
-      route coverage, not a missing specification.
+      required PAPA-trigger check). Correction Cycle 2 (2026-09-11) resolved
+      this gate into a real, evidence-driven pass/fail for the FIRST time:
+      features/swing-analysis.js's evaluateSwingHypothesis now treats M5 as
+      passed when the selected route's own requiredChecksPassed is true, and
+      flows that into a real finalAction (BUY/SELL, no longer permanently
+      WAIT) alongside M6-M8 below. The pooled rule_traces row for this gate
+      ID itself STILL reads MANUAL_REVIEW (the cross-strategy pooling reason
+      every other note in this file explains -- M5-M8 never fit the shared
+      YAML/rule-engine path M1-M4 use), but the real evidence now lives in
+      swing_analysis_results.selected_route/route_evidence and genuinely
+      gates finalAction from there. This gate still stays incomplete route
+      coverage, not a missing specification: "one of BUY-1..BUY-5 identified"
+      means ruling in/out all five, and BUY-2, BUY-3, BUY-5 are NOT
+      implemented (each for its own disclosed, different reason -- see
+      hourly-routes.js's own header comment) -- a non-match from the
+      implemented detectors does not mean M5 fails, since a different route
+      might apply.
 
   - id: WBP-M6
     playbook_gate: M6
@@ -173,12 +181,22 @@ rules:
     false_result: MANUAL_REVIEW
     missing_result: MANUAL_REVIEW
     hard_gate: false
-    note: Blocked on 1-hour bar ingestion -- same reason as WBP-M5.
+    note: >
+      Same pooling-vs-real-evidence split as WBP-M5's note: the pooled trace
+      for this gate ID still reads MANUAL_REVIEW, but Correction Cycle 2
+      (2026-09-11) added real evidence -- features/papa-formations.js
+      detects the DOCUMENTED-mechanism subset of the 10 BUY PAPA formations
+      (Bull Counter Attack, Genuine/Fake Breakout, Gap Up, Mother Candle --
+      see that file's own header for the full scope note and what's still
+      not implemented: Sandwich, Rounding Bottom, Accumulation, Tweezers),
+      and evaluateSwingHypothesis now genuinely gates finalAction on at
+      least one same-direction formation having TRIGGERED (not merely
+      OBSERVED) this run.
 
   - id: WBP-M7
     playbook_gate: M7
     name: SMM Bull Hat (Step 1 AND Step 2)
-    source_status: UNRESOLVED
+    source_status: DOCUMENTED
     timeframe: 1h
     direction: bullish
     inputs: [hourly_bull_hat_step1, hourly_bull_hat_step2]
@@ -188,11 +206,16 @@ rules:
     missing_result: MANUAL_REVIEW
     hard_gate: false
     note: >
-      Blocked on 1-hour bar ingestion AND on an open strategy-owner decision:
-      swing-strategy-extraction.md §13 conflict #11 -- the Step 2
-      Stochastic/RSI crossover choice this codebase made for BSP-M7B
-      (positional, daily) is not confirmed as the right choice for the
-      1-hour variant.
+      RESOLVED (Correction Cycle 2, 2026-09-11): swing-strategy-extraction.md
+      §13 conflict #11 (the Step 2 crossover choice) is resolved by reusing,
+      unchanged, the exact disclosed choice this codebase already made for
+      BSP-M7B/SSP-S7B (positional, daily) -- a Stochastic %K/%D crossover
+      from <20/>80, OR an RSI uptick/downtick through 40/60 -- re-applied to
+      the 1-hour chart (features/smm-hat.js#evaluateSmmHat). Step 1 (the
+      Tide) reuses the same daily MACD histogram phase and Dow state
+      WBP-M4 already reads. Same pooling-vs-real-evidence split as WBP-M5/M6:
+      the pooled trace for this gate ID still reads MANUAL_REVIEW, but real
+      Hat evidence now gates finalAction directly.
 
   - id: WBP-M8
     playbook_gate: M8
@@ -207,11 +230,13 @@ rules:
     missing_result: MANUAL_REVIEW
     hard_gate: false
     note: >
-      Entry/stop/target derive from the hourly Elliott setup computed in
-      WBP-M5, which is itself blocked -- cannot be computed independently
-      without inventing a stop/target. Once WBP-M5 is real, this gate uses
-      the strict `> 3.0` threshold from architecture-plan.md §7 decision 1
-      (a new `swing_minimum_reward_risk_strict` parameter, distinct from the
-      existing `minimum_reward_risk: 3.0` used by other strategies) -- not
-      yet added to config/parameters.yaml since nothing depends on it yet
-      (null_policy).
+      RESOLVED (Correction Cycle 2, 2026-09-11): features/reward-risk.js#computeRewardRisk
+      wires the strict `> 3.0` threshold (config/parameters.yaml
+      `swing_minimum_reward_risk_strict`, added this cycle) against whichever
+      M5 route's own entry/stop/target evidence exists. Returns null (never a
+      guessed number) when the selected route has no computable target --
+      true today for BUY-4/SELL-4, whose documented target ("the BUY-1
+      wave-3 objectives") isn't computed by that route's own detector. Same
+      pooling-vs-real-evidence split as WBP-M5..M7: the pooled trace for
+      this gate ID still reads MANUAL_REVIEW, but real reward:risk evidence
+      now gates finalAction directly.

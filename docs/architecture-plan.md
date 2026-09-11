@@ -794,3 +794,148 @@ execution is structurally required, not an optimization choice.
   with `decideRunStatus`'s "backfill never blocks completion" rule that this whole exercise exists
   to prevent; (4) the first draft's idempotency guard on the `universe` batch could skip re-seeding
   entirely after a partial crash, permanently stranding a run at `queued`.
+
+## 10. ADX threshold conflict resolved + hourly combination-matrix WAIT gate (2026-09-11)
+
+Trigger: `features/indicators.js`'s `adx()` was implemented and tested in Correction Cycle 1 (§9)
+but left unconsumed, blocked on `docs/swing-strategy-extraction.md` §13 conflict #4 (ADX < 14,
+swing-specific, vs. the general PAPA/cross-check ADX < 20 no-trend reading). This closes that gap:
+the conflict is resolved as a disclosed `PROJECT_DEFAULT`, and a real gate now consumes `adx()`.
+
+- **DONE — conflict #4 resolved.** `swing-strategy-extraction.md` §13 conflict #4 now carries a
+  RESOLVED note: the swing (Weekly→Daily→1H) playbooks' own hourly combination-matrix WAIT rule
+  ("Hourly ADX below 14, or flat under 25 → WAIT", `BUY...` §11 / `SELL...` §13) is adopted for that
+  check only, per `AGENTS.md`'s Evidence Priority (a dedicated setup checklist for this exact
+  strategy/timeframe outranks a general concept document) and because the swing playbooks
+  self-disclose a reasoned deviation from the general 20-threshold, not an oversight. Scope is
+  explicitly hourly-only and swing-only — the general PAPA/ADX-20 no-trend reading is untouched
+  everywhere else, since nothing else in this codebase consumes an ADX no-trend threshold today.
+  `config/parameters.yaml` bumped to `parameter_version 1.4.0`: new `swing_hourly_adx_wait_below: 14`
+  and `swing_hourly_adx_flat_ceiling: 25`, both fully commented with the resolution rationale.
+  **Not yet seeded** to the remote project's `parameter_versions` table (`supabase/seed/seed-strategies.mjs`
+  would need to run) — same standing constraint as `buy-swing.yaml`/`sell-swing.yaml` themselves,
+  which are also still unseeded; until seeded, `parameterValues.swing_hourly_adx_wait_below` reads
+  `undefined` in production and the new gate below degrades to `null` (never a guessed verdict).
+- **DONE — `features/indicators.js`'s new `adxSlope(highs, lows, closes, period, lookback=3)`** —
+  "rising"/"falling"/"flat" classification of the ADX line's own trajectory, mirroring the existing
+  `macdSlope`'s monotonic-tail convention exactly (needed because the WAIT rule's second branch,
+  "flat under 25," is about ADX's slope, not just its level). Unit-tested against four synthetic
+  fixtures: too few bars (null), a pure single-direction trend (a clean derivation: with no opposing
+  directional movement, DX pins at exactly 100 from the first computed bar onward, so ADX is
+  constant → "flat"), a choppy period giving way to a strong trend ("rising"), and a strong trend
+  decaying into chop ("falling").
+- **DONE — new `features/hourly-conditions.js`, `evaluateHourlyAdxCondition()`.** Deliberately its
+  own module, not folded into `features/hourly-routes.js` (whose header comment scopes it to
+  Elliott-setup detectors only, not this) or into the `WBP-`/`WSP-` YAML rule IDs (reserved for the
+  literal 8-gate table per §13 conflict #10's own warning against merging different taxonomies) —
+  the source documents themselves place this in a separate "combination matrix" section, not the
+  8 mandatory gates table. Returns the observed ADX/±DI/slope evidence plus a `wait` boolean and
+  human-readable `reason`, or `null` when ADX isn't seeded yet (never a guessed verdict). Unit-tested:
+  null before enough bars, `wait: true` on a choppy/low-ADX fixture, `wait: false` on a
+  clearly-trending one, and that the raw evidence is always returned regardless of the verdict.
+- **DONE — wired into `index.ts`.** `ingestHourlyBarsAndDetectRoutes` now also computes this
+  condition once per instrument (same hourly bars already fetched for route detection; ADX measures
+  trend strength, not direction, so one computation serves both hypotheses) and returns it alongside
+  the per-hypothesis route arrays. `evaluateSwingHypothesis` (`features/swing-analysis.js`) takes it
+  as a new optional third argument, backward-compatible (omitting it reproduces the exact prior
+  behavior — verified by the pre-existing test suite passing unchanged): it never changes
+  `final_action` (`WBP-M5..M8`/`WSP-S5..S8` already keep that `WAIT` regardless, for the same
+  disclosed reasons as before) but always discloses the evidence, either a WAIT reason or an explicit
+  "does not block entry" note, in `pending_conditions`, plus the raw evidence in a new
+  `combinationMatrix` field. `persistSwingAnalysisResults` writes that to a new
+  `swing_analysis_results.combination_matrix jsonb` column, added to migration `0006` (still
+  unapplied — safe to extend, same as `route_evidence`/`triggered_bullish_pattern_id` before it).
+- Tests: 4 new cases in `indicators.test.js` (`adxSlope`), 4 in new `hourly-conditions.test.js`, 3 in
+  `swing-analysis.test.js` (the new parameter's default-omitted, WAIT, and non-WAIT disclosure
+  cases). Full suite: 258/258 passing (`npm test` from `stock-platform/`).
+- Not in scope for this pass, disclosed rather than silently left implicit: the other combination-matrix
+  entries the swing playbooks' §11/§13 sections describe alongside the ADX condition (route quality,
+  the 100-point scorecard's own bands) are unrelated to the ADX conflict this pass resolved and remain
+  exactly as REMAINING as `architecture-plan.md` §6 Phase 4 already states.
+
+## 11. Correction Cycle 2 (2026-09-11) — BUY/SELL decision logic (M6-M8, remaining routes, confirmation groups, vetoes)
+
+Trigger: the Analysis page's own banner disclosed that `final_action` was permanently `WAIT` for
+every stock, every run — correctly disclosed, not a bug, but the deferred Workstream 5 from the
+original 7-workstream correction request. This cycle implements it, scoped to everything buildable
+on already-resolved or newly-disclosed, reversible `PROJECT_DEFAULT` picks — the same discipline
+this project already used for the ADX threshold (§10) — while explicitly declining pieces that would
+require inventing a genuinely undocumented method, not just picking a point in a stated range.
+
+- DONE — **SELL-1 "Wave 5 Exhaustion"** (`features/hourly-routes.js#detectWave5Exhaustion`), the
+  third of the 10 hourly routes, a standalone top-exhaustion route with no bullish mirror: a
+  completed bullish 5-wave impulse (GUE hard gates satisfied by construction) whose 5th wave is
+  weaker or truncated, confirmed by hourly RSI divergence (wave 3 vs. wave 5 — only the hourly
+  reading is automated; the source's own required daily cross-check is disclosed as NOT
+  implemented) and a wave3>wave5 hour-slot volume falloff, entered on an hourly close below wave
+  4's low. Verified against a real, non-hand-forced fixture (the actual computed RSI values diverge,
+  not asserted by construction).
+- DONE — **M6, PAPA price-action trigger** (`features/papa-formations.js`, new): the
+  DOCUMENTED-mechanism subset of the 10 BUY/10 SELL PAPA formations — Bull/Bear Counter Attack,
+  Genuine/Fake Breakout/Breakdown, Gap Up/Down, Mother Candle (reversal + continuation) — each
+  following `patterns.js`'s own OBSERVED-vs-TRIGGERED discipline. "A level" reuses confirmed zigzag
+  pivots (hourly or daily) within `patterns.js`'s existing `DOUBLE_EXTREME_TOLERANCE`. NOT
+  implemented: Sandwich breakout/breakdown, Rounding bottom/top (deferred for scope, not a
+  specification gap), Accumulation/Distribution, Tweezers (genuinely UNRESOLVED — no number anywhere
+  in any source for their qualitative terms).
+- DONE — **M7, SMM Bull/Bear Hat** (`features/smm-hat.js`, new): Step 1 (the Tide, daily) reuses the
+  same MACD histogram phase and Dow state WBP-M4/WSP-S4 already compute. Step 2 (the Wave, 1-hour)
+  resolves swing-strategy-extraction.md §13 conflict #11 by reusing, unchanged, the exact disclosed
+  crossover choice already made for the positional strategy's `BSP-M7B`/`SSP-S7B` (Stochastic %K/%D
+  cross <20/>80, OR RSI cross through 40/60), re-applied to the 1-hour chart. Hat = BUY/SELL only
+  when both steps agree; any disagreement is "no hat," per the source's own "no hat and no trade."
+- DONE — **M8, reward:risk** (`features/reward-risk.js`, new): wires the strict `> 3.0` threshold
+  (new `config/parameters.yaml` key `swing_minimum_reward_risk_strict: 3.0`, finally added — §7
+  decision 1 had approved this but it was never actually written to the parameters file until now)
+  against whichever M5 route's own stop/target evidence exists. Picks the nearest (most
+  conservative) target when a route exposes several. Returns null — never a guessed number — when
+  the selected route has no computable target (true today for BUY-4/SELL-4's pattern-based entry).
+- DONE — **5 confirmation groups** (`features/confirmation-groups.js`, new): the disclosed
+  `PROJECT_DEFAULT` synthesis already decided in §7 decision 3, finally implemented — Structure &
+  level, EMA & Fibonacci, Momentum, Price action & pattern, Participation & regime — each populated
+  from evidence the modules above already compute, every group citing its real source locator.
+  Passes at ≥4 of 5.
+- DONE — **Vetoes** (`features/swing-vetoes.js`, new): the subset checkable from already-computed
+  evidence — an hourly close breaching wave 1's origin, wave 4 entering wave 1's territory (where
+  the route's own shape carries both fields), a daily close below/above the last HL/LH, the weekly
+  MACD histogram turning against the trade, reward:risk falling below the strict threshold, a
+  gap-only break, and price closing back inside the pattern within 1-2 bars. NOT implemented,
+  disclosed per §13 conflict #10: the two cross-check-only vetoes with no primary-playbook match
+  ("EMA tangled + ADX ranging"; "monthly/weekly Elliott count invalid/ambiguous") — an open
+  strategy-owner decision neither source document resolves.
+- DONE — **`features/swing-analysis.js#evaluateSwingHypothesis` now computes a real `finalAction`**:
+  BUY/SELL only when ALL EIGHT gates pass (M1-M4 from the pooled rule traces, M5-M8 from the new
+  evidence bundle above) AND ≥4-of-5 confirmation groups AND zero vetoes — otherwise WAIT, with the
+  specific blocking gate/group/veto named in `pending_conditions`, never a bare unexplained WAIT.
+  `index.ts`'s `ingestHourlyBarsAndDetectRoutes`/`persistSwingAnalysisResults` extended to gather and
+  pass through the full evidence bundle; no new migration needed (`swing_analysis_results`'s
+  `confirmation_groups`/`vetoes`/`route_evidence`/etc. columns already existed, unapplied, from
+  migration `0006`). `strategies/buy-swing.yaml`/`sell-swing.yaml`'s WBP-M6..M8/WSP-S6..S8 notes
+  updated to disclose the pooling-vs-real-evidence split: the pooled `rule_traces` row for each gate
+  ID still reads `MANUAL_REVIEW` (M5-M8 never fit the shared YAML/rule-engine path M1-M4 use, same
+  reason as before), but real evidence now genuinely gates `finalAction` from the columns above.
+  Analysis page banner and per-stock "why not BUY/SELL" heading updated to match (no longer claims
+  `finalAction` is always WAIT; the heading no longer renders nonsensically when a verdict IS
+  BUY/SELL).
+- **Explicitly OUT of scope, disclosed, not silently dropped** — three different kinds of gap, not
+  one:
+  - **BUY-2** (Wave 4 Completion): the documented trigger ("an hourly close above the wave-4 high")
+    is genuinely ambiguous in what the extraction doc transcribes; the fuller source table needed to
+    resolve it isn't available. Unchanged from Correction Cycle 1's own original decision.
+  - **BUY-3/SELL-2** (Ending Diagonal Reversal/Breakdown): unlike every other gap resolved this cycle
+    (a disclosed point picked from a *stated range*), this needs "two boundary lines through actual
+    pivots, extended forward, confirmed converging" — no source document specifies which pivots
+    anchor each boundary, over what span, or by what fitting method. A regression or any other
+    fitting choice would be inventing a *procedure* the source never describes, a materially
+    different and larger kind of guess than picking a disclosed default within a stated range. Stays
+    undone pending a real worked example from the strategy owner.
+  - **BUY-5/SELL-5** (Continuation Add): zero numeric checks anywhere in the source — no range exists
+    to pick a default from at all.
+  - Sandwich/Rounding-bottom PAPA formations: documented mechanism, deferred for scope this cycle
+    (not a specification gap — can be picked up in a future pass without new decisions).
+- Verification: `npm test` from `stock-platform/` (310/310 passing, up from 258 — every new module
+  fully unit-tested, including fixtures that prove real computed divergence/crossover behavior rather
+  than asserting by construction), `npm run build` from `stock-platform/app` (passes). Deliberately
+  NOT verified by triggering a live screening run — same standing constraint as every prior cycle;
+  the next user-triggered run will be the first real end-to-end confirmation that a genuine BUY/SELL
+  can now appear on the Analysis page for a stock that legitimately earns one.

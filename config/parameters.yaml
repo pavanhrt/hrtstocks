@@ -1,4 +1,4 @@
-parameter_version: 1.3.0
+parameter_version: 1.5.0
 status: partially_resolved_from_buy_sell_signal_playbooks
 
 documented:
@@ -49,11 +49,65 @@ documented:
   # state "14, 14... Wilder confirmed" as an explicit source value, not a
   # backtest-derived guess. Moved here once features/indicators.js's adx()
   # actually depended on the specific value (null_policy's own condition for
-  # promoting an entry). The ADX threshold a future gate should trigger on
-  # is a SEPARATE, still-unresolved CONFLICT (the same doc flags "ADX < 20"
-  # vs. a swing-specific "ADX < 14" as competing readings) -- this only
-  # resolves the smoothing period, not that threshold.
+  # promoting an entry). This only resolves the smoothing period -- the ADX
+  # *threshold* a gate triggers on is the separate pair of parameters below,
+  # resolved in parameter_version 1.4.0.
   adx_dmi_period: 14
+  # Resolved in parameter_version 1.4.0 (2026-09-11):
+  # docs/swing-strategy-extraction.md §13 conflict #4 (ADX no-trend
+  # threshold). The general PAPA concept doc and both cross-check documents
+  # read "ADX < 20 = no trend," but the swing (Weekly->Daily->1H) BUY/SELL
+  # playbooks self-disclose an explicit deviation for their own hourly
+  # combination-matrix WAIT check: "the operating threshold in this playbook
+  # is 14, not 20... running it at 14 catches trends earlier... so the slope
+  # now does the work the level used to" (BUY §11 / SELL §13). Per
+  # AGENTS.md's Evidence Priority (a dedicated setup checklist for THIS
+  # exact strategy/timeframe outranks a general concept document, and this
+  # is the playbook's own reasoned choice, not an oversight), these two
+  # values are adopted for the swing hourly combination-matrix WAIT check
+  # ONLY (features/hourly-conditions.js's evaluateHourlyAdxCondition) -- they
+  # do NOT change the general PAPA/ADX-20 reading anywhere else; no other
+  # rule in this codebase consumes a no-trend ADX threshold today. The
+  # playbook never states whether 14 also applies to weekly/daily ADX reads,
+  # so scope stays hourly-only, matching swing-strategy-extraction.md §13
+  # conflict #4's own resolution note.
+  swing_hourly_adx_wait_below: 14
+  swing_hourly_adx_flat_ceiling: 25
+  # Resolved in parameter_version 1.5.0 (Correction Cycle 2, 2026-09-11):
+  # every source document that states the swing playbooks' M8/S8 reward:risk
+  # gate (smm-decision-sheet-SKILL.md §7; BUY.../SELL... §7/§9;
+  # buy-conditions.md/sell-conditions.md "Risk gate") uses a strict `> 3`, not
+  # the existing `minimum_reward_risk: 3.0` above's `>=` (that parameter is
+  # used by the positional BSP-/SSP- strategies, which this does not change --
+  # see architecture-plan.md §7 decision 1 and swing-strategy-extraction.md
+  # §13 conflict #1). A new, strategy-specific key so the two thresholds
+  # cannot be confused or accidentally merged.
+  swing_minimum_reward_risk_strict: 3.0
+  # Resolved in parameter_version 1.5.0 (Correction Cycle 2): swing-strategy-
+  # extraction.md §13 conflict #9 -- BUY.../SELL... §4.5/§6.4's own addition
+  # to the ending-diagonal setup (BUY-3/SELL-2), "in practice at least fifteen
+  # to twenty hourly candles" of structure before the wedge can be trusted.
+  # Picks the FLOOR of the stated range, not the midpoint -- for a minimum
+  # structural requirement, the lower bound is the conservative (stricter)
+  # choice: requiring fewer candles makes the gate easier to trigger falsely,
+  # so anchoring low keeps this project's characteristic error on the side of
+  # under-triggering rather than over-triggering a signal.
+  ending_diagonal_min_hourly_candles: 15
+  # Resolved in parameter_version 1.5.0 (Correction Cycle 2): swing-strategy-
+  # extraction.md §12.4's PAPA "Rounding bottom/top" formation requires
+  # "multiple big RED/GREEN candles" and a "strong breakout candle" -- both
+  # qualifiers are stated with no number anywhere in any source document.
+  # Rather than inventing an absolute threshold, this expresses "big"/"strong"
+  # the same way features/patterns.js's own disclosed defaults already do
+  # (TREND_LOOKBACK_BARS-style trailing-average comparison): a candle's body
+  # must be at least this multiple of the average body size over the same
+  # trailing window used elsewhere in that module, to count as "big" (for the
+  # base) or "strong" (for the breakout). 1.5x is a disclosed PROJECT_DEFAULT
+  # picked for symmetry with HAMMER_UPPER_WICK_CAP_FRACTION's own
+  # this-project-picks-a-plausible-multiple precedent -- not extracted from
+  # any source number, since none exists; a future reviewer can change this
+  # single value without touching detection logic.
+  rounding_pattern_body_size_multiplier: 1.5
 
 project_defaults_requiring_backtest:
   atr_period: null

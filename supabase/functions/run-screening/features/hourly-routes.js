@@ -15,21 +15,44 @@
 //     trigger, resuming the dominant trend (§4 BUY-4 / §4 SELL-4 -- SELL-4
 //     doesn't use Elliott wave-2 labeling in its own text, but is the same
 //     structural setup described generically).
+//   - detectWave5Exhaustion: SELL-1 "Wave 5 Exhaustion" -- a completed
+//     bullish 5-wave impulse (all 3 GUE hard gates satisfied) whose 5th wave
+//     shows weaker momentum than the 3rd (or truncates below wave 3's own
+//     top), confirmed by hourly RSI divergence and a hour-slot volume
+//     falloff, entered on an hourly close below wave 4's low (§3 SELL-1).
+//     There is no bullish mirror in the source -- SELL-1 is a standalone
+//     top-exhaustion route, not one half of a BUY-1-style pair.
 //
 // NOT implemented: BUY-2 (Wave 4 Completion), BUY-3/SELL-2 (Ending Diagonal
-// Reversal/Breakdown), BUY-5/SELL-5 (Continuation Add), SELL-1 (Wave 5
-// Exhaustion). BUY-2 in particular was deliberately skipped over: its
-// documented trigger ("an hourly close above the wave-4 high") is
-// genuinely ambiguous in what swing-strategy-extraction.md transcribes --
-// wave 4 is itself a low-type pivot in a bullish impulse, so "the wave-4
-// high" cannot literally mean wave 4's own price without more context from
-// the fuller source table (§4.3) than this project has read. Implementing
-// it on a guessed interpretation would violate this project's own
-// never-invent discipline; it stays undone until that table is available.
+// Reversal/Breakdown), BUY-5/SELL-5 (Continuation Add). Three different kinds
+// of gap, each disclosed rather than guessed past:
+//   - BUY-2's documented trigger ("an hourly close above the wave-4 high")
+//     is genuinely ambiguous in what swing-strategy-extraction.md
+//     transcribes -- wave 4 is itself a low-type pivot in a bullish impulse,
+//     so "the wave-4 high" cannot literally mean wave 4's own price without
+//     more context from the fuller source table (§4.3) than this project
+//     has read. Implementing it on a guessed interpretation would violate
+//     this project's own never-invent discipline; it stays undone until
+//     that table is available.
+//   - BUY-3/SELL-2 require "two boundary lines through actual pivots,
+//     extended forward, confirmed converging" (gue-ending-diagonal-SKILL.md
+//     §0) -- unlike every other numeric gap this codebase has resolved as a
+//     disclosed PROJECT_DEFAULT (a stated range with no fixed point, e.g.
+//     conflict #9's own "15-20 candles"), this is a METHODOLOGICAL gap: no
+//     source document specifies which pivots anchor each boundary line, over
+//     what span, or by what fitting method. A least-squares regression (or
+//     any other fitting choice) would be inventing a procedure the source
+//     never describes, not merely picking a disclosed point in a stated
+//     range -- a materially different, larger kind of guess this project's
+//     never-invent discipline does not cover picking a default for. Stays
+//     undone pending a real worked example from the strategy owner.
+//   - BUY-5/SELL-5 have zero numeric checks anywhere in the source (entirely
+//     structural/qualitative, "an already-confirmed running wave 3") -- no
+//     range exists to pick a disclosed default from at all.
 
 import { zigzagPivotsWithUnconfirmedLeg, labelPivotSequence, zigzagPivots } from "./structure.js";
 import { labelWave } from "./wave.js";
-import { hourSlotAverageVolume } from "./indicators.js";
+import { hourSlotAverageVolume, rsi } from "./indicators.js";
 import { detectCandlestickPatterns } from "./patterns.js";
 
 // "1.62x/2.62x/4.25x wave 1 from the end of wave 2" -- swing-strategy-extraction.md
@@ -298,6 +321,173 @@ export function detectWave2Pullback({ hourlyBars, bullish, hourlyZigzagPct }) {
     withinFibBand,
     trigger,
     stop,
+    requiredChecksPassed,
+  };
+}
+
+/**
+ * SELL-1 "Wave 5 Exhaustion" -- no bullish mirror in the source (a
+ * standalone top-exhaustion route, not one half of a BUY-1-style pair).
+ * Requires a fully confirmed bullish 5-wave impulse (all 3 GUE hard gates
+ * satisfied by construction, via wave.js's own validateImpulsePrefix), then
+ * tests the documented exhaustion signature and entry.
+ * @param {object} params
+ * @param {object[]} params.hourlyBars oldest-first
+ * @param {object[]} params.dailyBars oldest-first daily bars -- for the gap-vs-previous-close check and the nearest-daily-support target
+ * @param {number} params.hourlyZigzagPct
+ * @param {number} params.dailyZigzagPct
+ * @param {number} params.hourSlotVolumeLookbackSessions
+ * @returns {object|null} null when no completed bullish 5-wave impulse is present on the hourly chart at all
+ */
+export function detectWave5Exhaustion({ hourlyBars, dailyBars, hourlyZigzagPct, dailyZigzagPct, hourSlotVolumeLookbackSessions }) {
+  if (hourlyBars.length < 2) return null;
+
+  const { confirmed: rawPivots, unconfirmedLeg } = zigzagPivotsWithUnconfirmedLeg(hourlyBars, hourlyZigzagPct);
+  const labeledPivots = labelPivotSequence(rawPivots);
+  // Force the bullish-impulse hypothesis directly, same reasoning as
+  // detectWave3Ignition/detectWave2Pullback: this route tests a specific
+  // structural claim (a completed 5-up), not "what is the general trend."
+  const { primary, alternative } = labelWave(labeledPivots, unconfirmedLeg, "uptrend_intact");
+  const candidate = [primary, alternative].find(
+    (w) => w && w.structureType === "impulse" && w.direction === "bullish" && w.currentWave === "5" && w.waveState === "completed"
+  );
+  if (!candidate || !candidate.pivotPrices || candidate.pivotPrices.length < 6) return null;
+
+  const [origin, wave1, wave2, wave3, wave4, wave5] = candidate.pivotPrices;
+  const route = "SELL-1";
+
+  // Check 2, required: wave 5 made a new high on weaker strength than wave
+  // 3, or has truncated (fails to exceed wave 3's own top).
+  const wave3Length = wave3.price - wave2.price;
+  const wave5Length = wave5.price - wave4.price;
+  const weakerThanWave3 = wave5Length < wave3Length;
+  const truncated = wave5.price <= wave3.price;
+  const exhaustionSignature = { wave3Length, wave5Length, weakerThanWave3, truncated, passes: weakerThanWave3 || truncated };
+
+  const wave2Index = hourlyBars.findIndex((b) => b.date === wave2.date);
+  const wave3Index = hourlyBars.findIndex((b) => b.date === wave3.date);
+  const wave4Index = hourlyBars.findIndex((b) => b.date === wave4.date);
+  const wave5Index = hourlyBars.findIndex((b) => b.date === wave5.date);
+  if (wave2Index === -1 || wave3Index === -1 || wave4Index === -1 || wave5Index === -1) {
+    return {
+      route,
+      state: "completed",
+      origin,
+      wave1,
+      wave2,
+      wave3,
+      wave4,
+      wave5,
+      exhaustionSignature,
+      divergence: null,
+      waveVolumeComparison: null,
+      trigger: null,
+      triggerVolumeCheck: null,
+      stop: null,
+      targets: null,
+      requiredChecksPassed: false,
+      reason: "could not locate one of the labeled pivots' own bars in the hourly series",
+    };
+  }
+
+  // Check 3, required: hourly RSI divergence (price HH, oscillator LH) at
+  // wave 5's own top vs wave 3's own top. Documented rsi_period=14
+  // (config/parameters.yaml). Only the HOURLY reading is automated -- the
+  // source's own required daily cross-check ("an hourly divergence that the
+  // daily contradicts is close to worthless -- check the daily first") has
+  // no daily-pivot-matching logic in this codebase and is NOT implemented;
+  // disclosed here rather than silently assumed to agree.
+  const RSI_PERIOD_FOR_DIVERGENCE = 14;
+  const rsiAtWave3 = rsi(hourlyBars.slice(0, wave3Index + 1).map((b) => b.close), RSI_PERIOD_FOR_DIVERGENCE);
+  const rsiAtWave5 = rsi(hourlyBars.slice(0, wave5Index + 1).map((b) => b.close), RSI_PERIOD_FOR_DIVERGENCE);
+  const priceMadeHigherHigh = wave5.price > wave3.price;
+  const oscillatorMadeLowerHigh = rsiAtWave3 != null && rsiAtWave5 != null ? rsiAtWave5 < rsiAtWave3 : null;
+  const divergence = {
+    rsiAtWave3,
+    rsiAtWave5,
+    priceMadeHigherHigh,
+    oscillatorMadeLowerHigh,
+    bearishDivergence: oscillatorMadeLowerHigh == null ? null : priceMadeHigherHigh && oscillatorMadeLowerHigh,
+    dailyCrossCheckAutomated: false,
+  };
+
+  // Check 5, required: 3rd-wave hour-slot volume should exceed 5th-wave's
+  // ("else suspect a fifth-wave extension and wait"). Summed raw volume
+  // across each wave's own bars, same convention as detectWave3Ignition's
+  // wave1Volume/wave3VolumeSoFar.
+  const wave3Volume = hourlyBars.slice(wave2Index + 1, wave3Index + 1).reduce((sum, b) => sum + b.volume, 0);
+  const wave5Volume = hourlyBars.slice(wave4Index + 1, wave5Index + 1).reduce((sum, b) => sum + b.volume, 0);
+  const waveVolumeComparison = { wave3Volume, wave5Volume, wave3ExceedsWave5: wave3Volume > wave5Volume };
+
+  // Trigger (check 7, required): the first hourly close, after wave 5's own
+  // bar, that breaks below wave 4's low -- not on a gap alone (same
+  // gap/first-candle PROJECT_DEFAULT as detectWave3Ignition: measure a
+  // first-candle-of-session break against the prior session's own close).
+  const barsAfterWave5 = hourlyBars.slice(wave5Index + 1);
+  const triggerBar = barsAfterWave5.find((b) => b.close < wave4.price);
+  let trigger = null;
+  if (triggerBar) {
+    const isFirstCandleOfSession = triggerBar.slotIndex === 0;
+    let gapOnly = false;
+    if (isFirstCandleOfSession) {
+      const priorDailyBar = [...dailyBars].reverse().find((d) => d.date < triggerBar.sessionDate);
+      const priorCloseClearedLevel = priorDailyBar ? priorDailyBar.close < wave4.price : false;
+      gapOnly = !priorCloseClearedLevel;
+    }
+    trigger = { barDate: triggerBar.date, close: triggerBar.close, isFirstCandleOfSession, gapOnly, confirmed: !gapOnly };
+  }
+
+  // Check 8, required: volume on the trigger candle above its own hour-slot average.
+  let triggerVolumeCheck = null;
+  if (trigger && trigger.confirmed) {
+    const hourSlotAverage = hourSlotAverageVolume(hourlyBars, triggerBar, hourSlotVolumeLookbackSessions);
+    triggerVolumeCheck = {
+      triggerVolume: triggerBar.volume,
+      hourSlotAverage,
+      triggerAboveHourSlotAverage: hourSlotAverage == null ? null : triggerBar.volume > hourSlotAverage,
+    };
+  }
+
+  // Targets: the source names four, in priority order (depth of the prior
+  // 4th wave one lesser degree; zigzag channel wave-c estimate; Fibonacci
+  // c=a/1.62a/2.62a; nearest major daily support if nearer). The first three
+  // all require sub-wave data (a corrective wave A/C) that does not exist
+  // yet at entry time -- only the nearest-daily-support target is computed;
+  // the rest are disclosed as not-yet-computed rather than guessed.
+  const dailyPivots = zigzagPivots(dailyBars, dailyZigzagPct);
+  const currentPrice = hourlyBars[hourlyBars.length - 1].close;
+  const nearestDailySupport =
+    dailyPivots.filter((p) => p.type === "low" && p.price <= currentPrice).sort((a, b) => b.price - a.price)[0] ?? null;
+  const targets = {
+    nearestDailySupport: nearestDailySupport ? { price: nearestDailySupport.price, date: nearestDailySupport.date } : null,
+    depthOfPriorFourthWave: null,
+    zigzagChannelWaveC: null,
+    fibonacciFromWaveA: null,
+    computedNote: "only nearestDailySupport is computed -- the other 3 documented targets need a corrective wave A/C that does not exist yet at entry time",
+  };
+
+  const stop = wave5.price; // above the wave-5 high, per the source
+
+  const requiredChecksPassed = Boolean(
+    exhaustionSignature.passes && divergence.bearishDivergence && waveVolumeComparison.wave3ExceedsWave5 && trigger?.confirmed && triggerVolumeCheck?.triggerAboveHourSlotAverage
+  );
+
+  return {
+    route,
+    state: "completed",
+    origin,
+    wave1,
+    wave2,
+    wave3,
+    wave4,
+    wave5,
+    exhaustionSignature,
+    divergence,
+    waveVolumeComparison,
+    trigger,
+    triggerVolumeCheck,
+    stop,
+    targets,
     requiredChecksPassed,
   };
 }

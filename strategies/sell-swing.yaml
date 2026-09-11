@@ -124,11 +124,20 @@ rules:
     hard_gate: false
     note: >
       SELL-3 "Wave 3-Down Ignition" (the mirror of BUY-1) and SELL-4 "Bounce
-      Failure" (the mirror of BUY-4) are now detected by
+      Failure" (the mirror of BUY-4) are detected by
       features/hourly-routes.js's detectWave3Ignition/detectWave2Pullback --
-      see buy-swing.yaml's WBP-M5 note. Still MANUAL_REVIEW: SELL-1, SELL-2,
-      SELL-5 are not implemented, so a non-match from the two implemented
-      detectors does not mean S5 fails.
+      see buy-swing.yaml's WBP-M5 note. Correction Cycle 2 (2026-09-11) added
+      a third: SELL-1 "Wave 5 Exhaustion" (detectWave5Exhaustion) -- a
+      standalone route with no bullish mirror, testing a completed BULLISH
+      5-wave impulse exhausting into a sell signal (weaker/truncated wave 5,
+      hourly RSI divergence, a wave3>wave5 hour-slot volume falloff, entered
+      on an hourly close below wave 4's low). Same pooling-vs-real-evidence
+      split as buy-swing.yaml's WBP-M5 note explains: the pooled trace for
+      this gate ID still reads MANUAL_REVIEW, but real route evidence now
+      gates finalAction. Still incomplete route coverage, not a missing
+      specification: SELL-2 and SELL-5 are not implemented (each for its own
+      disclosed reason -- see hourly-routes.js's own header comment), so a
+      non-match from the three implemented detectors does not mean S5 fails.
 
   - id: WSP-S6
     playbook_gate: S6
@@ -142,12 +151,12 @@ rules:
     false_result: MANUAL_REVIEW
     missing_result: MANUAL_REVIEW
     hard_gate: false
-    note: Blocked on 1-hour bar ingestion -- see buy-swing.yaml's WBP-M6 note.
+    note: Real evidence added Correction Cycle 2 -- see buy-swing.yaml's WBP-M6 note (mirrored bearish).
 
   - id: WSP-S7
     playbook_gate: S7
     name: SMM Bear Hat (Step 1 AND Step 2)
-    source_status: UNRESOLVED
+    source_status: DOCUMENTED
     timeframe: 1h
     direction: bearish
     inputs: [hourly_bear_hat_step1, hourly_bear_hat_step2]
@@ -156,9 +165,7 @@ rules:
     false_result: MANUAL_REVIEW
     missing_result: MANUAL_REVIEW
     hard_gate: false
-    note: >
-      Blocked on 1-hour bar ingestion AND the same open §13 conflict #11 as
-      WBP-M7 -- see buy-swing.yaml's note.
+    note: RESOLVED Correction Cycle 2 -- see buy-swing.yaml's WBP-M7 note (mirrored bearish, SSP-S7B's own crossover choice reused).
 
   - id: WSP-S8
     playbook_gate: S8
@@ -172,4 +179,4 @@ rules:
     false_result: MANUAL_REVIEW
     missing_result: MANUAL_REVIEW
     hard_gate: false
-    note: Blocked on WSP-S5 -- see buy-swing.yaml's WBP-M8 note.
+    note: RESOLVED Correction Cycle 2 -- see buy-swing.yaml's WBP-M8 note.

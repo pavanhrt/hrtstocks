@@ -23,7 +23,7 @@ const GATE_LABELS: Record<string, string> = {
 };
 
 const HOURLY_ROUTES_NOTE =
-  'BUY-1/SELL-3 "Wave 3 Ignition" and BUY-4/SELL-4 "Wave 2 Pullback"/"Bounce Failure" -- 2 of the 10 documented hourly routes';
+  'BUY-1/SELL-3 "Wave 3 Ignition", BUY-4/SELL-4 "Wave 2 Pullback"/"Bounce Failure", and SELL-1 "Wave 5 Exhaustion" (no bullish mirror) -- 3 of the 10 documented hourly routes';
 
 function ConditionsTable({ candidate }: { candidate: SwingCandidate }) {
   return (
@@ -61,7 +61,7 @@ function RouteEvidence({ candidate }: { candidate: SwingCandidate }) {
       <p style={{ fontSize: 12, color: "var(--text-dim)" }}>
         No 1-hour route evidence this run.{" "}
         {clearedLock
-          ? `The weekly+daily direction lock is clear, but the evidence matched neither of the ${HOURLY_ROUTES_NOTE}, or no 1-hour bars were available for this stock.`
+          ? `The weekly+daily direction lock is clear, but the evidence matched none of the ${HOURLY_ROUTES_NOTE}, or no 1-hour bars were available for this stock.`
           : "Blocked: the weekly+daily direction lock (M1-M4 above) hasn't cleared this run, so 1-hour bars are never fetched for this stock -- see which gate above failed."}
       </p>
     );
@@ -125,7 +125,9 @@ function CandidateAccordion({ candidates }: { candidates: SwingCandidate[] }) {
 
             {c.pendingConditions.length > 0 && (
               <div>
-                <h3 style={{ fontSize: 13, margin: "0 0 6px" }}>Why final action is {c.finalAction}, not BUY/SELL</h3>
+                <h3 style={{ fontSize: 13, margin: "0 0 6px" }}>
+                  {c.finalAction === "WAIT" ? "Why final action is WAIT, not BUY/SELL" : "Evidence and disclosures behind this verdict"}
+                </h3>
                 <ul style={{ fontSize: 12, color: "var(--text-dim)", margin: 0 }}>
                   {c.pendingConditions.map((p, idx) => (
                     <li key={idx}>{p}</li>
@@ -170,16 +172,24 @@ export default async function AnalysisPage() {
         </p>
         <p style={{ fontSize: 13 }}>
           Each playbook requires M1 AND M2 AND M3 AND M4 (weekly Dow, weekly Elliott position,
-          daily Dow, daily wave + MACD Tide) to all pass before the hourly chart is even opened.
-          Those four gates are real, automated results. M5 (hourly Elliott setup) has real evidence
-          whenever one of the {HOURLY_ROUTES_NOTE}, actually matched -- see each stock&apos;s "1-hour
-          route evidence" below; M6-M8 (PAPA trigger, SMM Hat, reward:risk) still require
-          confirmation-group/veto/reward-risk logic this project has not built yet (see{" "}
-          <code>docs/architecture-plan.md</code>, Phase 4 REMAINING), so they stay{" "}
-          <Badge status="MANUAL_REVIEW" />. <strong>Final action is always WAIT today</strong> --
-          this pipeline has no honest basis to call BUY or SELL until M5-M8 can all resolve. Expand
-          a stock to see every gate&apos;s real observed values and explanation, the full 1-hour
-          route evidence when one exists, and exactly which condition is still open.
+          daily Dow, daily wave + MACD Tide) to all pass before the hourly chart is even opened --
+          real, automated gates. As of Correction Cycle 2 (2026-09-11), M5-M8 are real too: M5
+          (hourly Elliott setup) matches whenever one of {HOURLY_ROUTES_NOTE}, actually matched; M6
+          (PAPA price-action trigger) requires a same-direction formation to have
+          actually TRIGGERED, not merely been observed; M7 (SMM Bull/Bear Hat) requires the daily
+          Tide and the hourly Wave to agree; M8 (reward:risk) requires a strict ratio above 3,
+          computed from the selected route&apos;s own stop and target. A stock only shows{" "}
+          <Badge status="BUY" />/<Badge status="SELL" /> when ALL EIGHT gates pass, at least 4 of 5
+          confirmation groups are supportive, and zero vetoes have fired --{" "}
+          <strong>otherwise it stays WAIT</strong>, with the specific blocking gate/group/veto
+          named below, never a bare unexplained WAIT. Three of the ten hourly routes (BUY-2, BUY-3/
+          SELL-2, BUY-5/SELL-5) and a few PAPA formations (Sandwich, Rounding Bottom/Top,
+          Accumulation/Distribution, Tweezers) remain unimplemented -- each for its own disclosed
+          reason (see <code>docs/swing-strategy-extraction.md</code> and each module&apos;s own
+          header comment) -- so a WAIT verdict does not always mean a setup failed; it can also
+          mean no implemented route/formation matched yet. Expand a stock to see every gate&apos;s
+          real observed values and explanation, the full 1-hour route evidence when one exists, and
+          exactly which condition is still open.
         </p>
       </div>
 

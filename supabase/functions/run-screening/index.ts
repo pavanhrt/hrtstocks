@@ -56,7 +56,15 @@ import { buildDirectionAnalysis, ALGORITHM_VERSION as DIRECTION_ALGORITHM_VERSIO
 import { detectCandlestickPatterns, detectDoubleExtremePatterns, PATTERN_PARAM_VERSION } from "./features/patterns.js";
 import { computeFinalAlignment } from "./features/alignment.js";
 import { evaluateSwingHypothesis, directionLockPassed } from "./features/swing-analysis.js";
-import { detectWave3Ignition, detectWave2Pullback } from "./features/hourly-routes.js";
+import { detectWave3Ignition, detectWave2Pullback, detectWave5Exhaustion } from "./features/hourly-routes.js";
+import { evaluateHourlyAdxCondition } from "./features/hourly-conditions.js";
+import { zigzagPivots, classifyDowStructure, aggregateBars } from "./features/structure.js";
+import { macdHistogramPhase } from "./features/indicators.js";
+import { detectTriggeredPapaFormations } from "./features/papa-formations.js";
+import { evaluateSmmHat } from "./features/smm-hat.js";
+import { computeRewardRisk } from "./features/reward-risk.js";
+import { evaluateConfirmationGroups } from "./features/confirmation-groups.js";
+import { evaluateSwingVetoes } from "./features/swing-vetoes.js";
 import { computeAdjustedBars, ADJUSTMENT_VERSION } from "./features/corporate-actions.js";
 import { renderChartSvg, RENDER_VERSION } from "./charts/render.js";
 import { evaluateRules } from "./rules/evaluate.js";
@@ -972,7 +980,7 @@ async function evaluateInstrument({ supabase, runId, runDate, instrument, ruleDe
   // bearish are always separate rows (problem #15). Failure here must never
   // block instrument_run_results below.
   try {
-    await persistSwingAnalysisResults({ supabase, runId, instrument, traces, routeEvidence });
+    await persistSwingAnalysisResults({ supabase, runId, instrument, traces, routeEvidence, dailyBars: bars, parameterValues: parameterValues.documented ?? {} });
   } catch (err) {
     await logStage(
       supabase,
@@ -1013,34 +1021,77 @@ async function evaluateInstrument({ supabase, runId, runDate, instrument, ruleDe
  * instrument once; swing_analysis_rule_traces is delete-then-insert under
  * that result's id so a retry within the same run_id never leaves stale
  * duplicate traces.
+ *
+ * Assembles the full M5-M8 evidence bundle (route selection, M6 PAPA
+ * trigger, M7 SMM Hat, M8 reward:risk, the 5 confirmation groups, vetoes)
+ * per hypothesis and hands it to evaluateSwingHypothesis, which is the one
+ * place finalAction actually gets decided -- this function only gathers
+ * evidence, it never computes a verdict itself.
  */
-async function persistSwingAnalysisResults({ supabase, runId, instrument, traces, routeEvidence }) {
-  for (const hypothesis of ["bullish", "bearish"]) {
-    const analysis = evaluateSwingHypothesis(hypothesis, traces);
-    if (!analysis) continue; // no WBP-/WSP- gates evaluated this run -- strategy not seeded/active yet
+async function persistSwingAnalysisResults({ supabase, runId, instrument, traces, routeEvidence, dailyBars, parameterValues }) {
+  const minimumRewardRiskStrict = parameterValues.swing_minimum_reward_risk_strict ?? null;
+  const hourlyBars = routeEvidence?.hourlyBars ?? [];
+  const latestDailyClose = dailyBars.length > 0 ? dailyBars[dailyBars.length - 1].close : null;
+  const dailyStructure = routeEvidence
+    ? { state: routeEvidence.dailyDowState, lastSwingHigh: routeEvidence.dailySwingHigh, lastSwingLow: routeEvidence.dailySwingLow }
+    : null;
 
-    // Route evidence (features/hourly-routes.js -- BUY-1/SELL-3 and
-    // BUY-4/SELL-4 so far, see that file's own scope note for the rest) is
-    // supplementary, never authoritative on its own: WBP-M5/WSP-S5 requires
-    // ruling in/out all 5 routes, not just the ones implemented, so finding
-    // a fully-confirmed setup still doesn't flip final_action away from
-    // WAIT -- it's disclosed in pending_conditions instead, alongside the
-    // still-missing M6-M8. A wave hypothesis can only be in one Elliott
-    // position at a time, so at most one detector should match today, but
-    // this handles routeEvidence as an array (0, 1, or more matches) rather
-    // than assuming that stays true as more routes are added.
+  for (const hypothesis of ["bullish", "bearish"]) {
+    const bullish = hypothesis === "bullish";
+
+    // Route evidence (features/hourly-routes.js -- 5 of the 10 documented
+    // routes so far, see that file's own scope note for the rest). A wave
+    // hypothesis can only be in one Elliott position at a time, so at most
+    // one detector should match today, but this handles routeEvidence as an
+    // array (0, 1, or more matches) rather than assuming that stays true as
+    // more routes are added. When no route's required checks all pass, the
+    // FIRST detected-but-unconfirmed route (if any) is still surfaced as
+    // `selectedRouteForEvidence` for the reward:risk/veto checks below to
+    // work against -- evaluateSwingHypothesis itself only ever treats a
+    // route as satisfying M5 when `requiredChecksPassed` is true, so this
+    // never lets an unconfirmed route masquerade as a real M5 pass.
     const routes = routeEvidence?.[hypothesis] ?? [];
     const passingRoute = routes.find((r) => r.requiredChecksPassed);
-    if (passingRoute) {
-      analysis.selectedRoute = passingRoute.route;
-    }
-    for (const r of routes) {
-      analysis.pendingConditions.push(
-        r.requiredChecksPassed
-          ? `${r.route}'s required checks all pass -- WAIT still stands: WBP-M5/WSP-S5 requires checking all 5 routes, not just this one, and M6-M8 remain unautomated`
-          : `${r.route} detected (${r.state}) but its required checks are not all confirmed yet -- see route_evidence`
-      );
-    }
+    const selectedRouteForEvidence = passingRoute ?? routes[0] ?? null;
+
+    const papaFormationTriggered = (routeEvidence?.papaFormations?.[hypothesis]?.length ?? 0) > 0;
+    const smmHat = routeEvidence?.smmHat?.[hypothesis] ?? null;
+    const latestHourlyClose = hourlyBars.length > 0 ? hourlyBars[hourlyBars.length - 1].close : null;
+
+    const rewardRisk =
+      minimumRewardRiskStrict != null
+        ? computeRewardRisk({ route: selectedRouteForEvidence, bullish, currentPrice: latestHourlyClose, minimumRewardRiskStrict })
+        : null;
+
+    const confirmationGroups = evaluateConfirmationGroups({
+      directionLockPassed: directionLockPassed(hypothesis, traces),
+      selectedRoute: selectedRouteForEvidence,
+      papaFormationTriggered,
+      smmHat,
+      adxCondition: routeEvidence?.adxCondition ?? null,
+    });
+
+    const vetoes = evaluateSwingVetoes({
+      route: selectedRouteForEvidence,
+      bullish,
+      hourlyBars,
+      dailyStructure,
+      latestDailyClose,
+      weeklyMacdHistogramChange: routeEvidence?.weeklyMacdHistogramChange ?? null,
+      rewardRiskRatio: rewardRisk?.rewardRiskRatio ?? null,
+      minimumRewardRiskStrict,
+    });
+
+    const analysis = evaluateSwingHypothesis(hypothesis, traces, {
+      adxCondition: routeEvidence?.adxCondition ?? null,
+      selectedRoute: selectedRouteForEvidence,
+      papaFormationTriggered,
+      smmHat,
+      rewardRisk,
+      confirmationGroups,
+      vetoes,
+    });
+    if (!analysis) continue; // no WBP-/WSP- gates evaluated this run -- strategy not seeded/active yet
 
     const { data: resultRow, error: resultError } = await supabase
       .from("swing_analysis_results")
@@ -1055,6 +1106,7 @@ async function persistSwingAnalysisResults({ supabase, runId, instrument, traces
           confirmation_groups: analysis.confirmationGroups,
           confirmation_groups_passed: analysis.confirmationGroupsPassed,
           vetoes: analysis.vetoes,
+          combination_matrix: Object.keys(analysis.combinationMatrix).length > 0 ? analysis.combinationMatrix : null,
           pending_conditions: analysis.pendingConditions,
           entry_price: analysis.entryPrice,
           structural_stop: analysis.structuralStop,
@@ -1101,13 +1153,25 @@ async function persistSwingAnalysisResults({ supabase, runId, instrument, traces
 /**
  * Fetches the trailing ~30 days of 1-hour bars (providers/fyers.js's
  * fetchHourlyOHLCV), upserts them into market_bars_raw with interval='1h',
- * then runs every implemented hourly route detector (features/hourly-routes.js:
- * detectWave3Ignition and detectWave2Pullback so far) against whichever
- * hypothesis actually qualified (bullishQualifiesForHourly/
- * bearishQualifiesForHourly, from directionLockPassed()). A wave hypothesis
- * can only be in one Elliott position at a time, so in practice at most one
- * detector matches per hypothesis today -- but this collects an array
- * rather than assuming that stays true as more routes are added.
+ * then computes every piece of real M5-M8 evidence this cycle's modules can
+ * produce, against whichever hypothesis actually qualified
+ * (bullishQualifiesForHourly/bearishQualifiesForHourly, from
+ * directionLockPassed()):
+ *   - M5 (features/hourly-routes.js): detectWave3Ignition/detectWave2Pullback
+ *     for both hypotheses, plus detectWave5Exhaustion for the bearish
+ *     hypothesis only (SELL-1 has no bullish mirror -- it tests a completed
+ *     BULLISH impulse exhausting into a bearish signal). A wave hypothesis
+ *     can only be in one Elliott position at a time, so in practice at most
+ *     one detector matches per hypothesis today -- but this collects an
+ *     array rather than assuming that stays true as more routes are added.
+ *   - M6 (features/papa-formations.js): every TRIGGERED PAPA formation.
+ *   - M7 (features/smm-hat.js): the Bull/Bear Hat, reusing the SAME daily
+ *     MACD histogram phase and Dow state WBP-M4/WSP-S4 already read from
+ *     `traces` (recomputed here directly on `dailyBars` rather than parsed
+ *     back out of the trace array, since this function doesn't receive
+ *     `traces` -- same inputs, same result).
+ *   - The hourly combination-matrix ADX WAIT condition
+ *     (features/hourly-conditions.js), unchanged from before this cycle.
  *
  * Unlike the daily bars write, there is NO safe old-schema fallback here:
  * the pre-migration unique constraint is (instrument_id, session_date,
@@ -1119,10 +1183,16 @@ async function persistSwingAnalysisResults({ supabase, runId, instrument, traces
  * evidence for the instrument, same as any other NO_DATA outcome -- never a
  * corrupted daily bar.
  *
- * @returns {{bullish: object[], bearish: object[]}|null} every matching route
- *   detector's result per hypothesis (only for the hypothesis(es) that
- *   qualified), or null if there were no hourly bars to work with (or the
- *   required zigzag_hourly_pct/dailyZigzagPct/hour_slot_volume_lookback_sessions
+ * @returns {{bullish: object[], bearish: object[], adxCondition: object|null,
+ *   papaFormations: {bullish: object[], bearish: object[]},
+ *   smmHat: {bullish: object|null, bearish: object|null},
+ *   weeklyMacdHistogramChange: string|null,
+ *   dailyDowState: string|null, dailySwingHigh: number|null, dailySwingLow: number|null,
+ *   hourlyBars: object[]}|null}
+ *   every matching route detector's result per hypothesis (only for the
+ *   hypothesis(es) that qualified) plus the rest of the M5-M8 evidence, or
+ *   null if there were no hourly bars to work with (or the required
+ *   zigzag_hourly_pct/dailyZigzagPct/hour_slot_volume_lookback_sessions
  *   parameters are unresolved -- never guessed)
  */
 async function ingestHourlyBarsAndDetectRoutes({ supabase, instrument, dailyBars, parameterValues, bullishQualifiesForHourly, bearishQualifiesForHourly }) {
@@ -1152,15 +1222,63 @@ async function ingestHourlyBarsAndDetectRoutes({ supabase, instrument, dailyBars
   const hourSlotVolumeLookbackSessions = parameterValues.hour_slot_volume_lookback_sessions;
   if (hourlyZigzagPct == null || dailyZigzagPct == null || hourSlotVolumeLookbackSessions == null) return null;
 
-  const detectAll = (bullish) =>
-    [
+  const detectAll = (bullish) => {
+    const routes = [
       detectWave3Ignition({ hourlyBars, dailyBars, bullish, hourlyZigzagPct, dailyZigzagPct, hourSlotVolumeLookbackSessions }),
       detectWave2Pullback({ hourlyBars, bullish, hourlyZigzagPct }),
-    ].filter(Boolean);
+    ];
+    if (!bullish) routes.push(detectWave5Exhaustion({ hourlyBars, dailyBars, hourlyZigzagPct, dailyZigzagPct, hourSlotVolumeLookbackSessions }));
+    return routes.filter(Boolean);
+  };
+
+  const adxDmiPeriod = parameterValues.adx_dmi_period;
+  const waitBelowThreshold = parameterValues.swing_hourly_adx_wait_below;
+  const flatCeiling = parameterValues.swing_hourly_adx_flat_ceiling;
+  const adxCondition =
+    adxDmiPeriod == null || waitBelowThreshold == null || flatCeiling == null
+      ? null
+      : evaluateHourlyAdxCondition({
+          highs: hourlyBars.map((b) => b.high),
+          lows: hourlyBars.map((b) => b.low),
+          closes: hourlyBars.map((b) => b.close),
+          period: adxDmiPeriod,
+          waitBelowThreshold,
+          flatCeiling,
+        });
+
+  // M6/M7 evidence shared across both hypotheses' own directional detectors.
+  const dailyPivots = zigzagPivots(dailyBars, dailyZigzagPct);
+  const dailyDowStructure = classifyDowStructure(dailyPivots, dailyBars[dailyBars.length - 1].close);
+  const hourlyPivots = zigzagPivots(hourlyBars, hourlyZigzagPct);
+
+  const macdFast = parameterValues.macd_fast;
+  const macdSlow = parameterValues.macd_slow;
+  const macdSignal = parameterValues.macd_signal;
+  const macdParamsResolved = macdFast != null && macdSlow != null && macdSignal != null;
+  const dailyMacdHistogramPhase = macdParamsResolved ? macdHistogramPhase(dailyBars.map((b) => b.close), macdFast, macdSlow, macdSignal, 4) : { change: null, priorPhase: null };
+  const weeklyMacdHistogramChange = macdParamsResolved ? macdHistogramPhase(aggregateBars(dailyBars, "weekly").map((b) => b.close), macdFast, macdSlow, macdSignal, 4).change : null;
+
+  const papaFormationsFor = (bullish) => detectTriggeredPapaFormations({ hourlyBars, hourlyPivots, dailyPivots, bullish });
+  const smmHatFor = (bullish) =>
+    evaluateSmmHat({ dailyMacdHistogramPhase, dailyDowState: dailyDowStructure.state, hourlyBars, hourSlotVolumeLookbackSessions, bullish });
 
   return {
     bullish: bullishQualifiesForHourly ? detectAll(true) : [],
     bearish: bearishQualifiesForHourly ? detectAll(false) : [],
+    adxCondition,
+    papaFormations: {
+      bullish: bullishQualifiesForHourly ? papaFormationsFor(true) : [],
+      bearish: bearishQualifiesForHourly ? papaFormationsFor(false) : [],
+    },
+    smmHat: {
+      bullish: bullishQualifiesForHourly ? smmHatFor(true) : null,
+      bearish: bearishQualifiesForHourly ? smmHatFor(false) : null,
+    },
+    weeklyMacdHistogramChange,
+    dailyDowState: dailyDowStructure.state,
+    dailySwingHigh: dailyDowStructure.lastSwingHigh,
+    dailySwingLow: dailyDowStructure.lastSwingLow,
+    hourlyBars,
   };
 }
 

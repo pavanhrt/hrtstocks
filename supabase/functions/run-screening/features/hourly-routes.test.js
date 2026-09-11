@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { detectWave3Ignition, detectWave2Pullback } from "./hourly-routes.js";
+import { detectWave3Ignition, detectWave2Pullback, detectWave5Exhaustion } from "./hourly-routes.js";
 
 function hbar({ date, sessionDate, slotIndex, low, high, close, open, volume }) {
   return { date, sessionDate, slotIndex, low, high, close, open: open ?? close, volume };
@@ -297,4 +297,100 @@ test("detectWave2Pullback: bearish mirror (SELL-4) detects a symmetric bounce-fa
   assert.equal(result.trigger.patternName, "Bearish Engulfing");
   assert.equal(result.stop, 80); // above the rally high -- NOT the wave-1 origin, unlike BUY-4
   assert.equal(result.requiredChecksPassed, true);
+});
+
+// --- detectWave5Exhaustion (SELL-1 "Wave 5 Exhaustion", no bullish mirror) ---
+
+const EXHAUSTION_DAILY_BARS = [dbar("2026-08-01", { low: 95, high: 105, close: 100 }), dbar("2026-08-02", { low: 95, high: 105, close: 100 })];
+
+// A completed bullish 5-wave impulse: origin L100 -> wave1 H141 -> wave2 L118
+// -> wave3 H176 (fast, heavy-volume rally) -> wave4 L149 -> wave5 H183 (a
+// genuine new high, but a much smaller/slower advance -- both the
+// exhaustion-signature arithmetic AND the hourly RSI end up weaker at wave 5
+// than at wave 3, a real (not hand-forced) bearish divergence). 13 flat
+// padding bars precede the impulse purely so RSI(14) has enough history to
+// resolve by the time wave 3 forms. Every intermediate bar is deliberately
+// "thin" (small own high-low range) except where a pivot is meant to touch
+// an extreme -- a wide-ranged bar processed while its own side of the zigzag
+// walk is already tracking the running extreme can spuriously self-confirm
+// an unintended pivot (verified interactively while building this fixture).
+function wave5ExhaustionHourlyBars({ finalTriggerClose = 134 } = {}) {
+  const bars = [];
+  let d = 0;
+  const addBar = (sessionIdx, slotIndex, low, high, close, open, volume = 1000) => {
+    d++;
+    bars.push(hbar({ date: `D${d}`, sessionDate: `2026-09-${String(10 + sessionIdx).padStart(2, "0")}`, slotIndex, low, high, close, open, volume }));
+  };
+  for (let i = 0; i < 13; i++) addBar(0, i % 5, 100, 100, 100, 100);
+  addBar(1, 0, 100, 141, 140, 100, 1000); // wave1 candidate H141
+  addBar(1, 1, 118, 140, 120, 140, 1000); // confirms wave1@141, sets wave2 candidate L118
+  addBar(2, 0, 120, 176, 175, 120, 3000); // confirms wave2@118, sets wave3 candidate H176 -- heavy volume
+  addBar(2, 1, 149, 155, 150, 175, 1000); // confirms wave3@176, sets wave4 candidate L149
+  addBar(3, 0, 150, 160, 158, 151, 1000); // confirms wave4@149, sets running high 160
+  addBar(3, 1, 179, 183, 182, 161, 400); // wave5 candidate H183 (not yet confirmed) -- light volume
+  addBar(3, 2, 170, 174, 171, 173, 400); // confirms wave5@183 (retrace 7.1% from 183) -- light volume
+  addBar(4, 0, 160, 163, 161, 163, 1000); // decline, thin
+  addBar(4, 1, 152, 155, 153, 155, 1000); // decline, thin
+  addBar(4, 2, 144, 147, 145, 147, 1000); // trigger: close 145 < wave4 low (149)
+  addBar(4, 3, 133, 137, finalTriggerClose, 137, 2000); // further decline (not needed for the trigger itself)
+  return bars;
+}
+
+test("detectWave5Exhaustion returns null when no completed bullish 5-wave impulse is present at all", () => {
+  const bars = [
+    hbar({ date: "A0", sessionDate: "2026-09-08", slotIndex: 0, low: 100, high: 100, close: 100, volume: 500 }),
+    hbar({ date: "A1", sessionDate: "2026-09-08", slotIndex: 1, low: 100, high: 100, close: 100, volume: 500 }),
+  ];
+  const result = detectWave5Exhaustion({
+    hourlyBars: bars,
+    dailyBars: EXHAUSTION_DAILY_BARS,
+    hourlyZigzagPct: 0.05,
+    dailyZigzagPct: 0.02,
+    hourSlotVolumeLookbackSessions: 15,
+  });
+  assert.equal(result, null);
+});
+
+test("detectWave5Exhaustion: a clean exhaustion setup -- weaker wave 5, real hourly RSI divergence, a wave3>wave5 hour-slot volume falloff, and a confirmed trigger -- all passes", () => {
+  const result = detectWave5Exhaustion({
+    hourlyBars: wave5ExhaustionHourlyBars(),
+    dailyBars: EXHAUSTION_DAILY_BARS,
+    hourlyZigzagPct: 0.05,
+    dailyZigzagPct: 0.02,
+    hourSlotVolumeLookbackSessions: 15,
+  });
+  assert.ok(result);
+  assert.equal(result.route, "SELL-1");
+  assert.equal(result.wave3.price, 176);
+  assert.equal(result.wave4.price, 149);
+  assert.equal(result.wave5.price, 183);
+  assert.equal(result.exhaustionSignature.weakerThanWave3, true);
+  assert.equal(result.exhaustionSignature.truncated, false);
+  assert.equal(result.exhaustionSignature.passes, true);
+  assert.ok(result.divergence.rsiAtWave3 !== null && result.divergence.rsiAtWave5 !== null);
+  assert.equal(result.divergence.priceMadeHigherHigh, true);
+  assert.ok(result.divergence.rsiAtWave5 < result.divergence.rsiAtWave3); // the actual computed RSI values, not hand-forced
+  assert.equal(result.divergence.bearishDivergence, true);
+  assert.equal(result.waveVolumeComparison.wave3ExceedsWave5, true);
+  assert.equal(result.trigger.close, 145);
+  assert.equal(result.trigger.confirmed, true);
+  assert.equal(result.triggerVolumeCheck.triggerAboveHourSlotAverage, true);
+  assert.equal(result.stop, 183); // above the wave-5 high
+  assert.equal(result.requiredChecksPassed, true);
+});
+
+test("detectWave5Exhaustion: no trigger yet (price hasn't broken wave 4's low) reports trigger=null and requiredChecksPassed=false", () => {
+  const bars = wave5ExhaustionHourlyBars().slice(0, 20); // stop before the bar that closes below wave 4's low
+  const result = detectWave5Exhaustion({
+    hourlyBars: bars,
+    dailyBars: EXHAUSTION_DAILY_BARS,
+    hourlyZigzagPct: 0.05,
+    dailyZigzagPct: 0.02,
+    hourSlotVolumeLookbackSessions: 15,
+  });
+  assert.ok(result);
+  assert.equal(result.exhaustionSignature.passes, true); // the structural/divergence/volume evidence is already resolved
+  assert.equal(result.trigger, null);
+  assert.equal(result.triggerVolumeCheck, null);
+  assert.equal(result.requiredChecksPassed, false);
 });
