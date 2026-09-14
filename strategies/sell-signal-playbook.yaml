@@ -27,6 +27,7 @@ rules:
     playbook_gate: S1
     name: Monthly Dow structure (bearish)
     source_status: DOCUMENTED
+    source_refs: {document: "playbooks/SELL_Signal_Playbook.md", locator: "§3, S1 Monthly Dow table, lines 90-95"}
     timeframe: monthly
     direction: bearish
     inputs: [monthly_dow_state, monthly_range_breakout_down_with_volume]
@@ -51,6 +52,7 @@ rules:
     playbook_gate: S2
     name: Monthly Elliott position (Primary degree, bearish)
     source_status: UNRESOLVED
+    source_refs: {document: "playbooks/SELL_Signal_Playbook.md", locator: "§3, S2 Monthly Elliott, lines 99-117"}
     timeframe: monthly
     direction: bearish
     inputs: [monthly_elliott_position]
@@ -64,6 +66,7 @@ rules:
     playbook_gate: S3
     name: Weekly Dow structure (bearish)
     source_status: DOCUMENTED
+    source_refs: {document: "playbooks/SELL_Signal_Playbook.md", locator: "§4, S3 Weekly Dow table, lines 123-134"}
     timeframe: weekly
     direction: bearish
     inputs: [weekly_dow_state, weekly_range_breakout_down_with_volume]
@@ -82,6 +85,7 @@ rules:
     playbook_gate: S4a
     name: Weekly Elliott position (Intermediate degree, bearish)
     source_status: UNRESOLVED
+    source_refs: {document: "playbooks/SELL_Signal_Playbook.md", locator: "§4, S4a Weekly Elliott, lines 136-150"}
     timeframe: weekly
     direction: bearish
     inputs: [weekly_elliott_position]
@@ -95,6 +99,7 @@ rules:
     playbook_gate: S4b
     name: Weekly MACD Tide + visual Dow confirmation (bearish)
     source_status: DOCUMENTED
+    source_refs: {document: "playbooks/SELL_Signal_Playbook.md", locator: "§4, S4b Weekly MACD Tide, lines 152-168"}
     timeframe: weekly
     direction: bearish
     inputs: [weekly_macd_histogram_change, weekly_macd_histogram_prior_phase, weekly_dow_state]
@@ -112,6 +117,7 @@ rules:
     playbook_gate: S5
     name: Daily Elliott setup (SELL-1..SELL-5)
     source_status: UNRESOLVED
+    source_refs: {document: "playbooks/SELL_Signal_Playbook.md", locator: "§5, S5 Daily Elliott routes SELL-1 through SELL-5"}
     timeframe: daily
     direction: bearish
     inputs: [daily_elliott_setup]
@@ -125,6 +131,7 @@ rules:
     playbook_gate: S6
     name: PAPA price-action trigger (sell)
     source_status: UNRESOLVED
+    source_refs: {document: "playbooks/SELL_Signal_Playbook.md", locator: "§6, S6 PAPA price-action trigger"}
     timeframe: daily
     direction: bearish
     inputs: [papa_sell_setup_triggered]
@@ -138,6 +145,7 @@ rules:
     playbook_gate: S7 Step 1
     name: Bear Hat Step 1 -- the Tide (monthly, positional variant)
     source_status: DOCUMENTED
+    source_refs: {document: "playbooks/SELL_Signal_Playbook.md", locator: "§7, S7 Bear Hat Step 1"}
     timeframe: monthly
     direction: bearish
     inputs: [monthly_macd_histogram_change, monthly_macd_histogram_prior_phase, monthly_dow_state]
@@ -156,6 +164,7 @@ rules:
     playbook_gate: S7 Step 2
     name: Bear Hat Step 2 -- the Wave (daily Stochastic/RSI sell signal)
     source_status: DOCUMENTED
+    source_refs: {document: "playbooks/SELL_Signal_Playbook.md", locator: "§7, S7 Bear Hat Step 2"}
     timeframe: daily
     direction: bearish
     inputs: [daily_stochastic_k, daily_stochastic_d, daily_stochastic_k_previous, daily_stochastic_d_previous, daily_rsi, daily_rsi_previous]
@@ -175,6 +184,7 @@ rules:
     playbook_gate: S8
     name: Reward-to-risk gate (> 3, short)
     source_status: UNRESOLVED
+    source_refs: {document: "playbooks/SELL_Signal_Playbook.md", locator: "§8, S8 reward-to-risk gate"}
     timeframe: daily
     direction: bearish
     inputs: [entry, stop_loss, target]

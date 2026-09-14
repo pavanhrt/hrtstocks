@@ -37,6 +37,18 @@ test("detectCandlestickPatterns finds a Bullish Engulfing after a downtrend and 
   assert.equal(hit.sourceLocator, "smm-chart-analysis-SKILL.md §4-§5 / papa-price-action-SKILL.md §1");
 });
 
+test("candlestick lifecycle marks a triggered setup invalidated after a later close through its stop", () => {
+  const bars = [
+    ...downtrendInto(20),
+    bar("2024-01-07", 20, 20.2, 17, 19),
+    bar("2024-01-08", 18.5, 23, 18.3, 22.5),
+    bar("2024-01-09", 18, 18.2, 16, 16.5),
+  ];
+  const hit = detectCandlestickPatterns(bars).find((r) => r.patternName === "Bullish Engulfing");
+  assert.equal(hit.state, "FAILED");
+  assert.equal(hit.lifecycleState, "INVALIDATED");
+});
+
 test("detectCandlestickPatterns finds a Bearish Engulfing after an uptrend", () => {
   const bars = [...uptrendInto(20), bar("2024-01-07", 20, 20.2, 17.8, 22), bar("2024-01-08", 22.5, 22.7, 17, 18)];
   const results = detectCandlestickPatterns(bars);
@@ -96,18 +108,20 @@ test("detectCandlestickPatterns finds Bullish Piercing (close beyond the prior c
   assert.ok(piercingHit);
   assert.equal(piercingHit.direction, "bullish");
 
-  const darkCloud = [...uptrendInto(20), bar("2024-01-07", 18, 20.5, 17.8, 20), bar("2024-01-08", 20.5, 20.7, 17.5, 18.5)];
+  const darkCloud = [...uptrendInto(20), bar("2024-01-07", 18, 20.5, 17.8, 20), bar("2024-01-08", 20.5, 20.7, 17.5, 18.5), bar("2024-01-09", 18.4, 18.5, 17, 17.5)];
   const darkCloudHit = detectCandlestickPatterns(darkCloud).find((r) => r.patternName === "Bearish Dark Cloud Cover");
   assert.ok(darkCloudHit);
   assert.equal(darkCloudHit.direction, "bearish");
+  assert.equal(darkCloudHit.state, "TRIGGERED");
+  assert.equal(darkCloudHit.triggerBarDate, "2024-01-09");
 });
 
 test("detectCandlestickPatterns finds Morning Star and Evening Star 3-candle formations", () => {
   const morning = [
     ...downtrendInto(20).slice(0, 4),
     bar("2024-01-05", 14, 14.2, 10, 10.5), // long red
-    bar("2024-01-06", 10.3, 10.6, 10, 10.4), // small body
-    bar("2024-01-07", 10.5, 13.5, 10.4, 13), // strong green closing above c1's median
+    bar("2024-01-06", 10.2, 10.4, 9.8, 10.3), // small body; gap down and lower low
+    bar("2024-01-07", 10.5, 13.5, 10.4, 13), // gap up; strong green closing above c1's median
   ];
   const morningHit = detectCandlestickPatterns(morning).find((r) => r.patternName === "Morning Star");
   assert.ok(morningHit, "expected Morning Star");
@@ -116,12 +130,22 @@ test("detectCandlestickPatterns finds Morning Star and Evening Star 3-candle for
   const evening = [
     ...uptrendInto(20).slice(0, 4),
     bar("2024-01-05", 20, 24, 19.8, 23.5), // long green
-    bar("2024-01-06", 23.6, 23.9, 23.4, 23.7), // small body
-    bar("2024-01-07", 23.5, 23.6, 20, 20.5), // strong red closing below c1's median
+    bar("2024-01-06", 23.8, 24.3, 23.7, 23.9), // small body; gap up and higher high
+    bar("2024-01-07", 23.5, 23.6, 20, 20.5), // gap down; strong red closing below c1's median
   ];
   const eveningHit = detectCandlestickPatterns(evening).find((r) => r.patternName === "Evening Star");
   assert.ok(eveningHit, "expected Evening Star");
   assert.equal(eveningHit.direction, "bearish");
+});
+
+test("star patterns require their documented gaps and relative middle-candle extreme", () => {
+  const noGapMorning = [
+    ...downtrendInto(20).slice(0, 4),
+    bar("2024-01-05", 14, 14.2, 10, 10.5),
+    bar("2024-01-06", 11, 11.2, 10.2, 11.1), // opens above c1 close; no gap-down
+    bar("2024-01-07", 11.2, 13.5, 11, 13),
+  ];
+  assert.equal(detectCandlestickPatterns(noGapMorning).some((r) => r.patternName === "Morning Star"), false);
 });
 
 test("detectDoubleExtremePatterns finds a Double Top within tolerance, prior uptrend required, and triggers on a neckline close", () => {
@@ -174,4 +198,31 @@ test("detectDoubleExtremePatterns rejects a pair of highs outside the tolerance 
   const bars = [bar("2024-04-02", 140, 141, 95, 96)];
   const results = detectDoubleExtremePatterns(pivots, bars);
   assert.equal(results.find((r) => r.patternName === "Double Top"), undefined);
+});
+
+test("detectDoubleExtremePatterns never treats missing prior-trend evidence as a pass", () => {
+  const pivots = [
+    { type: "HH", price: 120, date: "2024-02-01" },
+    { type: "HL", price: 100, date: "2024-03-01" },
+    { type: "EH", price: 121, date: "2024-04-01" },
+  ];
+  const bars = [bar("2024-04-01", 118, 121, 117, 121), bar("2024-04-02", 108, 109, 95, 96)];
+  assert.equal(detectDoubleExtremePatterns(pivots, bars).some((r) => r.patternName === "Double Top"), false);
+});
+
+test("double-extreme lifecycle distinguishes a completed target from a still-live trigger", () => {
+  const pivots = [
+    { type: "HL", price: 90, date: "2024-01-01" },
+    { type: "HH", price: 120, date: "2024-02-01" },
+    { type: "HL", price: 100, date: "2024-03-01" },
+    { type: "EH", price: 121, date: "2024-04-01" },
+  ];
+  const bars = [
+    bar("2024-04-01", 118, 121, 117, 121),
+    bar("2024-04-02", 108, 109, 95, 96), // trigger below 100
+    bar("2024-04-03", 96, 97, 79, 81), // reaches measured target 80 intrabar
+  ];
+  const hit = detectDoubleExtremePatterns(pivots, bars).find((r) => r.patternName === "Double Top");
+  assert.equal(hit.state, "HISTORICAL");
+  assert.equal(hit.lifecycleState, "TARGET_COMPLETED");
 });

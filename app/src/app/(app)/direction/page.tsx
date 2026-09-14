@@ -49,15 +49,13 @@ export default async function DirectionPage({
   const isFiltered = query.trim().length > 0 || alignment !== "all";
 
   return (
-    <div style={{ display: "grid", gap: 16 }}>
+    <div className="page-grid">
       <div className="card">
         <h1 style={{ marginTop: 0, fontSize: 20 }}>Direction</h1>
         <p style={{ fontSize: 13, color: "var(--text-dim)" }}>
-          Monthly, weekly, and daily Dow-theory swing structure (HH/HL/LH/LL) for every stock, with a best-effort
-          Elliott-wave label where the last swings validate against GUE&apos;s documented hard gates. Confluence is
-          computed server-side (features/alignment.js, combining all three timeframes plus pattern evidence) --
-          never re-derived in the browser. Charts are replaced in place on each run; if the underlying structure
-          hasn&apos;t changed, the existing chart is kept rather than re-rendered.
+          Complete published equity universe with immutable Monthly, Weekly, and Daily Dow structure, confirmed
+          pivots, Elliott evidence and important pattern breaks. Alignment is calculated server-side and is never
+          inferred in this browser. Unavailable equities remain visible and reconcilable.
         </p>
       </div>
 
@@ -76,7 +74,7 @@ export default async function DirectionPage({
         <div className="card">
           <DirectionControls initialQuery={query} initialAlignment={alignment} />
           <p style={{ color: "var(--text-dim)", fontSize: 12, margin: "0 0 8px" }}>
-            Run {result.runDate} &middot; {result.totalCount} stock{result.totalCount === 1 ? "" : "s"} match
+            Run {result.runDate} &middot; cutoff {result.runCutoff ? new Date(result.runCutoff).toLocaleString("en-IN") : "not recorded"} &middot; {result.totalCount} stock{result.totalCount === 1 ? "" : "s"} match
             {result.totalCount > 0 ? ` -- page ${result.page} of ${result.pageCount}` : ""}.
           </p>
           <DirectionTable rows={result.rows} startIndex={(result.page - 1) * result.pageSize} />

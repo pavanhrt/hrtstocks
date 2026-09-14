@@ -31,7 +31,7 @@ export async function GET(request: Request) {
     "failed_gates",
   ];
   const lines = [header.join(",")];
-  for (const r of rows as any[]) {
+  for (const r of rows) {
     lines.push(
       [
         r.instrument_id,

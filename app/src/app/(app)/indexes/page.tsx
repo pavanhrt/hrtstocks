@@ -37,7 +37,7 @@ export default async function IndexesPage() {
             <tbody>
               {indexResults.map((r) => (
                 <tr key={r.id}>
-                  <td>{(r as any).instruments?.name ?? r.instrument_id}</td>
+                  <td>{r.instruments?.name ?? r.instrument_id}</td>
                   <td>{r.direction ?? "-"}</td>
                   <td>
                     <Badge status={r.terminal_state} />
@@ -75,14 +75,14 @@ export default async function IndexesPage() {
                   new Set(
                     Object.values(history.resultsByRun)
                       .flat()
-                      .map((r: any) => r.instrument_id)
+                      .map((r) => r.instrument_id)
                   )
                 ).map((instrumentId) => (
                   <tr key={instrumentId}>
                     <td>{instrumentId}</td>
                     {history.runs.map((run) => {
                       const row = (history.resultsByRun[run.id] ?? []).find(
-                        (r: any) => r.instrument_id === instrumentId
+                        (r) => r.instrument_id === instrumentId
                       );
                       return <td key={run.id}>{row ? <Badge status={row.terminal_state} /> : "-"}</td>;
                     })}

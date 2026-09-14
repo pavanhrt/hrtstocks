@@ -113,6 +113,23 @@ export function latestCompletedNseSession(nowUtc = new Date()) {
   throw new Error(`No completed NSE trading session found within 14 days back from ${nowUtc.toISOString()}`);
 }
 
+/**
+ * NSE cash-market close for a session date, expressed as UTC. India has no
+ * daylight-saving transition: 15:30 Asia/Kolkata is always 10:00 UTC.
+ */
+export function nseSessionCloseTimestamp(sessionDate) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(sessionDate)) throw new Error(`Invalid NSE session date: ${sessionDate}`);
+  const close = new Date(`${sessionDate}T10:00:00.000Z`);
+  if (!Number.isFinite(close.getTime())) throw new Error(`Invalid NSE session date: ${sessionDate}`);
+  return close.toISOString();
+}
+
+/** Freezes the EOD run's date and cutoff once; callers persist both values. */
+export function freezeEodCutoff(nowUtc = new Date()) {
+  const runDate = latestCompletedNseSession(nowUtc);
+  return { runDate, asOfTimestamp: nseSessionCloseTimestamp(runDate) };
+}
+
 // -----------------------------------------------------------------------
 // Hourly bar boundaries
 // -----------------------------------------------------------------------
@@ -215,4 +232,15 @@ export function normalizeHourlyBars(rawCandles, nowUtc = new Date()) {
     });
   }
   return out;
+}
+
+/**
+ * Normalizes and returns only full hourly candles completed no later than the
+ * immutable run cutoff. This is the EOD pipeline entry point; the more general
+ * normalizeHourlyBars remains useful for explicitly-labelled intraday views.
+ */
+export function normalizeCompletedHourlyBars(rawCandles, cutoffUtc) {
+  const cutoff = cutoffUtc instanceof Date ? cutoffUtc : new Date(cutoffUtc);
+  if (!Number.isFinite(cutoff.getTime())) throw new Error("Invalid hourly cutoff");
+  return normalizeHourlyBars(rawCandles, cutoff).filter((bar) => bar.isComplete);
 }

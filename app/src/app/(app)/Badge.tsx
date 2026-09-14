@@ -1,3 +1,4 @@
 export function Badge({ status }: { status: string }) {
-  return <span className={`badge badge-${status}`}>{status.replace("_", " ")}</span>;
+  const normalized = status.toUpperCase().replace(/[^A-Z0-9]+/g, "_");
+  return <span className={`badge badge-${normalized}`}>{status.replaceAll("_", " ")}</span>;
 }

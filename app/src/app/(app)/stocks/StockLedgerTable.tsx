@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import { Badge } from "../Badge";
 
 type LedgerRow = {
@@ -16,27 +17,24 @@ type LedgerRow = {
   instruments: { symbol: string; name: string | null } | null;
 };
 
-export default function StockLedgerTable({ rows, runId }: { rows: LedgerRow[]; runId: string }) {
-  const [query, setQuery] = useState("");
-  const [tierFilter, setTierFilter] = useState("all");
-  const [stateFilter, setStateFilter] = useState("all");
+export default function StockLedgerTable({ rows, runId, query: initialQuery, tier, state, totalCount, universeCount }: { rows: LedgerRow[]; runId: string; query: string; tier: string; state: string; totalCount: number; universeCount: number }) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const [query, setQuery] = useState(initialQuery);
+  const [tierFilter, setTierFilter] = useState(tier);
+  const [stateFilter, setStateFilter] = useState(state);
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return rows.filter((r) => {
-      if (q) {
-        const hay = `${r.instrument_id} ${r.instruments?.symbol ?? ""} ${r.instruments?.name ?? ""}`.toLowerCase();
-        if (!hay.includes(q)) return false;
-      }
-      if (tierFilter !== "all" && (r.tier ?? "unclassified") !== tierFilter) return false;
-      if (stateFilter !== "all" && r.terminal_state !== stateFilter) return false;
-      return true;
-    });
-  }, [rows, query, tierFilter, stateFilter]);
+  function applyFilters() {
+    const params = new URLSearchParams();
+    if (query.trim()) params.set("q", query.trim());
+    if (tierFilter !== "all") params.set("tier", tierFilter);
+    if (stateFilter !== "all") params.set("state", stateFilter);
+    router.push(params.size ? `${pathname}?${params}` : pathname);
+  }
 
   return (
     <div className="card">
-      <div style={{ display: "flex", gap: 10, marginBottom: 12, flexWrap: "wrap", alignItems: "center" }}>
+      <form className="filter-controls" onSubmit={(event) => { event.preventDefault(); applyFilters(); }}>
         <input
           aria-label="Search symbol or name"
           placeholder="Search symbol or name..."
@@ -61,17 +59,19 @@ export default function StockLedgerTable({ rows, runId }: { rows: LedgerRow[]; r
           <option value="FAIL">FAIL</option>
           <option value="NO_DATA">NO_DATA</option>
         </select>
+        <button type="submit">Apply filters</button>
         <a href={`/api/export/stocks?runId=${runId}`} style={{ marginLeft: "auto" }}>
           Export CSV
         </a>
-      </div>
+      </form>
 
       <p style={{ color: "var(--text-dim)", fontSize: 12, margin: "0 0 8px" }}>
-        Showing {filtered.length} of {rows.length} unique constituents.
+        Showing {rows.length} on this page · {totalCount} match · {universeCount} unique constituents in the published run.
       </p>
 
-      <div style={{ overflowX: "auto" }}>
+      <div className="table-scroll" tabIndex={0} aria-label="Stock ledger; scroll horizontally for all columns">
         <table>
+          <caption className="sr-only">Complete published stock ledger</caption>
           <thead>
             <tr>
               <th>Symbol</th>
@@ -85,7 +85,7 @@ export default function StockLedgerTable({ rows, runId }: { rows: LedgerRow[]; r
             </tr>
           </thead>
           <tbody>
-            {filtered.map((r) => (
+            {rows.map((r) => (
               <tr key={r.id}>
                 <td>
                   <Link href={`/stocks/${r.instrument_id}`}>{r.instruments?.symbol ?? r.instrument_id}</Link>
@@ -98,7 +98,7 @@ export default function StockLedgerTable({ rows, runId }: { rows: LedgerRow[]; r
                 <td>{r.direction ?? "-"}</td>
                 <td>{r.score ?? "-"}</td>
                 <td>{r.data_quality ?? "-"}</td>
-                <td style={{ fontSize: 12, color: "var(--text-dim)" }}>{r.failed_gates?.join(", ") || "-"}</td>
+                <td className="wrap-cell supporting-text">{r.failed_gates?.join(", ") || "-"}</td>
               </tr>
             ))}
           </tbody>

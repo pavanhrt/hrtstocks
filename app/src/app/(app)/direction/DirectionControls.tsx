@@ -34,6 +34,7 @@ export default function DirectionControls({
   const router = useRouter();
   const pathname = usePathname();
   const [query, setQuery] = useState(initialQuery);
+  const [alignment, setAlignment] = useState(initialAlignment);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function navigate(next: { q: string; alignment: FinalAlignment | "all" }) {
@@ -46,15 +47,17 @@ export default function DirectionControls({
   function onQueryChange(value: string) {
     setQuery(value);
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => navigate({ q: value, alignment: initialAlignment }), SEARCH_DEBOUNCE_MS);
+    debounceRef.current = setTimeout(() => navigate({ q: value, alignment }), SEARCH_DEBOUNCE_MS);
   }
 
   function onAlignmentChange(value: string) {
-    navigate({ q: query, alignment: value as FinalAlignment | "all" });
+    const nextAlignment = value as FinalAlignment | "all";
+    setAlignment(nextAlignment);
+    navigate({ q: query, alignment: nextAlignment });
   }
 
   return (
-    <div style={{ display: "flex", gap: 10, marginBottom: 12, flexWrap: "wrap", alignItems: "center" }}>
+    <div className="filter-controls">
       <input
         aria-label="Search symbol or name"
         placeholder="Search symbol or name..."
@@ -62,7 +65,7 @@ export default function DirectionControls({
         onChange={(e) => onQueryChange(e.target.value)}
         style={{ flex: 1, minWidth: 200, padding: "6px 10px" }}
       />
-      <select aria-label="Filter by confluence" value={initialAlignment} onChange={(e) => onAlignmentChange(e.target.value)}>
+      <select aria-label="Filter by confluence" value={alignment} onChange={(e) => onAlignmentChange(e.target.value)}>
         <option value="all">All confluence</option>
         {FINAL_ALIGNMENT_VALUES.map((v) => (
           <option key={v} value={v}>

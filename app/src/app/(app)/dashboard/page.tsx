@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getCurrentUser, roleAtLeast } from "@/lib/auth";
-import { getLatestRun, getCoverage, getTierCounts, getIndexResults, getTopCandidates, getRunProgress } from "@/lib/data/runs";
+import { getLatestRun, getLatestPublishedRun, getCoverage, getTierCounts, getIndexResults, getTopCandidates, getRunProgress } from "@/lib/data/runs";
+import { formatTimestamp, getPublishedRunMetadata } from "@/lib/data/run-metadata";
 import { Badge } from "../Badge";
 import RunScreeningButton from "../RunScreeningButton";
 
@@ -15,48 +16,47 @@ const TIER_LABELS: Record<string, string> = {
 
 export default async function DashboardPage() {
   const user = await getCurrentUser();
-  const run = await getLatestRun();
+  const [latestRun, run] = await Promise.all([getLatestRun(), getLatestPublishedRun()]);
 
   if (!run) {
     return (
       <div className="card">
         <h1 style={{ marginTop: 0 }}>Daily dashboard</h1>
         <p style={{ color: "var(--text-dim)" }}>
-          No screening run has completed yet. Once one runs -- scheduled end-of-day, or triggered
-          manually -- the index regime summary, complete stock ledger, and ranked candidates will
-          appear here.
+          No validated snapshot has been published yet. Operational progress remains available on Data health.
         </p>
         {user && roleAtLeast(user.role, "researcher") && <RunScreeningButton />}
       </div>
     );
   }
 
-  const isInFlight = run.status === "queued" || run.status === "running";
+  const isInFlight = latestRun?.status === "queued" || latestRun?.status === "running";
+  const metadata = getPublishedRunMetadata(run as unknown as Parameters<typeof getPublishedRunMetadata>[0]);
   const [coverage, tierCounts, indexResults, candidates, progress] = await Promise.all([
     getCoverage(run.id),
     getTierCounts(run.id),
     getIndexResults(run.id),
     getTopCandidates(run.id, 10),
-    isInFlight ? getRunProgress(run.id) : Promise.resolve(null),
+    isInFlight && latestRun ? getRunProgress(latestRun.id) : Promise.resolve(null),
   ]);
 
   return (
-    <div style={{ display: "grid", gap: 16 }}>
-      <div className="card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+    <div className="page-grid">
+      <div className="card dashboard-heading">
         <div>
           <h1 style={{ margin: 0, fontSize: 20 }}>Daily dashboard</h1>
           <p style={{ margin: "4px 0 0", color: "var(--text-dim)", fontSize: 13 }}>
-            Run {run.run_date} &middot; {run.mode} &middot; status <Badge status={run.status.toUpperCase()} /> &middot;{" "}
-            universe {run.universe_version} &middot; {run.trigger_type}
+            Published run {run.run_date} &middot; cutoff {formatTimestamp(metadata.cutoff)} &middot; {run.mode} &middot;{" "}
+            publication <Badge status={metadata.publicationState} /> &middot; universe {run.universe_version}
           </p>
         </div>
         {user && roleAtLeast(user.role, "researcher") && <RunScreeningButton />}
       </div>
 
-      {isInFlight && progress && (
+      {isInFlight && latestRun && progress && (
         <div className="card" style={{ borderColor: "var(--watch)" }}>
           <h2 style={{ marginTop: 0, fontSize: 15 }}>
-            Run in progress -- {progress.processedCount}/{progress.expectedCount || "?"} instruments attempted
+            Newer run in progress -- {progress.processedCount}/{progress.expectedCount || "?"} instruments attempted
           </h2>
           <div style={{ display: "flex", gap: 20, flexWrap: "wrap", fontSize: 13 }}>
             <span>Chunks done: <strong>{progress.batchesDone}</strong></span>
@@ -65,8 +65,7 @@ export default async function DashboardPage() {
             <span>Failed: <strong>{progress.batchesFailed}</strong></span>
           </div>
           <p style={{ fontSize: 12, color: "var(--text-dim)", marginBottom: 0 }}>
-            Runs resume automatically (self-continuation, with a recovery sweep as a safety net) --
-            refresh this page to see progress advance. Full detail on <Link href="/data-health">Data health</Link>.
+            Published metrics below remain pinned to run {run.run_date}; unfinished work cannot change them. Full detail on <Link href="/data-health">Data health</Link>.
           </p>
         </div>
       )}
@@ -102,8 +101,9 @@ export default async function DashboardPage() {
 
       <div className="card">
         <h2 style={{ marginTop: 0, fontSize: 15 }}>Index regime summary</h2>
-        <div style={{ overflowX: "auto" }}>
+        <div className="table-scroll" tabIndex={0} aria-label="Index regime summary; scroll horizontally for all columns">
           <table>
+            <caption className="sr-only">Index regime summary for the published run</caption>
             <thead>
               <tr>
                 <th>Index</th>
@@ -122,7 +122,7 @@ export default async function DashboardPage() {
               )}
               {indexResults.map((r) => (
                 <tr key={r.id}>
-                  <td>{(r as any).instruments?.name ?? r.instrument_id}</td>
+                  <td>{r.instruments?.name ?? r.instrument_id}</td>
                   <td>{r.direction ?? "-"}</td>
                   <td>
                     <Badge status={r.terminal_state} />
@@ -140,8 +140,9 @@ export default async function DashboardPage() {
 
       <div className="card">
         <h2 style={{ marginTop: 0, fontSize: 15 }}>Highest-ranked research candidates</h2>
-        <div style={{ overflowX: "auto" }}>
+        <div className="table-scroll" tabIndex={0} aria-label="Ranked candidates; scroll horizontally for all columns">
           <table>
+            <caption className="sr-only">Highest ranked published research candidates</caption>
             <thead>
               <tr>
                 <th>Rank</th>
@@ -164,7 +165,7 @@ export default async function DashboardPage() {
                   <td>{c.rank_within_tier ?? "-"}</td>
                   <td>
                     <Link href={`/stocks/${c.instrument_id}`}>
-                      {(c as any).instruments?.name ?? c.instrument_id}
+                      {c.instruments?.name ?? c.instrument_id}
                     </Link>
                   </td>
                   <td>{TIER_LABELS[c.tier] ?? c.tier}</td>

@@ -7,8 +7,8 @@ export default function BacktestsPage() {
         comparison) is Phase 2 work &mdash; see <code>skills/backtesting/SKILL.md</code> and the
         <code> backtest_runs</code>/<code>backtest_trades</code> entities in{" "}
         <code>references/technical-architecture.md</code>. Phase 1 ships the daily screening
-        pipeline and rule-trace reporting first, per <code>AGENTS.md</code>'s CRITICAL rule 9:
-        "Backtest a strategy before describing it as validated."
+        pipeline and rule-trace reporting first, per <code>AGENTS.md</code>&apos;s CRITICAL rule 9:
+        &ldquo;Backtest a strategy before describing it as validated.&rdquo;
       </p>
     </div>
   );

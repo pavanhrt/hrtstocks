@@ -22,8 +22,14 @@ test("flags reconciliation failure when a tier value isn't one of the six recogn
   assert.equal(result.reconciled, false); // per shared-gates.yaml: publish_when_false must be false
 });
 
-test("empty universe reconciles trivially", () => {
+test("empty universe never reconciles for publication", () => {
   const result = reconcileCoverage([]);
   assert.equal(result.unique_stock_count, 0);
-  assert.equal(result.reconciled, true);
+  assert.equal(result.reconciled, false);
+});
+
+test("expected universe prevents partial results redefining coverage downward", () => {
+  const result = reconcileCoverage([{ tier: "tier_a" }], 2);
+  assert.equal(result.unique_stock_count, 2);
+  assert.equal(result.reconciled, false);
 });

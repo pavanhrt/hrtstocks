@@ -117,7 +117,18 @@ export function evaluateRules(rules, featureContext, parameterValues) {
       explanation,
     });
 
-    if (rule.hard_gate && result !== rule.true_result) {
+    // Only a literal, applicable FAIL may reject an instrument outright.
+    // WATCH/MANUAL_REVIEW/NO_DATA/CONFLICT are all legitimate non-PASS
+    // outcomes with their own terminal-state handling in rank.js#classify --
+    // treating any non-PASS hard-gate result as a rejection (the previous
+    // behavior here) silently converted "couldn't evaluate" and "wait for
+    // confirmation" into "rejected," which is how SMM-TWR-001/002 (whose
+    // false_result is WATCH, not FAIL) and GUE-IMPULSE-001/002/003 (whose
+    // missing_result is MANUAL_REVIEW, since their wave-arithmetic inputs
+    // aren't computed at screening stage) ended up rejecting every
+    // instrument in the universe regardless of its real direction or data
+    // quality. See docs/architecture-plan.md for the incident this fixed.
+    if (rule.hard_gate && result === "FAIL") {
       failedGates.push(rule.rule_id);
     }
   }

@@ -25,6 +25,12 @@ const PATTERN_PARAM_VERSION = "1.0.0";
 const HAMMER_UPPER_WICK_CAP_FRACTION = 0.6; // "~0.6x abs(c-o)" in the source
 const DOUBLE_EXTREME_TOLERANCE = 0.03; // "~3%" / "within about 3 percent" in the source
 const TREND_LOOKBACK_BARS = 5; // candlestick "prior trend" context: no mechanical lookback given in the source for single/multi-candle patterns; disclosed default
+const PATTERN_COVERAGE = Object.freeze({
+  complete: false,
+  implemented: ["Bullish Engulfing", "Bearish Engulfing", "Bullish Piercing", "Bearish Dark Cloud Cover", "Hammer", "Shooting Star", "Hanging Man", "Morning Star", "Evening Star", "Double Top", "Double Bottom"],
+  notEvaluated: ["Head and Shoulder", "Inverted Head and Shoulder", "Cup and Handle", "Flag and Pole", "Rounding Top", "Rounding Bottom", "Three White Soldiers", "Three Black Crows", "Doji family"],
+  reason: "source-required families with unresolved qualitative thresholds do not have complete mechanical detectors",
+});
 
 function body(bar) {
   return { top: Math.max(bar.open, bar.close), bottom: Math.min(bar.open, bar.close) };
@@ -54,8 +60,26 @@ function priorTrend(bars, index) {
   return "flat";
 }
 
-function detection({ patternName, direction, state, anchorPoints, triggerBarDate = null, targetPrice = null, invalidationPrice = null, volumeEvidence = null, sourceLocator }) {
-  return { patternName, direction, state, anchorPoints, triggerBarDate, targetPrice, invalidationPrice, volumeEvidence, sourceLocator };
+function detection({ patternName, direction, state, anchorPoints, triggerBarDate = null, targetPrice = null, invalidationPrice = null, volumeEvidence = null, sourceLocator, lifecycleState = null }) {
+  return { patternName, direction, state, lifecycleState: lifecycleState ?? state, anchorPoints, triggerBarDate, targetPrice, invalidationPrice, volumeEvidence, sourceLocator };
+}
+
+function applyLifecycle(result, bars, triggerBarIndex) {
+  if (result.state !== "TRIGGERED" || triggerBarIndex == null) return result;
+  for (const bar of bars.slice(triggerBarIndex + 1)) {
+    const invalidated = result.direction === "bullish"
+      ? result.invalidationPrice != null && bar.close < result.invalidationPrice
+      : result.invalidationPrice != null && bar.close > result.invalidationPrice;
+    const targetCompleted = result.direction === "bullish"
+      ? result.targetPrice != null && bar.high >= result.targetPrice
+      : result.targetPrice != null && bar.low <= result.targetPrice;
+    // Resolve in chronological order. If both occur in one OHLC candle the
+    // intrabar order is unknowable, so preserve TRIGGERED rather than guess.
+    if (invalidated && targetCompleted) return { ...result, lifecycleState: "AMBIGUOUS_INTRABAR" };
+    if (invalidated) return { ...result, state: "FAILED", lifecycleState: "INVALIDATED" };
+    if (targetCompleted) return { ...result, state: "HISTORICAL", lifecycleState: "TARGET_COMPLETED" };
+  }
+  return result;
 }
 
 /**
@@ -118,17 +142,18 @@ export function detectCandlestickPatterns(bars, { lookback = 10 } = {}) {
       );
     }
     if (isBullish(prev) && isBearish(cur) && cur.close < median(prev) && cur.close > prev.open && cur.open > prev.close) {
-      // Dark Cloud Cover needs follow-through (source: "needs follow-through") --
-      // OBSERVED here; a caller re-scanning after a later bar closes below
-      // this pattern's low will see it promoted (the next bar's own scan
-      // naturally re-evaluates context; this module doesn't mutate past rows).
+      // The source requires a separate confirmation/follow-up candle. It
+      // does not define a numerical penetration threshold, so use only the
+      // documented directional confirmation: the next candle must be red.
+      const followUp = bars[i + 1];
+      const confirmed = Boolean(followUp && isBearish(followUp) && trend === "up");
       results.push(
         detection({
           patternName: "Bearish Dark Cloud Cover",
           direction: "bearish",
-          state: "OBSERVED",
+          state: confirmed ? "TRIGGERED" : "OBSERVED",
           anchorPoints: [{ date: prev.date, price: prev.close }, { date: cur.date, price: cur.close }],
-          triggerBarDate: null,
+          triggerBarDate: confirmed ? followUp.date : null,
           invalidationPrice: Math.max(prev.high, cur.high),
           sourceLocator: CANDLESTICK_LOCATOR,
         })
@@ -197,7 +222,8 @@ export function detectCandlestickPatterns(bars, { lookback = 10 } = {}) {
       const c2 = bars[i - 1];
       const c3 = cur;
       const c2IsSmall = bodySize(c2) < bodySize(c1) * 0.5 && bodySize(c2) < bodySize(c3) * 0.5;
-      if (isBearish(c1) && c2IsSmall && isBullish(c3) && c3.close > median(c1)) {
+      const morningGaps = c2.open < c1.close && c2.low < c1.low && c3.open > c2.close;
+      if (isBearish(c1) && c2IsSmall && morningGaps && isBullish(c3) && c3.close > median(c1)) {
         results.push(
           detection({
             patternName: "Morning Star",
@@ -214,7 +240,8 @@ export function detectCandlestickPatterns(bars, { lookback = 10 } = {}) {
           })
         );
       }
-      if (isBullish(c1) && c2IsSmall && isBearish(c3) && c3.close < median(c1)) {
+      const eveningGaps = c2.open > c1.close && c2.high > c1.high && c3.open < c2.close;
+      if (isBullish(c1) && c2IsSmall && eveningGaps && isBearish(c3) && c3.close < median(c1)) {
         results.push(
           detection({
             patternName: "Evening Star",
@@ -234,7 +261,8 @@ export function detectCandlestickPatterns(bars, { lookback = 10 } = {}) {
     }
   }
 
-  return results;
+  const barIndexByDate = new Map(bars.map((bar, index) => [bar.date, index]));
+  return results.map((result) => applyLifecycle(result, bars, barIndexByDate.get(result.triggerBarDate)));
 }
 
 /**
@@ -277,11 +305,12 @@ export function detectDoubleExtremePatterns(labeledPivots, bars) {
     const height = Math.abs(first.price - neckline);
 
     if (isHighPair) {
-      const priorUptrend = beforeFirst == null || beforeFirst.price < first.price;
+      const priorUptrend = beforeFirst != null && first.type === "HH" && beforeFirst.price < first.price;
       if (!priorUptrend) continue;
       const triggerBar = barsAfterSecond.find((b) => b.close < neckline);
+      const triggerBarIndex = triggerBar ? barIndexByDate.get(triggerBar.date) : null;
       results.push(
-        detection({
+        applyLifecycle(detection({
           patternName: "Double Top",
           direction: "bearish",
           state: triggerBar ? "TRIGGERED" : "OBSERVED",
@@ -295,14 +324,15 @@ export function detectDoubleExtremePatterns(labeledPivots, bars) {
           targetPrice: triggerBar ? neckline - height : null,
           invalidationPrice: Math.max(first.price, second.price),
           sourceLocator: DOUBLE_TOP_LOCATOR,
-        })
+        }), bars, triggerBarIndex)
       );
     } else {
-      const priorDowntrend = beforeFirst == null || beforeFirst.price > first.price;
+      const priorDowntrend = beforeFirst != null && first.type === "LL" && beforeFirst.price > first.price;
       if (!priorDowntrend) continue;
       const triggerBar = barsAfterSecond.find((b) => b.close > neckline);
+      const triggerBarIndex = triggerBar ? barIndexByDate.get(triggerBar.date) : null;
       results.push(
-        detection({
+        applyLifecycle(detection({
           patternName: "Double Bottom",
           direction: "bullish",
           state: triggerBar ? "TRIGGERED" : "OBSERVED",
@@ -316,7 +346,7 @@ export function detectDoubleExtremePatterns(labeledPivots, bars) {
           targetPrice: triggerBar ? neckline + height : null,
           invalidationPrice: Math.min(first.price, second.price),
           sourceLocator: DOUBLE_BOTTOM_LOCATOR,
-        })
+        }), bars, triggerBarIndex)
       );
     }
   }
@@ -324,4 +354,4 @@ export function detectDoubleExtremePatterns(labeledPivots, bars) {
   return results;
 }
 
-export { PATTERN_PARAM_VERSION, HAMMER_UPPER_WICK_CAP_FRACTION, DOUBLE_EXTREME_TOLERANCE, TREND_LOOKBACK_BARS };
+export { PATTERN_PARAM_VERSION, HAMMER_UPPER_WICK_CAP_FRACTION, DOUBLE_EXTREME_TOLERANCE, TREND_LOOKBACK_BARS, PATTERN_COVERAGE };

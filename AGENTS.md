@@ -1,5 +1,9 @@
 # Stock Research Platform — Master Instructions
 
+## Continuation state
+
+Before starting or resuming implementation work, read [CONTINUATION.md](CONTINUATION.md). It records the current goal, completed work, verification evidence, blockers, deployment constraints, and exact next action. Update it before any planned pause, handoff, commit, deployment, or final response.
+
 ## Purpose
 
 Build and operate an evidence-based Indian stock-market research application. Convert the supplied SMM, PAPA, GUE, and FOME documents into versioned, measurable, traceable rules; apply them to fresh market data; and explain the results.

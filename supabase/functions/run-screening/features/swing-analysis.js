@@ -26,6 +26,23 @@
 const GATE_PREFIX = { bullish: "WBP-", bearish: "WSP-" };
 const DIRECTION_LOCK_GATE_COUNT = 4; // M1-M4 / S1-S4
 
+/**
+ * Converts the richer swing lifecycle vocabulary to the database's existing
+ * rule_result enum. Exact WAIT/UNAVAILABLE values remain in mandatory_gates;
+ * persisted trace rows use their compatible actionable equivalents.
+ */
+export function toPersistedSwingTrace(trace) {
+  return {
+    ...trace,
+    result:
+      trace.result === "UNAVAILABLE"
+        ? "NO_DATA"
+        : trace.result === "WAIT"
+          ? "WATCH"
+          : trace.result,
+  };
+}
+
 function gateNumber(ruleId) {
   const match = ruleId.match(/(\d+)$/);
   return match ? Number(match[1]) : null;
@@ -62,14 +79,11 @@ export function directionLockPassed(hypothesis, traces) {
  * @returns {object|null} a swing_analysis_results-shaped row (camelCase, caller maps to columns), or null when none of this hypothesis's swing gates were evaluated (buy-swing.yaml/sell-swing.yaml not yet seeded/active -- nothing to report, not NO_DATA)
  */
 export function evaluateSwingHypothesis(hypothesis, traces, evidence = {}) {
-  const { adxCondition = null, selectedRoute = null, papaFormationTriggered = false, smmHat = null, rewardRisk = null, confirmationGroups = null, vetoes = [] } = evidence;
+  const { adxCondition = null, selectedRoute = null, papaFormationTriggered = null, smmHat = null, rewardRisk = null, confirmationGroups = null, vetoes = [] } = evidence;
 
   const prefix = GATE_PREFIX[hypothesis];
   const gateTraces = traces.filter((t) => t.rule_id.startsWith(prefix));
   if (gateTraces.length === 0) return null;
-
-  const mandatoryGates = {};
-  for (const t of gateTraces) mandatoryGates[t.rule_id] = t.result;
 
   const directionLockGates = gateTraces.filter((t) => (gateNumber(t.rule_id) ?? 99) <= DIRECTION_LOCK_GATE_COUNT);
   const failedDirectionLockGates = directionLockGates.filter((t) => t.result === "FAIL");
@@ -143,6 +157,45 @@ export function evaluateSwingHypothesis(hypothesis, traces, evidence = {}) {
   const allGatesPassed = directionLockOk && m5Passed && papaFormationTriggered && m7Passed && m8Passed;
   const finalAction = allGatesPassed && groupsPassed && vetoes.length === 0 ? wantHat : "WAIT";
 
+  const gateId = (number) => `${prefix}${hypothesis === "bullish" ? "M" : "S"}${number}`;
+  const hourlyEvidenceAvailable = Boolean(selectedRoute || smmHat || rewardRisk || confirmationGroups || papaFormationTriggered != null);
+  const computedHourlyTraces = [
+    {
+      rule_id: gateId(5),
+      result: m5Passed ? "PASS" : hourlyEvidenceAvailable ? "WAIT" : "UNAVAILABLE",
+      explanation: m5Passed ? `${selectedRoute.route} satisfied every required route check` : hourlyEvidenceAvailable ? "no fully confirmed implemented hourly route" : "hourly route evidence was not supplied",
+      observed_values: { selectedRoute },
+      thresholds: {},
+      source_locator: hypothesis === "bullish" ? "BUY_Signal_Playbook_Weekly_Daily_1H.md §4, M5" : "SELL_Signal_Playbook_Weekly_Daily_1H.md §6, S5",
+    },
+    {
+      rule_id: gateId(6),
+      result: papaFormationTriggered === true ? "PASS" : papaFormationTriggered === false ? "WAIT" : "UNAVAILABLE",
+      explanation: papaFormationTriggered === true ? "a same-direction named PAPA setup triggered" : papaFormationTriggered === false ? "no implemented same-direction PAPA setup triggered" : "PAPA trigger evidence was not supplied",
+      observed_values: { papaFormationTriggered },
+      thresholds: {},
+      source_locator: hypothesis === "bullish" ? "BUY_Signal_Playbook_Weekly_Daily_1H.md §5, M6" : "SELL_Signal_Playbook_Weekly_Daily_1H.md §7, S6",
+    },
+    {
+      rule_id: gateId(7),
+      result: m7Passed ? "PASS" : smmHat ? "FAIL" : "UNAVAILABLE",
+      explanation: m7Passed ? `${wantHat} Hat Step 1 and Step 2 agree` : smmHat ? "SMM Tide and Wave do not produce the required hat" : "SMM Hat evidence was not supplied",
+      observed_values: { smmHat },
+      thresholds: { requiredHat: wantHat },
+      source_locator: hypothesis === "bullish" ? "BUY_Signal_Playbook_Weekly_Daily_1H.md §6, M7" : "SELL_Signal_Playbook_Weekly_Daily_1H.md §8, S7",
+    },
+    {
+      rule_id: gateId(8),
+      result: m8Passed ? "PASS" : rewardRisk ? "FAIL" : "UNAVAILABLE",
+      explanation: m8Passed ? "reward:risk strictly clears 3" : rewardRisk ? "reward:risk does not strictly clear 3" : "reward:risk evidence was not supplied",
+      observed_values: { rewardRiskRatio: rewardRisk?.rewardRiskRatio ?? null },
+      thresholds: { operator: ">", value: 3 },
+      source_locator: hypothesis === "bullish" ? "BUY_Signal_Playbook_Weekly_Daily_1H.md §7, M8" : "SELL_Signal_Playbook_Weekly_Daily_1H.md §9, S8",
+    },
+  ];
+  const canonicalGateTraces = [...directionLockGates, ...computedHourlyTraces];
+  const mandatoryGates = Object.fromEntries(canonicalGateTraces.map((trace) => [trace.rule_id, trace.result]));
+
   let dataQuality;
   if (directionLockGates.length < DIRECTION_LOCK_GATE_COUNT) {
     dataQuality = "PARTIAL"; // shouldn't happen once seeded correctly -- disclosed rather than assumed complete
@@ -150,14 +203,17 @@ export function evaluateSwingHypothesis(hypothesis, traces, evidence = {}) {
     dataQuality = "NO_DATA";
   } else if (noDataDirectionLockGates.length > 0) {
     dataQuality = "PARTIAL";
+  } else if (computedHourlyTraces.some((trace) => trace.result === "UNAVAILABLE")) {
+    dataQuality = "PARTIAL";
   } else {
-    dataQuality = "PASS"; // all 4 direction-lock gates resolved to a real PASS/FAIL -- data was sufficient, regardless of the verdict
+    dataQuality = "PASS";
   }
 
   return {
     hypothesis,
     selectedRoute: selectedRoute?.route ?? null,
     mandatoryGates,
+    canonicalGateTraces,
     confirmationGroups: confirmationGroups?.groups ?? {},
     confirmationGroupsPassed: confirmationGroups?.passedCount ?? 0,
     vetoes,

@@ -18,6 +18,7 @@ rules:
   - id: SMM-TREND-001
     name: Bullish trend structure
     source_status: DOCUMENTED
+    source_refs: {document: "SMM Concepts Part 1.pdf", locator: "pages 5-8, Dow Theory trend definitions"}
     timeframe: active
     direction: bullish
     inputs: [confirmed_higher_high, confirmed_higher_low]
@@ -30,6 +31,7 @@ rules:
   - id: SMM-TREND-002
     name: Bearish trend structure
     source_status: DOCUMENTED
+    source_refs: {document: "SMM Concepts Part 1.pdf", locator: "pages 5-8, Dow Theory trend definitions"}
     timeframe: active
     direction: bearish
     inputs: [confirmed_lower_high, confirmed_lower_low]
@@ -42,6 +44,7 @@ rules:
   - id: SMM-EMA-001
     name: Bullish EMA alignment
     source_status: DOCUMENTED
+    source_refs: {document: "SMM Concepts Part 2_Nov21.pdf", locator: "pages 3-8, EMA and positive/negative crossover"}
     timeframe: wave
     direction: bullish
     inputs: [ema_5, ema_13, ema_26, ema_50]
@@ -54,6 +57,7 @@ rules:
   - id: SMM-EMA-002
     name: Bearish EMA alignment
     source_status: DOCUMENTED
+    source_refs: {document: "SMM Concepts Part 2_Nov21.pdf", locator: "pages 3-8, EMA and positive/negative crossover"}
     timeframe: wave
     direction: bearish
     inputs: [ema_5, ema_13, ema_26, ema_50]
@@ -66,6 +70,7 @@ rules:
   - id: SMM-TWR-001
     name: Bullish Tide-Wave alignment
     source_status: DOCUMENTED
+    source_refs: {document: "SMM Decision Sheet.pdf", locator: "page 1, Bull Hat Step 1 and Step 2"}
     timeframe: [tide, wave]
     direction: bullish
     inputs: [tide_macd_slope, tide_macd_transition, wave_bullish_oscillator_signal]
@@ -78,6 +83,7 @@ rules:
   - id: SMM-TWR-002
     name: Bearish Tide-Wave alignment
     source_status: DOCUMENTED
+    source_refs: {document: "SMM Decision Sheet.pdf", locator: "page 1, Bear Hat Step 1 and Step 2"}
     timeframe: [tide, wave]
     direction: bearish
     inputs: [tide_macd_slope, tide_macd_transition, wave_bearish_oscillator_signal]
@@ -90,6 +96,7 @@ rules:
   - id: SMM-VOL-001
     name: Breakout volume confirmation
     source_status: PROJECT_DEFAULT
+    source_refs: {document: "SMM Concepts Part 1.pdf", locator: "pages 46-49, volume confirmation; lookback/multiplier unresolved"}
     timeframe: wave
     direction: both
     inputs: [trigger_volume, average_volume]
@@ -104,6 +111,7 @@ rules:
   - id: SMM-FIB-001
     name: Healthy continuation retracement
     source_status: DOCUMENTED
+    source_refs: {document: "SMM Concepts Part 2_Nov21.pdf", locator: "pages 9-14, Fibonacci retracement"}
     timeframe: wave
     direction: both
     inputs: [retracement_fraction]
@@ -116,6 +124,7 @@ rules:
   - id: SMM-FIB-002
     name: Watchful deep retracement
     source_status: DOCUMENTED
+    source_refs: {document: "SMM Concepts Part 2_Nov21.pdf", locator: "pages 9-14, Fibonacci retracement"}
     timeframe: wave
     direction: both
     inputs: [retracement_fraction]
@@ -128,6 +137,7 @@ rules:
   - id: SMM-RISK-001
     name: Positive bullish reward and risk
     source_status: DOCUMENTED
+    source_refs: {document: "ASTA - SMM Decision Sheet 1.xlsx", locator: "Decision Sheet rows 20-23, bullish reward/risk formulas"}
     timeframe: decision
     direction: bullish
     inputs: [entry, stop, target]
@@ -140,6 +150,7 @@ rules:
   - id: SMM-RISK-002
     name: Positive bearish reward and risk
     source_status: DOCUMENTED
+    source_refs: {document: "ASTA - SMM Decision Sheet 1.xlsx", locator: "Decision Sheet rows 20-23, bearish reward/risk formulas"}
     timeframe: decision
     direction: bearish
     inputs: [entry, stop, target]
@@ -152,6 +163,7 @@ rules:
   - id: SMM-RR-001
     name: Minimum reward-risk
     source_status: DOCUMENTED
+    source_refs: {document: "ASTA - SMM Decision Sheet 1.xlsx", locator: "Decision Sheet row 23, Reward / Risk ratio"}
     timeframe: decision
     direction: both
     inputs: [reward, risk]
@@ -165,6 +177,7 @@ rules:
   - id: SMM-SIZE-001
     name: Position risk ceiling
     source_status: DOCUMENTED
+    source_refs: {document: "ASTA - SMM Decision Sheet 1.xlsx", locator: "Decision Sheet rows 28-33, maximum allowed risk and risk involved"}
     timeframe: portfolio
     direction: both
     inputs: [capital, entry, stop]
@@ -179,6 +192,9 @@ rules:
   - id: SMM-MONTHLY-001
     name: Monthly loss stop
     source_status: CONFLICT
+    source_refs:
+      document: "Secrets Of Market Millionaires_Dec22_v2.pdf / Futures & Options Made Easy_V6.pdf"
+      locator: "monthly-loss limit conflict: SMM 8% versus FOME 10%; references/source-register.md"
     timeframe: portfolio_month
     direction: both
     inputs: [monthly_loss_fraction]

@@ -1,15 +1,19 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { detectCounterAttack, detectGap, detectGenuineBreak, detectFakeBreak, detectMotherCandle, detectSandwich, detectRounding, detectTriggeredPapaFormations } from "./papa-formations.js";
+import { detectCounterAttack, detectGap, detectGenuineBreak, detectFakeBreak, detectMotherCandle, detectSandwich, detectRounding, detectTriggeredPapaFormations, PAPA_FORMATION_COVERAGE } from "./papa-formations.js";
 
 function hbar({ date, sessionDate, slotIndex, low, high, close, open, volume = 1000 }) {
   return { date, sessionDate, slotIndex, low, high, close, open: open ?? close, volume };
 }
 
+function confirmedLevel(type, price) {
+  return [{ type, price, date: "L1" }, { type, price: price * 1.001, date: "L2" }];
+}
+
 // --- detectCounterAttack ---
 
 test("detectCounterAttack (bullish): opens below support, re-enters and a follow-up candle confirms -- TRIGGERED", () => {
-  const hourlyPivots = [{ type: "low", price: 100, date: "X" }];
+  const hourlyPivots = confirmedLevel("low", 100);
   const bars = [
     hbar({ date: "A0", sessionDate: "2026-09-10", slotIndex: 0, low: 97, high: 99, close: 97, open: 98 }),
     hbar({ date: "A1", sessionDate: "2026-09-10", slotIndex: 1, low: 97, high: 102, close: 101, open: 97 }),
@@ -22,7 +26,7 @@ test("detectCounterAttack (bullish): opens below support, re-enters and a follow
 });
 
 test("detectCounterAttack (bearish mirror): re-enters below resistance on the open candle itself, but the follow-up candle fails to hold -- stays OBSERVED, never TRIGGERED", () => {
-  const hourlyPivots = [{ type: "high", price: 100, date: "X" }];
+  const hourlyPivots = confirmedLevel("high", 100);
   const bars = [
     hbar({ date: "A0", sessionDate: "2026-09-10", slotIndex: 0, low: 100, high: 102, close: 98, open: 102 }),
     hbar({ date: "A1", sessionDate: "2026-09-10", slotIndex: 1, low: 99, high: 103, close: 101, open: 99 }),
@@ -35,15 +39,23 @@ test("detectCounterAttack (bearish mirror): re-enters below resistance on the op
 });
 
 test("detectCounterAttack: ignores an open candle that isn't the session's first (09:15) bar", () => {
-  const hourlyPivots = [{ type: "low", price: 100, date: "X" }];
+  const hourlyPivots = confirmedLevel("low", 100);
   const bars = [hbar({ date: "A0", sessionDate: "2026-09-10", slotIndex: 2, low: 97, high: 99, close: 97, open: 98 })];
   assert.deepEqual(detectCounterAttack(bars, hourlyPivots, [], true), []);
+});
+
+test("PAPA level-gated setups reject one isolated hourly pivot as non-major", () => {
+  const bars = [
+    hbar({ date: "A0", sessionDate: "2026-09-10", slotIndex: 0, low: 97, high: 99, close: 97, open: 98 }),
+    hbar({ date: "A1", sessionDate: "2026-09-10", slotIndex: 1, low: 97, high: 102, close: 101, open: 97 }),
+  ];
+  assert.deepEqual(detectCounterAttack(bars, [{ type: "low", price: 100, date: "only" }], [], true), []);
 });
 
 // --- detectGap ---
 
 test("detectGap (bullish): opens above resistance, sustains through the open candle, follow-up confirms -- TRIGGERED", () => {
-  const hourlyPivots = [{ type: "high", price: 100, date: "X" }];
+  const hourlyPivots = confirmedLevel("high", 100);
   const bars = [
     hbar({ date: "A0", sessionDate: "2026-09-10", slotIndex: 0, low: 102, high: 104, close: 103, open: 103 }),
     hbar({ date: "A1", sessionDate: "2026-09-10", slotIndex: 1, low: 102, high: 105, close: 104, open: 103 }),
@@ -55,7 +67,7 @@ test("detectGap (bullish): opens above resistance, sustains through the open can
 });
 
 test("detectGap: the gap is given back within the opening candle itself -- not this setup at all", () => {
-  const hourlyPivots = [{ type: "high", price: 100, date: "X" }];
+  const hourlyPivots = confirmedLevel("high", 100);
   const bars = [hbar({ date: "A0", sessionDate: "2026-09-10", slotIndex: 0, low: 97, high: 104, close: 99, open: 103 })];
   assert.deepEqual(detectGap(bars, hourlyPivots, [], true), []);
 });
@@ -63,7 +75,7 @@ test("detectGap: the gap is given back within the opening candle itself -- not t
 // --- detectGenuineBreak ---
 
 test("detectGenuineBreak (bullish): a shakeout precedes the real break, follow-up candle confirms -- TRIGGERED", () => {
-  const hourlyPivots = [{ type: "high", price: 100, date: "X" }];
+  const hourlyPivots = confirmedLevel("high", 100);
   const bars = [
     hbar({ date: "A0", sessionDate: "2026-09-10", slotIndex: 0, low: 95, high: 101, close: 96, open: 95 }), // shakeout: wick above 100, closes back below
     hbar({ date: "A1", sessionDate: "2026-09-10", slotIndex: 1, low: 96, high: 98, close: 97, open: 96 }),
@@ -78,7 +90,7 @@ test("detectGenuineBreak (bullish): a shakeout precedes the real break, follow-u
 });
 
 test("detectGenuineBreak: a break with no prior shakeout is not reported by this detector at all (that's Fake, not Genuine)", () => {
-  const hourlyPivots = [{ type: "high", price: 100, date: "X" }];
+  const hourlyPivots = confirmedLevel("high", 100);
   const bars = [
     hbar({ date: "A0", sessionDate: "2026-09-10", slotIndex: 0, low: 96, high: 98, close: 97, open: 96 }), // no shakeout
     hbar({ date: "A1", sessionDate: "2026-09-10", slotIndex: 1, low: 97, high: 99, close: 98, open: 97 }),
@@ -91,7 +103,7 @@ test("detectGenuineBreak: a break with no prior shakeout is not reported by this
 // --- detectFakeBreak ---
 
 test("detectFakeBreak (bullish -- 'a fake breakdown is a BUY setup'): no shakeout before the breakdown, follow-up closes above the breakdown candle's own high -- TRIGGERED", () => {
-  const hourlyPivots = [{ type: "low", price: 100, date: "X" }];
+  const hourlyPivots = confirmedLevel("low", 100);
   const bars = [
     hbar({ date: "P0", sessionDate: "2026-09-09", slotIndex: 4, low: 99, high: 101, close: 100, open: 100 }),
     hbar({ date: "A0", sessionDate: "2026-09-10", slotIndex: 0, low: 98, high: 103, close: 98, open: 101 }), // breaks below 100, no shakeout
@@ -107,7 +119,7 @@ test("detectFakeBreak (bullish -- 'a fake breakdown is a BUY setup'): no shakeou
 // --- detectMotherCandle ---
 
 test("detectMotherCandle (bullish reversal at a level): a bigger candle at a detected support, 3 following candles stay inside its range, a later close beyond its high triggers", () => {
-  const hourlyPivots = [{ type: "low", price: 95, date: "X" }];
+  const hourlyPivots = confirmedLevel("low", 95);
   const bars = [
     hbar({ date: "P0", sessionDate: "2026-09-09", slotIndex: 4, low: 98, high: 100, close: 99, open: 98 }),
     hbar({ date: "M0", sessionDate: "2026-09-10", slotIndex: 0, low: 94, high: 105, close: 96, open: 104 }), // mother candle, low at the 95 level
@@ -123,8 +135,8 @@ test("detectMotherCandle (bullish reversal at a level): a bigger candle at a det
   assert.equal(result[0].triggerBarDate, "T0");
 });
 
-test("detectMotherCandle: a candle not bigger than the one before it is never reported as a mother candle", () => {
-  const hourlyPivots = [{ type: "low", price: 95, date: "X" }];
+test("detectMotherCandle uses documented containment, not an invented comparison with the preceding candle", () => {
+  const hourlyPivots = confirmedLevel("low", 95);
   const bars = [
     hbar({ date: "P0", sessionDate: "2026-09-09", slotIndex: 4, low: 90, high: 106, close: 99, open: 95 }), // wide -- bigger than the next bar
     hbar({ date: "M0", sessionDate: "2026-09-10", slotIndex: 0, low: 94, high: 96, close: 95, open: 95 }), // NOT bigger than P0
@@ -133,7 +145,7 @@ test("detectMotherCandle: a candle not bigger than the one before it is never re
     hbar({ date: "F2", sessionDate: "2026-09-10", slotIndex: 3, low: 95, high: 96, close: 95, open: 95 }),
     hbar({ date: "T0", sessionDate: "2026-09-10", slotIndex: 4, low: 95, high: 99, close: 98, open: 96 }),
   ];
-  assert.deepEqual(detectMotherCandle(bars, hourlyPivots, [], true, true), []);
+  assert.equal(detectMotherCandle(bars, hourlyPivots, [], true, true).length, 1);
 });
 
 // --- detectSandwich ---
@@ -178,6 +190,16 @@ test("detectSandwich: no alternating run at all -- nothing detected", () => {
   assert.deepEqual(detectSandwich(bars, true), []);
 });
 
+test("detectSandwich requires the source's full red-green-red-green sequence before a break", () => {
+  const bars = [
+    hbar({ date: "S0", low: 98, high: 102, open: 100, close: 101 }),
+    hbar({ date: "S1", low: 97, high: 103, open: 101, close: 98 }),
+    hbar({ date: "S2", low: 98, high: 104, open: 98, close: 103 }),
+    hbar({ date: "S3", low: 102, high: 110, open: 103, close: 109 }),
+  ];
+  assert.deepEqual(detectSandwich(bars, true), []);
+});
+
 // --- detectRounding ---
 
 test("detectRounding (bullish, rounding bottom): big red candles, a neutral base, then a strong close beyond the range -- TRIGGERED", () => {
@@ -189,7 +211,7 @@ test("detectRounding (bullish, rounding bottom): big red candles, a neutral base
     hbar({ date: "B4", sessionDate: "2026-09-10", slotIndex: 4, low: 107, high: 111, close: 110, open: 108 }), // neutral
     hbar({ date: "B5", sessionDate: "2026-09-10", slotIndex: 0, low: 109, high: 140, close: 135, open: 110 }), // strong breakout
   ];
-  const result = detectRounding(bars, true, 1.5);
+  const result = detectRounding(bars, true, 1.5, { minBigCandles: 2, minBaseCandles: 3 });
   assert.equal(result.length, 1);
   assert.equal(result[0].patternName, "Rounding Bottom");
   assert.equal(result[0].state, "TRIGGERED");
@@ -206,7 +228,7 @@ test("detectRounding (bearish mirror, rounding top): big green candles, a neutra
     hbar({ date: "C4", sessionDate: "2026-09-10", slotIndex: 4, low: 117, high: 120, close: 118.5, open: 118 }), // neutral
     hbar({ date: "C5", sessionDate: "2026-09-10", slotIndex: 0, low: 90, high: 119, close: 95, open: 118 }), // strong breakdown
   ];
-  const result = detectRounding(bars, false, 1.5);
+  const result = detectRounding(bars, false, 1.5, { minBigCandles: 2, minBaseCandles: 3 });
   assert.equal(result.length, 1);
   assert.equal(result[0].patternName, "Rounding Top");
   assert.equal(result[0].invalidationPrice, 122); // highest of the range candles
@@ -221,13 +243,19 @@ test("detectRounding: the initiating candles are the wrong color for the request
     hbar({ date: "Y4", sessionDate: "2026-09-10", slotIndex: 4, low: 117, high: 120, close: 118.5, open: 118 }),
     hbar({ date: "Y5", sessionDate: "2026-09-10", slotIndex: 0, low: 117, high: 140, close: 135, open: 118 }),
   ];
-  assert.deepEqual(detectRounding(bars, true, 1.5), []);
+  assert.deepEqual(detectRounding(bars, true, 1.5, { minBigCandles: 2, minBaseCandles: 3 }), []);
+});
+
+test("detectRounding stays unevaluated when the source-unresolved candle counts are not supplied", () => {
+  assert.deepEqual(detectRounding([], true, 1.5), []);
+  assert.ok(PAPA_FORMATION_COVERAGE.conditionalOnParameters.includes("Rounding Bottom"));
+  assert.equal(PAPA_FORMATION_COVERAGE.complete, false);
 });
 
 // --- detectTriggeredPapaFormations (the M6/S6 gate's own entry point) ---
 
 test("detectTriggeredPapaFormations returns only TRIGGERED detections, never merely OBSERVED ones", () => {
-  const hourlyPivots = [{ type: "high", price: 100, date: "X" }];
+  const hourlyPivots = confirmedLevel("high", 100);
   // Same OBSERVED-only bearish counter-attack fixture as above.
   const bars = [
     hbar({ date: "A0", sessionDate: "2026-09-10", slotIndex: 0, low: 100, high: 102, close: 98, open: 102 }),

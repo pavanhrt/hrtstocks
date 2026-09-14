@@ -1,6 +1,3 @@
-// Generated from the live hrtstocks schema via the Supabase MCP
-// generate_typescript_types tool. Regenerate after any migration change
-// rather than hand-editing this file.
 export type Json =
   | string
   | number
@@ -17,6 +14,81 @@ export type Database = {
   }
   public: {
     Tables: {
+      analysis_bars: {
+        Row: {
+          adjustment_state: string
+          algorithm_version: string
+          close: number
+          created_at: string
+          high: number
+          instrument_id: string
+          interval: string
+          is_complete: boolean
+          low: number
+          open: number
+          provenance: Json
+          provider: string
+          run_id: string
+          session_date: string
+          source_retrieved_at: string | null
+          ts: string
+          volume: number
+        }
+        Insert: {
+          adjustment_state: string
+          algorithm_version: string
+          close: number
+          created_at?: string
+          high: number
+          instrument_id: string
+          interval: string
+          is_complete: boolean
+          low: number
+          open: number
+          provenance: Json
+          provider: string
+          run_id: string
+          session_date: string
+          source_retrieved_at?: string | null
+          ts: string
+          volume: number
+        }
+        Update: {
+          adjustment_state?: string
+          algorithm_version?: string
+          close?: number
+          created_at?: string
+          high?: number
+          instrument_id?: string
+          interval?: string
+          is_complete?: boolean
+          low?: number
+          open?: number
+          provenance?: Json
+          provider?: string
+          run_id?: string
+          session_date?: string
+          source_retrieved_at?: string | null
+          ts?: string
+          volume?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "analysis_bars_instrument_id_fkey"
+            columns: ["instrument_id"]
+            isOneToOne: false
+            referencedRelation: "instruments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "analysis_bars_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "screening_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bootstrap_admin_emails: {
         Row: {
           email: string
@@ -568,6 +640,7 @@ export type Database = {
       instrument_direction_runs: {
         Row: {
           chart_algorithm_version: string
+          chart_content_hash: string | null
           chart_input_hash: string | null
           chart_object_path: string | null
           chart_renderer_version: string
@@ -586,6 +659,7 @@ export type Database = {
         }
         Insert: {
           chart_algorithm_version: string
+          chart_content_hash?: string | null
           chart_input_hash?: string | null
           chart_object_path?: string | null
           chart_renderer_version: string
@@ -604,6 +678,7 @@ export type Database = {
         }
         Update: {
           chart_algorithm_version?: string
+          chart_content_hash?: string | null
           chart_input_hash?: string | null
           chart_object_path?: string | null
           chart_renderer_version?: string
@@ -1015,6 +1090,48 @@ export type Database = {
           },
         ]
       }
+      pipeline_persistence_errors: {
+        Row: {
+          created_at: string
+          id: number
+          instrument_id: string | null
+          message: string
+          run_id: string
+          stage: string
+        }
+        Insert: {
+          created_at?: string
+          id?: never
+          instrument_id?: string | null
+          message: string
+          run_id: string
+          stage: string
+        }
+        Update: {
+          created_at?: string
+          id?: never
+          instrument_id?: string | null
+          message?: string
+          run_id?: string
+          stage?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pipeline_persistence_errors_instrument_id_fkey"
+            columns: ["instrument_id"]
+            isOneToOne: false
+            referencedRelation: "instruments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pipeline_persistence_errors_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "screening_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
@@ -1248,6 +1365,170 @@ export type Database = {
           },
         ]
       }
+      run_publication_manifests: {
+        Row: {
+          alignment_equities: number
+          analysis_bar_equities: number
+          chart_rows: number
+          coverage_reconciled: boolean
+          critical_persistence_errors: number
+          direction_rows: number
+          eligible_equities: number
+          expected_equities: number
+          expected_indexes: number
+          future_analysis_bars: number
+          incomplete_analysis_bars: number
+          manifest: Json
+          missing_aligned_analysis: number
+          missing_storage_objects: number
+          published_at: string | null
+          result_equities: number
+          result_indexes: number
+          run_id: string
+          trace_equities: number
+          universe_sources: number
+          validated_at: string
+          validation_errors: string[]
+        }
+        Insert: {
+          alignment_equities: number
+          analysis_bar_equities: number
+          chart_rows: number
+          coverage_reconciled: boolean
+          critical_persistence_errors: number
+          direction_rows: number
+          eligible_equities: number
+          expected_equities: number
+          expected_indexes: number
+          future_analysis_bars: number
+          incomplete_analysis_bars: number
+          manifest: Json
+          missing_aligned_analysis: number
+          missing_storage_objects: number
+          published_at?: string | null
+          result_equities: number
+          result_indexes: number
+          run_id: string
+          trace_equities: number
+          universe_sources: number
+          validated_at: string
+          validation_errors?: string[]
+        }
+        Update: {
+          alignment_equities?: number
+          analysis_bar_equities?: number
+          chart_rows?: number
+          coverage_reconciled?: boolean
+          critical_persistence_errors?: number
+          direction_rows?: number
+          eligible_equities?: number
+          expected_equities?: number
+          expected_indexes?: number
+          future_analysis_bars?: number
+          incomplete_analysis_bars?: number
+          manifest?: Json
+          missing_aligned_analysis?: number
+          missing_storage_objects?: number
+          published_at?: string | null
+          result_equities?: number
+          result_indexes?: number
+          run_id?: string
+          trace_equities?: number
+          universe_sources?: number
+          validated_at?: string
+          validation_errors?: string[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "run_publication_manifests_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: true
+            referencedRelation: "screening_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      run_universe_instruments: {
+        Row: {
+          instrument_id: string
+          is_index: boolean
+          membership_tags: string[]
+          run_id: string
+        }
+        Insert: {
+          instrument_id: string
+          is_index: boolean
+          membership_tags?: string[]
+          run_id: string
+        }
+        Update: {
+          instrument_id?: string
+          is_index?: boolean
+          membership_tags?: string[]
+          run_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "run_universe_instruments_instrument_id_fkey"
+            columns: ["instrument_id"]
+            isOneToOne: false
+            referencedRelation: "instruments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "run_universe_instruments_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "screening_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      run_universe_sources: {
+        Row: {
+          constituent_count: number
+          content_hash: string
+          index_id: string
+          provider: string
+          retrieved_at: string
+          run_id: string
+          source_uri: string
+        }
+        Insert: {
+          constituent_count: number
+          content_hash: string
+          index_id: string
+          provider: string
+          retrieved_at: string
+          run_id: string
+          source_uri: string
+        }
+        Update: {
+          constituent_count?: number
+          content_hash?: string
+          index_id?: string
+          provider?: string
+          retrieved_at?: string
+          run_id?: string
+          source_uri?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "run_universe_sources_index_id_fkey"
+            columns: ["index_id"]
+            isOneToOne: false
+            referencedRelation: "instruments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "run_universe_sources_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "screening_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       screening_run_leases: {
         Row: {
           acquired_at: string | null
@@ -1277,12 +1558,19 @@ export type Database = {
       }
       screening_runs: {
         Row: {
+          analysis_adjustment_state: string | null
+          analysis_provider: string | null
+          analysis_series_version: string | null
+          as_of_timestamp: string | null
           completed_at: string | null
           created_at: string
+          data_provenance: Json
           id: string
           mode: string
           parameter_version_id: string | null
           providers: Json | null
+          publication_state: Database["public"]["Enums"]["publication_state"]
+          published_at: string | null
           run_date: string
           started_at: string | null
           status: Database["public"]["Enums"]["run_status"]
@@ -1290,14 +1578,22 @@ export type Database = {
           trigger_type: Database["public"]["Enums"]["run_trigger_type"]
           triggered_by: string | null
           universe_version: string
+          validated_at: string | null
         }
         Insert: {
+          analysis_adjustment_state?: string | null
+          analysis_provider?: string | null
+          analysis_series_version?: string | null
+          as_of_timestamp?: string | null
           completed_at?: string | null
           created_at?: string
+          data_provenance?: Json
           id?: string
           mode?: string
           parameter_version_id?: string | null
           providers?: Json | null
+          publication_state?: Database["public"]["Enums"]["publication_state"]
+          published_at?: string | null
           run_date: string
           started_at?: string | null
           status?: Database["public"]["Enums"]["run_status"]
@@ -1305,14 +1601,22 @@ export type Database = {
           trigger_type: Database["public"]["Enums"]["run_trigger_type"]
           triggered_by?: string | null
           universe_version: string
+          validated_at?: string | null
         }
         Update: {
+          analysis_adjustment_state?: string | null
+          analysis_provider?: string | null
+          analysis_series_version?: string | null
+          as_of_timestamp?: string | null
           completed_at?: string | null
           created_at?: string
+          data_provenance?: Json
           id?: string
           mode?: string
           parameter_version_id?: string | null
           providers?: Json | null
+          publication_state?: Database["public"]["Enums"]["publication_state"]
+          published_at?: string | null
           run_date?: string
           started_at?: string | null
           status?: Database["public"]["Enums"]["run_status"]
@@ -1320,6 +1624,7 @@ export type Database = {
           trigger_type?: Database["public"]["Enums"]["run_trigger_type"]
           triggered_by?: string | null
           universe_version?: string
+          validated_at?: string | null
         }
         Relationships: [
           {
@@ -1369,13 +1674,18 @@ export type Database = {
       }
       swing_analysis_results: {
         Row: {
+          combination_matrix: Json | null
           computed_at: string
           confirmation_groups: Json
           confirmation_groups_passed: number
           conservative_target: number | null
+          daily_chart_content_hash: string | null
+          daily_chart_object_path: string | null
           data_quality: Database["public"]["Enums"]["data_quality_state"]
           entry_price: number | null
           final_action: string
+          hourly_chart_content_hash: string | null
+          hourly_chart_object_path: string | null
           hypothesis: string
           id: number
           instrument_id: string
@@ -1392,13 +1702,18 @@ export type Database = {
           vetoes: Json
         }
         Insert: {
+          combination_matrix?: Json | null
           computed_at?: string
           confirmation_groups?: Json
           confirmation_groups_passed?: number
           conservative_target?: number | null
+          daily_chart_content_hash?: string | null
+          daily_chart_object_path?: string | null
           data_quality: Database["public"]["Enums"]["data_quality_state"]
           entry_price?: number | null
           final_action: string
+          hourly_chart_content_hash?: string | null
+          hourly_chart_object_path?: string | null
           hypothesis: string
           id?: never
           instrument_id: string
@@ -1415,13 +1730,18 @@ export type Database = {
           vetoes?: Json
         }
         Update: {
+          combination_matrix?: Json | null
           computed_at?: string
           confirmation_groups?: Json
           confirmation_groups_passed?: number
           conservative_target?: number | null
+          daily_chart_content_hash?: string | null
+          daily_chart_object_path?: string | null
           data_quality?: Database["public"]["Enums"]["data_quality_state"]
           entry_price?: number | null
           final_action?: string
+          hourly_chart_content_hash?: string | null
+          hourly_chart_object_path?: string | null
           hypothesis?: string
           id?: never
           instrument_id?: string
@@ -1464,10 +1784,13 @@ export type Database = {
       swing_analysis_rule_traces: {
         Row: {
           analysis_result_id: number
+          data_quality: Database["public"]["Enums"]["data_quality_state"] | null
+          evidence_timestamp: string | null
           explanation: string | null
           group_name: string | null
           id: number
           observed_values: Json | null
+          required_condition: string | null
           result: Database["public"]["Enums"]["rule_result"]
           rule_id: string
           source_locator: string | null
@@ -1475,10 +1798,15 @@ export type Database = {
         }
         Insert: {
           analysis_result_id: number
+          data_quality?:
+            | Database["public"]["Enums"]["data_quality_state"]
+            | null
+          evidence_timestamp?: string | null
           explanation?: string | null
           group_name?: string | null
           id?: never
           observed_values?: Json | null
+          required_condition?: string | null
           result: Database["public"]["Enums"]["rule_result"]
           rule_id: string
           source_locator?: string | null
@@ -1486,10 +1814,15 @@ export type Database = {
         }
         Update: {
           analysis_result_id?: number
+          data_quality?:
+            | Database["public"]["Enums"]["data_quality_state"]
+            | null
+          evidence_timestamp?: string | null
           explanation?: string | null
           group_name?: string | null
           id?: never
           observed_values?: Json | null
+          required_condition?: string | null
           result?: Database["public"]["Enums"]["rule_result"]
           rule_id?: string
           source_locator?: string | null
@@ -1521,18 +1854,23 @@ export type Database = {
           stage: string
           status: string
           updated_at: string
-        }
+        }[]
         SetofOptions: {
           from: "*"
           to: "pipeline_batches"
-          isOneToOne: true
-          isSetofReturn: false
+          isOneToOne: false
+          isSetofReturn: true
         }
       }
       current_role_name: {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
       }
+      expire_stale_screening_runs: {
+        Args: { p_older_than: string }
+        Returns: number
+      }
+      publish_screening_run: { Args: { p_run_id: string }; Returns: Json }
       reset_stale_pipeline_batches: {
         Args: {
           p_max_attempts: number
@@ -1566,6 +1904,11 @@ export type Database = {
     Enums: {
       data_quality_state: "PASS" | "PARTIAL" | "STALE" | "INVALID" | "NO_DATA"
       freshness_label: "LIVE" | "DELAYED" | "INTRADAY" | "EOD"
+      publication_state:
+        | "processing"
+        | "validated"
+        | "published"
+        | "validation_failed"
       rule_result:
         | "PASS"
         | "FAIL"
@@ -1720,6 +2063,12 @@ export const Constants = {
     Enums: {
       data_quality_state: ["PASS", "PARTIAL", "STALE", "INVALID", "NO_DATA"],
       freshness_label: ["LIVE", "DELAYED", "INTRADAY", "EOD"],
+      publication_state: [
+        "processing",
+        "validated",
+        "published",
+        "validation_failed",
+      ],
       rule_result: [
         "PASS",
         "FAIL",

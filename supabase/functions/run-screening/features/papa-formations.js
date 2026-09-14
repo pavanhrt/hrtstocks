@@ -41,12 +41,10 @@
 // never TRIGGER on that same opening candle; a follow-up candle must confirm
 // first.
 //
-// "A level" (support/resistance) is any confirmed zigzag pivot -- hourly or
-// daily -- within patterns.js's own DOUBLE_EXTREME_TOLERANCE (~3%) of the
-// formation's own reference price, preferring a level that also exists on
-// the daily chart, per the playbook's own explicit weighting note ("an
-// hourly-only support that formed four hours ago carries far less weight
-// than one the daily chart has respected three times").
+// "A level" (support/resistance) requires at least two distinct confirmed
+// zigzag touches within patterns.js's own DOUBLE_EXTREME_TOLERANCE (~3%),
+// preferring a daily-chart match. This prevents one isolated hourly pivot
+// from being promoted to the playbook's "MAJOR" support/resistance.
 
 import { DOUBLE_EXTREME_TOLERANCE } from "./patterns.js";
 
@@ -58,6 +56,12 @@ const PAPA_FORMATIONS_LOCATOR = "papa-price-action-SKILL.md §3-§8 / papa-decis
 // patterns.js's own TREND_LOOKBACK_BARS (a plausible, versioned default, not
 // an extracted number).
 const SHAKEOUT_LOOKBACK_BARS = 10;
+const PAPA_FORMATION_COVERAGE = Object.freeze({
+  complete: false,
+  implemented: ["Counter Attack", "Gap", "Genuine Break", "Fake Break", "Mother Candle", "Sandwich"],
+  conditionalOnParameters: ["Rounding Top", "Rounding Bottom"],
+  notEvaluated: ["Three White Soldiers pullback", "Three Black Crows rally", "Accumulation", "Distribution", "Tweezers", "Double Top weapon", "Double Bottom weapon"],
+});
 
 function isBullish(bar) {
   return bar.close > bar.open;
@@ -74,18 +78,26 @@ function detection({ patternName, direction, state, anchorPoints, triggerBarDate
 }
 
 /**
- * Nearest confirmed pivot (hourly or daily) to `price` within tolerance,
- * preferring a daily-chart level over an hourly-only one when both qualify.
+ * Nearest repeatedly confirmed pivot level to `price` within tolerance,
+ * preferring a daily-chart touch over an hourly-only one when both qualify.
  * @param {{type: "high"|"low", price: number, date: string}[]} hourlyPivots confirmed zigzag pivots on the hourly chart
  * @param {{type: "high"|"low", price: number, date: string}[]} dailyPivots confirmed zigzag pivots on the daily chart
  * @param {"high"|"low"} type "high" for a resistance level, "low" for support
  */
 function nearestLevel(price, hourlyPivots, dailyPivots, type, tolerance = DOUBLE_EXTREME_TOLERANCE) {
   const byDistance = (a, b) => Math.abs(a.price - price) - Math.abs(b.price - price);
-  const dailyMatch = dailyPivots.filter((p) => p.type === type && Math.abs(p.price - price) / price < tolerance).sort(byDistance)[0];
-  if (dailyMatch) return { price: dailyMatch.price, date: dailyMatch.date, onDaily: true };
-  const hourlyMatch = hourlyPivots.filter((p) => p.type === type && Math.abs(p.price - price) / price < tolerance).sort(byDistance)[0];
-  if (hourlyMatch) return { price: hourlyMatch.price, date: hourlyMatch.date, onDaily: false };
+  const dailyMatches = dailyPivots.filter((p) => p.type === type && Math.abs(p.price - price) / price < tolerance);
+  const hourlyMatches = hourlyPivots.filter((p) => p.type === type && Math.abs(p.price - price) / price < tolerance);
+  const distinctTouches = new Set([...dailyMatches, ...hourlyMatches].map((p) => `${p.date}:${p.price}`));
+  // The playbook says MAJOR support/resistance and contrasts a level the
+  // daily chart has respected repeatedly with a one-off hourly pivot. One
+  // proximity hit is therefore insufficient evidence of a meaningful
+  // level; require two distinct confirmed touches across either timeframe.
+  if (distinctTouches.size < 2) return null;
+  const dailyMatch = dailyMatches.sort(byDistance)[0];
+  if (dailyMatch) return { price: dailyMatch.price, date: dailyMatch.date, onDaily: true, touchCount: distinctTouches.size };
+  const hourlyMatch = hourlyMatches.sort(byDistance)[0];
+  if (hourlyMatch) return { price: hourlyMatch.price, date: hourlyMatch.date, onDaily: false, touchCount: distinctTouches.size };
   return null;
 }
 
@@ -271,12 +283,10 @@ export function detectFakeBreak(hourlyBars, hourlyPivots, dailyPivots, bullish) 
 
 /**
  * Mother candle (reversal at a level, or continuation mid-trend) -- a
- * bigger candle with at least 3 following candles trading within its
+ * mother candle with at least 3 following candles trading within its
  * high-low range; a LATER close beyond the mother candle's own high/low is
- * the trigger. "Bigger" than what: the immediately preceding candle's range
- * (a disclosed, minimal comparison -- the source gives no averaging window
- * for this specific qualifier, unlike patterns.js's own TREND_LOOKBACK_BARS
- * convention which compares closes, not ranges).
+ * the trigger. Containment establishes that it is the larger/mother candle;
+ * no undocumented comparison with an unrelated preceding candle is used.
  * @param {boolean} atLevel true = reversal (mother candle must sit at a
  *   detected level); false = continuation (no level requirement, mother
  *   candle must sit "in between the trend" -- approximated here as simply
@@ -288,10 +298,6 @@ export function detectMotherCandle(hourlyBars, hourlyPivots, dailyPivots, bullis
   const N_FOLLOWING_CANDLES = 3; // exact number per papa-price-action-SKILL.md §4/§6
   for (let i = 1; i < hourlyBars.length - N_FOLLOWING_CANDLES; i++) {
     const mother = hourlyBars[i];
-    const motherRange = mother.high - mother.low;
-    const prevRange = hourlyBars[i - 1].high - hourlyBars[i - 1].low;
-    if (!(motherRange > prevRange)) continue; // not "bigger" than the immediately preceding candle
-
     const level = bullish
       ? nearestLevel(mother.low, hourlyPivots, dailyPivots, "low")
       : nearestLevel(mother.high, hourlyPivots, dailyPivots, "high");
@@ -329,7 +335,7 @@ export function detectMotherCandle(hourlyBars, hourlyPivots, dailyPivots, bullis
  * (unlike Counter Attack/Gap) -- the breakout candle itself is the trigger.
  * Stop is the opposite side of the sandwich, per the source's own table.
  */
-const MIN_ALTERNATING_RUN = 3; // "no candle-count limit" upward; this is the disclosed floor for a run to define a meaningful range at all
+const MIN_ALTERNATING_RUN = 4; // source's literal red-green-red-green example
 
 function isAlternating(prev, cur) {
   return (isBullish(prev) && isBearish(cur)) || (isBearish(prev) && isBullish(cur));
@@ -376,22 +382,19 @@ export function detectSandwich(hourlyBars, bullish) {
  * initiating candles' bodies >= multiple x the base's own average body;
  * base candles' bodies <= the initiating candles' own average / multiple;
  * the breakout candle's body >= multiple x the base's own average again.
- * MIN_BIG_CANDLES ("multiple") and MIN_BASE_CANDLES mirror Mother Candle's
- * own documented N=3 base-window precedent (papa-price-action-SKILL.md
- * §4/§6) for consistency, since this row gives no number of its own for
- * either.
+ * The source does not quantify "multiple" or the base length, so callers
+ * must supply both counts. Missing counts mean not evaluated, never a
+ * guessed default borrowed from another formation.
  */
-const MIN_BIG_CANDLES = 2;
-const MIN_BASE_CANDLES = 3;
-
-export function detectRounding(hourlyBars, bullish, bodySizeMultiplier) {
+export function detectRounding(hourlyBars, bullish, bodySizeMultiplier, { minBigCandles = null, minBaseCandles = null } = {}) {
   const results = [];
+  if (bodySizeMultiplier == null || minBigCandles == null || minBaseCandles == null) return results;
   const sameColor = bullish ? isBearish : isBullish; // rounding BOTTOM forms from big RED candles; rounding TOP from big GREEN candles
 
-  for (let i = MIN_BIG_CANDLES + MIN_BASE_CANDLES; i < hourlyBars.length; i++) {
+  for (let i = minBigCandles + minBaseCandles; i < hourlyBars.length; i++) {
     const breakoutBar = hourlyBars[i];
-    const base = hourlyBars.slice(i - MIN_BASE_CANDLES, i);
-    const bigCandles = hourlyBars.slice(i - MIN_BASE_CANDLES - MIN_BIG_CANDLES, i - MIN_BASE_CANDLES);
+    const base = hourlyBars.slice(i - minBaseCandles, i);
+    const bigCandles = hourlyBars.slice(i - minBaseCandles - minBigCandles, i - minBaseCandles);
 
     if (!bigCandles.every((b) => sameColor(b))) continue;
 
@@ -431,7 +434,7 @@ export function detectRounding(hourlyBars, bullish, bodySizeMultiplier) {
  * @param {number} bodySizeMultiplier config/parameters.yaml rounding_pattern_body_size_multiplier
  * @returns {object[]}
  */
-export function detectTriggeredPapaFormations({ hourlyBars, hourlyPivots, dailyPivots, bullish, bodySizeMultiplier }) {
+export function detectTriggeredPapaFormations({ hourlyBars, hourlyPivots, dailyPivots, bullish, bodySizeMultiplier, roundingMinBigCandles = null, roundingMinBaseCandles = null }) {
   const all = [
     ...detectCounterAttack(hourlyBars, hourlyPivots, dailyPivots, bullish),
     ...detectGap(hourlyBars, hourlyPivots, dailyPivots, bullish),
@@ -440,9 +443,9 @@ export function detectTriggeredPapaFormations({ hourlyBars, hourlyPivots, dailyP
     ...detectMotherCandle(hourlyBars, hourlyPivots, dailyPivots, bullish, true),
     ...detectMotherCandle(hourlyBars, hourlyPivots, dailyPivots, bullish, false),
     ...detectSandwich(hourlyBars, bullish),
-    ...(bodySizeMultiplier != null ? detectRounding(hourlyBars, bullish, bodySizeMultiplier) : []),
+    ...detectRounding(hourlyBars, bullish, bodySizeMultiplier, { minBigCandles: roundingMinBigCandles, minBaseCandles: roundingMinBaseCandles }),
   ];
   return all.filter((d) => d.state === "TRIGGERED");
 }
 
-export { SHAKEOUT_LOOKBACK_BARS };
+export { SHAKEOUT_LOOKBACK_BARS, PAPA_FORMATION_COVERAGE };

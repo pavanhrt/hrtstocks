@@ -12,3 +12,20 @@ export const FINAL_ALIGNMENT_VALUES = [
   "UNAVAILABLE",
 ] as const;
 export type FinalAlignment = (typeof FINAL_ALIGNMENT_VALUES)[number];
+
+export function resolveDirectionAlignment({
+  persisted,
+  terminalState,
+  tier,
+  dataQuality,
+}: {
+  persisted?: FinalAlignment | null;
+  terminalState: string;
+  tier: string | null;
+  dataQuality: string | null;
+}): FinalAlignment {
+  if (persisted) return persisted;
+  return terminalState === "NO_DATA" || tier === "unavailable" || dataQuality === "NO_DATA"
+    ? "UNAVAILABLE"
+    : "MANUAL_REVIEW";
+}

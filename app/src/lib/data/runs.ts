@@ -29,15 +29,26 @@ export async function getLatestRun() {
 }
 
 /**
- * Most recent COMPLETED run, regardless of caller role. This is "the
- * published run" -- what every content page (as opposed to an operational
- * status page) should treat as the current analysis. A running, partial, or
- * failed run -- even one more recent than the last completed run -- is never
- * returned here.
+ * Most recent immutable published run. A newer processing, failed, or merely
+ * validated run can never replace the snapshot shown on content pages. The
+ * fallback supports installations where the publication lifecycle migration
+ * has not been applied yet.
  */
 export async function getLatestPublishedRun() {
   const supabase = await createClient();
-  const { data, error } = await supabase
+  const published = await supabase
+    .from("screening_runs")
+    .select("*")
+    .eq("status", "completed")
+    .filter("publication_state", "eq", "published")
+    .order("run_date", { ascending: false })
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!published.error) return published.data;
+  if (published.error.code !== "PGRST204" && published.error.code !== "42703") throw published.error;
+
+  const legacy = await supabase
     .from("screening_runs")
     .select("*")
     .eq("status", "completed")
@@ -45,8 +56,8 @@ export async function getLatestPublishedRun() {
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (error) throw error;
-  return data;
+  if (legacy.error) throw legacy.error;
+  return legacy.data;
 }
 
 export async function getCoverage(runId: string) {
@@ -114,6 +125,32 @@ export async function getStockLedger(runId: string) {
   return data ?? [];
 }
 
+export async function getStockLedgerPage(
+  runId: string,
+  { page = 1, pageSize = 50, query = "", tier = "all", state = "all" } = {}
+) {
+  const rows = await getStockLedger(runId);
+  const normalizedQuery = query.trim().toLocaleLowerCase();
+  const filtered = rows.filter((raw) => {
+    const row = raw as typeof raw & { instruments: { symbol: string; name: string | null } | null };
+    if (normalizedQuery && !`${row.instrument_id} ${row.instruments?.symbol ?? ""} ${row.instruments?.name ?? ""}`.toLocaleLowerCase().includes(normalizedQuery)) return false;
+    if (tier !== "all" && (row.tier ?? "unclassified") !== tier) return false;
+    if (state !== "all" && row.terminal_state !== state) return false;
+    return true;
+  });
+  const safePageSize = Math.max(1, Math.min(100, pageSize));
+  const pageCount = Math.max(1, Math.ceil(filtered.length / safePageSize));
+  const safePage = Math.min(Math.max(1, page), pageCount);
+  return {
+    rows: filtered.slice((safePage - 1) * safePageSize, safePage * safePageSize),
+    totalCount: filtered.length,
+    universeCount: rows.length,
+    page: safePage,
+    pageCount,
+    pageSize: safePageSize,
+  };
+}
+
 export async function getRuleTraces(runId: string, instrumentId: string) {
   const supabase = await createClient();
   const { data, error } = await supabase
@@ -124,6 +161,29 @@ export async function getRuleTraces(runId: string, instrumentId: string) {
     .order("rule_id", { ascending: true });
   if (error) throw error;
   return data ?? [];
+}
+
+export async function getRuleTracePage(runId: string, instrumentId: string, requestedPage = 1, pageSize = 24) {
+  const supabase = await createClient();
+  const safePageSize = Math.max(1, Math.min(100, pageSize));
+  const { count, error: countError } = await supabase
+    .from("rule_traces")
+    .select("id", { count: "exact", head: true })
+    .eq("run_id", runId)
+    .eq("instrument_id", instrumentId);
+  if (countError) throw countError;
+  const totalCount = count ?? 0;
+  const pageCount = Math.max(1, Math.ceil(totalCount / safePageSize));
+  const page = Math.min(Math.max(1, requestedPage), pageCount);
+  const { data, error } = await supabase
+    .from("rule_traces")
+    .select("*")
+    .eq("run_id", runId)
+    .eq("instrument_id", instrumentId)
+    .order("rule_id", { ascending: true })
+    .range((page - 1) * safePageSize, page * safePageSize - 1);
+  if (error) throw error;
+  return { rows: data ?? [], totalCount, page, pageCount, pageSize: safePageSize };
 }
 
 /** Last N runs' results for the four index instruments, oldest first, for the regime-comparison view. */
@@ -255,6 +315,54 @@ export async function getRecentRuns(limit = 15) {
     .limit(limit);
   if (error) throw error;
   return data ?? [];
+}
+
+export type PublicationManifest = {
+  expected_equities: number;
+  expected_indexes: number;
+  result_equities: number;
+  result_indexes: number;
+  eligible_equities: number;
+  alignment_equities: number;
+  direction_rows: number;
+  chart_rows: number;
+  analysis_bar_equities: number;
+  trace_equities: number;
+  missing_aligned_analysis: number;
+  missing_storage_objects: number;
+  critical_persistence_errors: number;
+  future_analysis_bars: number;
+  coverage_reconciled: boolean;
+  validation_errors: string[];
+  validated_at: string;
+  published_at: string | null;
+};
+
+export async function getPublicationManifest(runId: string): Promise<PublicationManifest | null> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("run_publication_manifests" as "coverage_reconciliation")
+    .select("*")
+    .eq("run_id", runId)
+    .maybeSingle();
+  if (error) {
+    if (error.code === "PGRST205" || error.code === "42703") return null;
+    throw error;
+  }
+  return data as unknown as PublicationManifest | null;
+}
+
+export async function getPersistenceErrorCount(runId: string): Promise<number | null> {
+  const supabase = await createClient();
+  const { count, error } = await supabase
+    .from("pipeline_persistence_errors" as "pipeline_audit_log")
+    .select("id", { count: "exact", head: true })
+    .eq("run_id", runId);
+  if (error) {
+    if (error.code === "PGRST205" || error.code === "42703") return null;
+    throw error;
+  }
+  return count ?? 0;
 }
 
 export async function getInstrument(instrumentId: string) {

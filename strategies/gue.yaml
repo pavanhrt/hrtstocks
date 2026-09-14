@@ -37,7 +37,18 @@ impulse_rules:
   - id: GUE-IMPULSE-003
     name: Wave 3 not shortest
     source_status: DOCUMENTED
-    expression: "wave_3_length >= min(wave_1_length, wave_5_length)"
+    # "wave_3_length >= min(wave_1_length, wave_5_length)" is the documented
+    # condition, but rules/engine.js's expression grammar has no function-call
+    # support (by design -- see its own header comment: a fixed grammar of
+    # booleans/comparisons/arithmetic/identifiers/literals only, no min/max/
+    # abs/etc). Rewritten to the algebraically equivalent form (x >= min(a,b)
+    # iff x is not less than both a and b, i.e. x >= a or x >= b) rather than
+    # extending the engine for one rule. Discovered 2026-09-11: with the
+    # original min()-based expression, this rule's expression always threw
+    # "Unknown identifier min" and silently fell back to MANUAL_REVIEW no
+    # matter what wave-length data existed, independent of the classification-
+    # architecture pooling defect this rule was also caught up in.
+    expression: "wave_3_length >= wave_1_length or wave_3_length >= wave_5_length"
     true_result: PASS
     false_result: FAIL
     missing_result: MANUAL_REVIEW

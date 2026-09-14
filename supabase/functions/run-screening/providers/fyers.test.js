@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { nextIncrementalRange, serializeFyersRequest } from "./fyers.js";
+import { mapDailyCandles, mapHourlyCandles, nextIncrementalRange, serializeFyersRequest } from "./fyers.js";
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -35,6 +35,26 @@ test("nextIncrementalRange handles a multi-day gap (e.g. a stock skipped for sev
   const range = nextIncrementalRange("2026-08-01", "2026-09-10", 365);
   assert.equal(range.from.toISOString().slice(0, 10), "2026-08-02");
   assert.equal(range.to.toISOString().slice(0, 10), "2026-09-10");
+});
+
+test("daily provider candles outside the immutable requested range are discarded", () => {
+  const ts = (iso) => Math.floor(Date.parse(iso) / 1000);
+  const candles = [
+    [ts("2026-09-10T00:00:00Z"), 1, 2, 1, 2, 10],
+    [ts("2026-09-11T00:00:00Z"), 2, 3, 2, 3, 20],
+  ];
+  const bars = mapDailyCandles(candles, new Date("2026-09-01T00:00:00Z"), new Date("2026-09-10T00:00:00Z"));
+  assert.deepEqual(bars.map((bar) => bar.date), ["2026-09-10"]);
+});
+
+test("hourly provider candles newer than the frozen request cutoff are discarded", () => {
+  const ts = (iso) => Math.floor(Date.parse(iso) / 1000);
+  const candles = [
+    [ts("2026-09-10T08:45:00Z"), 1, 2, 1, 2, 10],
+    [ts("2026-09-11T03:45:00Z"), 2, 3, 2, 3, 20],
+  ];
+  const bars = mapHourlyCandles(candles, new Date("2026-09-01T00:00:00Z"), new Date("2026-09-10T10:00:00Z"));
+  assert.deepEqual(bars.map((bar) => bar.ts), [ts("2026-09-10T08:45:00Z")]);
 });
 
 // serializeFyersRequest exists specifically because throttle()'s start-time

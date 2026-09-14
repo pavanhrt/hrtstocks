@@ -21,6 +21,30 @@ function parseCsvLine(line) {
   return line.split(",").map((cell) => cell.trim());
 }
 
+async function sha256Hex(text) {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+export function parseNseConstituentCsv(text, indexId) {
+  const lines = text.split(/\r?\n/).filter((line) => line.trim().length > 0);
+  if (lines.length < 2) throw new Error(`Empty constituent CSV for ${indexId}`);
+  const header = parseCsvLine(lines[0]).map((h) => h.toLowerCase());
+  const symbolIdx = header.indexOf("symbol");
+  const nameIdx = header.indexOf("company name");
+  if (symbolIdx === -1) throw new Error(`Unexpected CSV header for ${indexId}: ${lines[0]}`);
+  const data = lines.slice(1).map((line) => {
+    const cells = parseCsvLine(line);
+    const symbol = cells[symbolIdx];
+    if (!symbol) throw new Error(`Blank symbol in constituent CSV for ${indexId}`);
+    return { instrumentId: `NSE_${symbol}`, symbol, name: nameIdx !== -1 ? cells[nameIdx] : symbol };
+  });
+  if (new Set(data.map((row) => row.instrumentId)).size !== data.length) {
+    throw new Error(`Duplicate constituent symbol in CSV for ${indexId}`);
+  }
+  return data;
+}
+
 export async function fetchIndexConstituents(indexId) {
   const url = INDEX_CSV_URL[indexId];
   if (!url) throw new Error(`Unknown index id: ${indexId}`);
@@ -29,26 +53,14 @@ export async function fetchIndexConstituents(indexId) {
   if (!res.ok) throw new Error(`NSE archive request failed: ${url} -> ${res.status}`);
 
   const text = await res.text();
-  const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
-  const header = parseCsvLine(lines[0]).map((h) => h.toLowerCase());
-  const symbolIdx = header.indexOf("symbol");
-  const nameIdx = header.indexOf("company name");
-  if (symbolIdx === -1) throw new Error(`Unexpected CSV header for ${indexId}: ${lines[0]}`);
-
-  const data = lines.slice(1).map((line) => {
-    const cells = parseCsvLine(line);
-    const symbol = cells[symbolIdx];
-    return {
-      instrumentId: `NSE_${symbol}`,
-      symbol,
-      name: nameIdx !== -1 ? cells[nameIdx] : symbol,
-    };
-  });
+  const data = parseNseConstituentCsv(text, indexId);
 
   return {
     data,
     freshness: "EOD",
     provider: "nse_archives",
     retrievedAt: new Date().toISOString(),
+    sourceUri: url,
+    contentHash: await sha256Hex(text),
   };
 }

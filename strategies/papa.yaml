@@ -24,6 +24,7 @@ rules:
   - id: PAPA-CONTEXT-001
     name: Reversal location required
     source_status: DOCUMENTED
+    source_refs: {document: "Pay Attention To Price Action.pdf", locator: "pages 10-20, support/resistance and trend-location context"}
     timeframe: wave
     direction: both
     inputs: [at_trend_extreme, at_major_support, at_major_resistance, at_exhaustion_area]
@@ -36,6 +37,7 @@ rules:
   - id: PAPA-UNGALI-001
     name: Bullish Ungali
     source_status: DOCUMENTED
+    source_refs: {document: "PAPA Decision Sheet_Sep22.pdf", locator: "page 1, BUY Ungali/checklist row; inferred abbreviations retained"}
     timeframe: wave
     direction: bullish
     inputs: [bullish_candle, trendline_breakout, breakout_volume, average_volume, bollinger_state, plus_di, minus_di, adx, rsi]
@@ -49,6 +51,7 @@ rules:
   - id: PAPA-UNGALI-002
     name: Bearish Ungali
     source_status: DOCUMENTED
+    source_refs: {document: "PAPA Decision Sheet_Sep22.pdf", locator: "page 2, SELL Ungali/checklist row; inferred abbreviations retained"}
     timeframe: wave
     direction: bearish
     inputs: [bearish_candle, trendline_breakdown, breakdown_volume, average_volume, bollinger_state, plus_di, minus_di, adx, rsi]
@@ -62,6 +65,7 @@ rules:
   - id: PAPA-DOW-001
     name: Advanced Dow bullish level 4
     source_status: DOCUMENTED
+    source_refs: {document: "Pay Attention To Price Action.pdf", locator: "Advanced Dow bullish sequence section"}
     timeframe: daily
     direction: bullish
     inputs: [stopped_lower_lows, bullish_close, prior_bearish_high, ema_5]
@@ -74,6 +78,7 @@ rules:
   - id: PAPA-DOW-002
     name: Advanced Dow bearish level 4
     source_status: DOCUMENTED
+    source_refs: {document: "Pay Attention To Price Action.pdf", locator: "Advanced Dow bearish sequence section"}
     timeframe: daily
     direction: bearish
     inputs: [stopped_higher_highs, bearish_close, prior_bullish_low, ema_5]
@@ -86,6 +91,7 @@ rules:
   - id: PAPA-DOW-003
     name: Advanced Dow intermediate levels
     source_status: UNRESOLVED
+    source_refs: {document: "Pay Attention To Price Action.pdf", locator: "Advanced Dow intermediate comparisons; unresolved sequence"}
     timeframe: daily
     direction: both
     inputs: [source_comparison_sequence]
@@ -98,6 +104,7 @@ rules:
   - id: PAPA-HA-001
     name: Heikin-Ashi calculation
     source_status: DOCUMENTED
+    source_refs: {document: "Pay Attention To Price Action.pdf", locator: "Heikin Ashi section"}
     timeframe: any
     direction: both
     inputs: [open, high, low, close, previous_ha_open, previous_ha_close]
@@ -112,6 +119,7 @@ rules:
   - id: PAPA-EXTREME-001
     name: Extreme Bollinger warning
     source_status: DOCUMENTED
+    source_refs: {document: "PAPA Concept 1.pdf", locator: "page 21, Bollinger Bands"}
     timeframe: wave
     direction: both
     inputs: [close, bollinger_upper_3sd, bollinger_lower_3sd]

@@ -4,10 +4,10 @@
 
 /**
  * @param {import("./providers/types.js").Bar[]} bars - oldest-first
- * @param {{ staleDays?: number }} [options]
+ * @param {{ staleDays?: number, asOfTimestamp?: string, cutoffDate?: string }} [options]
  * @returns {{ result: "PASS"|"PARTIAL"|"INVALID"|"NO_DATA", issues: string[] }}
  */
-export function validateBars(bars, { staleDays = 5 } = {}) {
+export function validateBars(bars, { staleDays = 5, asOfTimestamp = new Date().toISOString(), cutoffDate = null } = {}) {
   if (!bars || bars.length === 0) {
     return { result: "NO_DATA", issues: ["no bars returned"] };
   }
@@ -20,6 +20,11 @@ export function validateBars(bars, { staleDays = 5 } = {}) {
   let criticalCount = 0;
 
   for (const bar of bars) {
+    if (cutoffDate && bar.date > cutoffDate) {
+      issues.push(`${bar.date}: bar is newer than frozen cutoff ${cutoffDate}`);
+      criticalCount++;
+      continue;
+    }
     if (![bar.open, bar.high, bar.low, bar.close].every((v) => Number.isFinite(v) && v > 0)) {
       issues.push(`${bar.date}: missing or non-positive OHLC`);
       criticalCount++;
@@ -41,7 +46,9 @@ export function validateBars(bars, { staleDays = 5 } = {}) {
   }
 
   const latest = bars[bars.length - 1];
-  const ageDays = (Date.now() - new Date(latest.date).getTime()) / (24 * 60 * 60 * 1000);
+  const asOfMs = Date.parse(asOfTimestamp);
+  if (!Number.isFinite(asOfMs)) throw new Error("validateBars requires a valid asOfTimestamp");
+  const ageDays = (asOfMs - new Date(latest.date).getTime()) / (24 * 60 * 60 * 1000);
   if (ageDays > staleDays) {
     issues.push(`latest bar ${latest.date} is ${Math.floor(ageDays)} days old (stale threshold ${staleDays})`);
   }

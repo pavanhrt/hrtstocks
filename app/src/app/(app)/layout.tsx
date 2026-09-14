@@ -22,26 +22,17 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   ];
 
   return (
-    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
-      <header
-        style={{
-          position: "relative",
-          borderBottom: "1px solid var(--panel-border)",
-          padding: "10px 20px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-        }}
-      >
+    <div className="app-shell">
+      <header className="app-header">
         <Nav links={links} />
-        <div style={{ display: "flex", alignItems: "center", gap: 12, fontSize: 13, color: "var(--text-dim)" }}>
+        <div className="app-header-user">
           <span>
             {user.email} &middot; <span style={{ textTransform: "capitalize" }}>{user.role.replace("_", " ")}</span>
           </span>
           <SignOutButton />
         </div>
       </header>
-      <main style={{ padding: 20, flex: 1 }}>{children}</main>
+      <main className="app-main">{children}</main>
     </div>
   );
 }

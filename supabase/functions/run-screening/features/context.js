@@ -1,7 +1,7 @@
 import { ema, bollingerBands, rsiWithPrevious, stochastic, macdHistogramPhase, averageVolume } from "./indicators.js";
 import { aggregateBars, zigzagPivots, zigzagPivotsWithUnconfirmedLeg, classifyDowStructure, rangeBreakoutWithVolume, labelPivotSequence } from "./structure.js";
 import { labelWave } from "./wave.js";
-import { detectCandlestickPatterns, detectDoubleExtremePatterns } from "./patterns.js";
+import { detectCandlestickPatterns, detectDoubleExtremePatterns, PATTERN_COVERAGE } from "./patterns.js";
 
 /**
  * Builds the feature context an instrument's rules are evaluated against.
@@ -142,8 +142,17 @@ export function buildFeatureContext(bars, documentedParams) {
     // here keeps this module self-contained -- bars+params in, context out --
     // rather than threading pattern_detections rows through the call chain).
     const dailyPatternHits = [...detectCandlestickPatterns(bars), ...detectDoubleExtremePatterns(zigzagPivots(bars, documentedParams.zigzag_daily_pct), bars)];
-    context.daily_no_live_triggered_bearish_pattern = !dailyPatternHits.some((h) => h.state === "TRIGGERED" && h.direction === "bearish");
-    context.daily_no_live_triggered_bullish_pattern = !dailyPatternHits.some((h) => h.state === "TRIGGERED" && h.direction === "bullish");
+    context.daily_pattern_evaluation_state = PATTERN_COVERAGE.complete ? "COMPLETE" : "PARTIAL";
+    context.daily_pattern_not_evaluated = PATTERN_COVERAGE.notEvaluated;
+    // Absence from a partial detector set is not evidence that no opposing
+    // live pattern exists. Null sends M3/S3 to MANUAL_REVIEW rather than
+    // manufacturing a PASS from unimplemented families.
+    context.daily_no_live_triggered_bearish_pattern = PATTERN_COVERAGE.complete
+      ? !dailyPatternHits.some((h) => h.state === "TRIGGERED" && h.direction === "bearish")
+      : null;
+    context.daily_no_live_triggered_bullish_pattern = PATTERN_COVERAGE.complete
+      ? !dailyPatternHits.some((h) => h.state === "TRIGGERED" && h.direction === "bullish")
+      : null;
   }
 
   return context;
@@ -177,6 +186,12 @@ function applyTimeframe(context, label, timeframeBars, { zigzagPct, volumeLookba
     context[`${label}_elliott_current_wave`] = wave.currentWave;
     context[`${label}_elliott_wave_state`] = wave.waveState;
     context[`${label}_elliott_confidence`] = wave.confidence;
+    // Null, not false, means the required Elliott rules are not yet
+    // checkable. evaluateRule therefore uses the gate's MANUAL_REVIEW
+    // missing_result instead of turning uncertainty into an opposing FAIL.
+    context[`${label}_elliott_mandatory_evidence_confirmed`] = wave.mandatoryEvidenceConfirmed ? true : null;
+    context[`${label}_elliott_rule_evidence`] = wave.ruleEvidence ?? [];
+    context[`${label}_elliott_uncheckable_rules`] = wave.uncheckableRules ?? [];
   }
 
   if (macdFast != null && macdSlow != null && macdSignal != null) {

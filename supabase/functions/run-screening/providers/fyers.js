@@ -108,6 +108,40 @@ function fmtDate(d) {
   return d.toISOString().slice(0, 10);
 }
 
+/** Maps and bounds provider daily candles to the requested immutable range. */
+export function mapDailyCandles(candles, fromDate, toDate) {
+  const from = fmtDate(fromDate);
+  const to = fmtDate(toDate);
+  return (candles ?? [])
+    .map(([ts, open, high, low, close, volume]) => ({
+      date: new Date(ts * 1000).toISOString().slice(0, 10),
+      open: Number(open),
+      high: Number(high),
+      low: Number(low),
+      close: Number(close),
+      volume: Number(volume),
+    }))
+    .filter((bar) => Number.isFinite(bar.close) && bar.date >= from && bar.date <= to)
+    .sort((a, b) => (a.date < b.date ? -1 : 1));
+}
+
+/** Maps and bounds provider intraday candles to the requested epoch window. */
+export function mapHourlyCandles(candles, fromDate, toDate) {
+  const fromEpoch = Math.floor(fromDate.getTime() / 1000);
+  const toEpoch = Math.floor(toDate.getTime() / 1000);
+  return (candles ?? [])
+    .map(([ts, open, high, low, close, volume]) => ({
+      ts: Number(ts),
+      open: Number(open),
+      high: Number(high),
+      low: Number(low),
+      close: Number(close),
+      volume: Number(volume),
+    }))
+    .filter((bar) => Number.isFinite(bar.close) && bar.ts >= fromEpoch && bar.ts <= toEpoch)
+    .sort((a, b) => a.ts - b.ts);
+}
+
 /**
  * Shared request/throttle/retry loop for both fetchOHLCV (daily) and
  * fetchHourlyOHLCV -- a 429 retry policy and the cross-invocation rate-limit
@@ -174,17 +208,7 @@ export async function fetchOHLCVRange(instrumentId, symbol, fromDate, toDate, su
 
   const body = await requestHistory(url, symbol, supabase);
 
-  const data = (body.candles ?? [])
-    .map(([ts, open, high, low, close, volume]) => ({
-      date: new Date(ts * 1000).toISOString().slice(0, 10),
-      open: Number(open),
-      high: Number(high),
-      low: Number(low),
-      close: Number(close),
-      volume: Number(volume),
-    }))
-    .filter((bar) => Number.isFinite(bar.close))
-    .sort((a, b) => (a.date < b.date ? -1 : 1));
+  const data = mapDailyCandles(body.candles, fromDate, toDate);
 
   return {
     data,
@@ -200,8 +224,8 @@ export async function fetchOHLCVRange(instrumentId, symbol, fromDate, toDate, su
  * @param {number} days
  * @param {import("@supabase/supabase-js").SupabaseClient} [supabase]
  */
-export async function fetchOHLCV(instrumentId, symbol, days, supabase = null) {
-  const to = new Date();
+export async function fetchOHLCV(instrumentId, symbol, days, supabase = null, asOf = new Date()) {
+  const to = new Date(asOf);
   const from = new Date(to.getTime() - days * 24 * 60 * 60 * 1000);
   return fetchOHLCVRange(instrumentId, symbol, from, to, supabase);
 }
@@ -272,8 +296,14 @@ const HOURLY_LOOKBACK_DAYS = 30;
  * @param {import("@supabase/supabase-js").SupabaseClient} [supabase]
  * @param {number} [days]
  */
-export async function fetchHourlyOHLCV(instrumentId, symbol, supabase = null, days = HOURLY_LOOKBACK_DAYS) {
-  const to = new Date();
+export async function fetchHourlyOHLCV(
+  instrumentId,
+  symbol,
+  supabase = null,
+  { days = HOURLY_LOOKBACK_DAYS, asOfTimestamp = new Date().toISOString() } = {}
+) {
+  const to = new Date(asOfTimestamp);
+  if (!Number.isFinite(to.getTime())) throw new Error("fetchHourlyOHLCV requires a valid asOfTimestamp");
   const from = new Date(to.getTime() - days * 24 * 60 * 60 * 1000);
 
   const url = new URL(`${DATA_BASE_URL}/history`);
@@ -286,17 +316,7 @@ export async function fetchHourlyOHLCV(instrumentId, symbol, supabase = null, da
 
   const body = await requestHistory(url, symbol, supabase);
 
-  const data = (body.candles ?? [])
-    .map(([ts, open, high, low, close, volume]) => ({
-      ts: Number(ts), // epoch seconds, UTC
-      open: Number(open),
-      high: Number(high),
-      low: Number(low),
-      close: Number(close),
-      volume: Number(volume),
-    }))
-    .filter((bar) => Number.isFinite(bar.close))
-    .sort((a, b) => a.ts - b.ts);
+  const data = mapHourlyCandles(body.candles, from, to);
 
   return {
     data,

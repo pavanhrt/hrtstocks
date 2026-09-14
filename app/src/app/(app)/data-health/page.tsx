@@ -1,35 +1,59 @@
-import { getLatestRun, getDataQualityIssues, getPipelineAuditLog, getRecentRuns, getRunProgress } from "@/lib/data/runs";
+import { getLatestRun, getLatestPublishedRun, getCoverage, getDataQualityIssues, getPipelineAuditLog, getRecentRuns, getRunProgress, getPublicationManifest, getPersistenceErrorCount } from "@/lib/data/runs";
 import { groupDataQualityIssues, groupAuditLog } from "@/lib/data/group-issues";
+import { formatTimestamp, getPublishedRunMetadata } from "@/lib/data/run-metadata";
 import { Badge } from "../Badge";
 
 export default async function DataHealthPage() {
-  const run = await getLatestRun();
-  const recentRuns = await getRecentRuns(15);
+  const [run, publishedRun, recentRuns] = await Promise.all([getLatestRun(), getLatestPublishedRun(), getRecentRuns(15)]);
+  const publishedMetadata = publishedRun
+    ? getPublishedRunMetadata(publishedRun as unknown as Parameters<typeof getPublishedRunMetadata>[0])
+    : null;
+  const [coverage, manifest, persistenceErrors] = publishedRun
+    ? await Promise.all([getCoverage(publishedRun.id), getPublicationManifest(publishedRun.id), getPersistenceErrorCount(publishedRun.id)])
+    : [null, null, null];
 
   return (
-    <div style={{ display: "grid", gap: 16 }}>
-      <div className="card" style={{ borderColor: "var(--watch)" }}>
+    <div className="page-grid">
+      <div className="card">
         <h1 style={{ marginTop: 0, fontSize: 20 }}>Data health</h1>
-        <p style={{ fontSize: 13 }}>
-          <strong style={{ color: "var(--watch)" }}>Provisional data source:</strong> market data is
-          currently ingested from NSE&apos;s public website endpoints (unofficial, unlicensed,
-          free) as an MVP bridge &mdash; see <code>references/market-data-policy.md</code>. It is
-          never labeled <code>LIVE</code>. Records are tagged{" "}
-          <code>data_source: nse_public_unofficial</code> and freshness is reported as{" "}
-          <code>EOD</code>/<code>DELAYED</code> only. Swap in a licensed provider before relying on
-          this for anything beyond research.
-        </p>
+        {publishedRun && publishedMetadata ? (
+          <div className="metadata-grid">
+            <div><span>Published run</span><strong>{publishedRun.run_date}</strong></div>
+            <div><span>Run cutoff</span><strong>{formatTimestamp(publishedMetadata.cutoff)}</strong></div>
+            <div><span>Publication</span><strong>{publishedMetadata.publicationState}</strong></div>
+            <div><span>Analysis provider</span><strong>{publishedMetadata.analysisProvider ?? publishedMetadata.providers.find((item) => item.category === "ohlcv")?.provider ?? "Not recorded"}</strong></div>
+            <div><span>Adjustment state</span><strong>{publishedMetadata.adjustmentState ?? "Not recorded"}</strong></div>
+            <div><span>Series version</span><strong>{publishedMetadata.analysisSeriesVersion ?? "Not recorded"}</strong></div>
+            <div><span>Universe</span><strong>{coverage ? `${coverage.unique_stock_count} equities` : "Not recorded"}</strong></div>
+            <div><span>Coverage</span><strong>{coverage?.reconciled ? "Reconciled" : "Not reconciled"}</strong></div>
+            <div><span>Manifest</span><strong>{manifest ? `${manifest.result_equities}/${manifest.expected_equities} equities` : "Not recorded"}</strong></div>
+            <div><span>Direction rows</span><strong>{manifest ? `${manifest.direction_rows} / ${manifest.eligible_equities * 3} eligible timeframe rows` : "Not recorded"}</strong></div>
+            <div><span>Chart objects</span><strong>{manifest ? manifest.chart_rows : "Not recorded"}</strong></div>
+            <div><span>Critical persistence errors</span><strong>{persistenceErrors ?? manifest?.critical_persistence_errors ?? "Not recorded"}</strong></div>
+          </div>
+        ) : <p className="supporting-text">No published snapshot is available.</p>}
+        <p className="supporting-text">Provider and adjustment labels above come from persisted run metadata; missing provenance is shown as not recorded.</p>
+        {manifest && (manifest.validation_errors.length > 0 || manifest.future_analysis_bars > 0 || manifest.missing_storage_objects > 0) && (
+          <div className="validation-warning" role="alert">
+            <strong>Publication warnings</strong>
+            <ul>
+              {manifest.validation_errors.map((message) => <li key={message}>{message}</li>)}
+              {manifest.future_analysis_bars > 0 && <li>{manifest.future_analysis_bars} analysis bars exceed the frozen cutoff.</li>}
+              {manifest.missing_storage_objects > 0 && <li>{manifest.missing_storage_objects} required chart objects are missing.</li>}
+            </ul>
+          </div>
+        )}
       </div>
 
       {run ? (
         <>
           <div className="card">
             <h2 style={{ marginTop: 0, fontSize: 15 }}>Latest run providers &amp; timestamps</h2>
-            <pre style={{ fontSize: 12, whiteSpace: "pre-wrap" }}>
+            <pre className="metadata-json">
               {run.providers ? JSON.stringify(run.providers, null, 2) : "No provider metadata recorded."}
             </pre>
             <p style={{ fontSize: 13, color: "var(--text-dim)" }}>
-              Started {run.started_at ?? "-"} &middot; Completed {run.completed_at ?? "-"}
+              Started {formatTimestamp(run.started_at)} &middot; Completed {formatTimestamp(run.completed_at)}
             </p>
           </div>
 
@@ -45,8 +69,9 @@ export default async function DataHealthPage() {
 
       <div className="card">
         <h2 style={{ marginTop: 0, fontSize: 15 }}>Pipeline history</h2>
-        <div style={{ overflowX: "auto" }}>
+        <div className="table-scroll" tabIndex={0} aria-label="Pipeline history; scroll horizontally for all columns">
           <table>
+            <caption className="sr-only">Recent pipeline runs and publication status</caption>
             <thead>
               <tr>
                 <th>Date</th>
@@ -118,8 +143,9 @@ async function QuarantinedInstruments({ runId }: { runId: string }) {
       {groups.length === 0 ? (
         <p style={{ color: "var(--text-dim)", fontSize: 13 }}>No data-quality failures for this run.</p>
       ) : (
-        <div style={{ overflowX: "auto" }}>
+        <div className="table-scroll" tabIndex={0} aria-label="Quarantined instruments; scroll horizontally for all columns">
           <table>
+            <caption className="sr-only">Grouped data-quality issues for the latest operational run</caption>
             <thead>
               <tr>
                 <th>Check</th>
@@ -160,8 +186,9 @@ async function PipelineLog({ runId }: { runId: string }) {
       {groups.length === 0 ? (
         <p style={{ color: "var(--text-dim)", fontSize: 13 }}>No stage log recorded.</p>
       ) : (
-        <div style={{ overflowX: "auto" }}>
+        <div className="table-scroll" tabIndex={0} aria-label="Pipeline audit log; scroll horizontally for all columns">
           <table>
+            <caption className="sr-only">Grouped pipeline audit events for the latest operational run</caption>
             <thead>
               <tr>
                 <th>Stage</th>

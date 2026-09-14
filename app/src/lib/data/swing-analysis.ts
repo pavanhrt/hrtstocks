@@ -1,29 +1,24 @@
 import { createClient } from "@/lib/supabase/server";
+import { expectedAlignment, isAnalysisMember, type AnalysisHypothesis } from "@/lib/data/analysis-membership";
 
-// swing_analysis_results (migration 0006) already carries one row per
-// (run_id, instrument_id, hypothesis) with mandatory_gates precomputed by
-// features/swing-analysis.js's evaluateSwingHypothesis() -- unlike the older
-// BSP/SSP pages (lib/data/signals.ts), which have to re-derive their own
-// pass/fail verdict from pooled rule_traces because BSP-*/SSP-* rules are
-// hard_gate=false for cross-strategy pooling reasons, WBP-*/WSP-* rows here
-// are never pooled (evaluateSwingHypothesis filters to its own prefix before
-// writing), so reading this table directly already satisfies
-// architecture-plan.md's Phase 5 instruction to "apply the AND of M1-M4
-// itself" -- that AND was already applied server-side when this row was
-// written.
 export const WBP_GATE_ORDER = ["WBP-M1", "WBP-M2", "WBP-M3", "WBP-M4", "WBP-M5", "WBP-M6", "WBP-M7", "WBP-M8"] as const;
 export const WSP_GATE_ORDER = ["WSP-S1", "WSP-S2", "WSP-S3", "WSP-S4", "WSP-S5", "WSP-S6", "WSP-S7", "WSP-S8"] as const;
-export const WBP_AUTOMATED_GATES = ["WBP-M1", "WBP-M2", "WBP-M3", "WBP-M4"] as const;
-export const WSP_AUTOMATED_GATES = ["WSP-S1", "WSP-S2", "WSP-S3", "WSP-S4"] as const;
-export const WBP_MANUAL_GATES = ["WBP-M5", "WBP-M6", "WBP-M7", "WBP-M8"] as const;
-export const WSP_MANUAL_GATES = ["WSP-S5", "WSP-S6", "WSP-S7", "WSP-S8"] as const;
+export const WBP_AUTOMATED_GATES = WBP_GATE_ORDER.slice(0, 4);
+export const WSP_AUTOMATED_GATES = WSP_GATE_ORDER.slice(0, 4);
+export const ANALYSIS_PAGE_SIZE = 20;
+
+export type { AnalysisHypothesis } from "@/lib/data/analysis-membership";
 
 export type RuleCondition = {
   ruleId: string;
   result: string;
+  requiredCondition: string;
   explanation: string | null;
   observedValues: Record<string, unknown> | null;
   thresholds: Record<string, unknown> | null;
+  sourceLocator: string | null;
+  evidenceTimestamp: string | null;
+  dataQuality: string;
 };
 
 export type SwingCandidate = {
@@ -34,104 +29,189 @@ export type SwingCandidate = {
   automatedGatesPassed: number;
   automatedGatesTotal: number;
   selectedRoute: string | null;
-  // Full evidence behind whichever hourly route detector matched -- see
-  // features/hourly-routes.js's detectWave3Ignition/detectWave2Pullback for
-  // the exact shape (trigger/volume/rule-3-forward-check for BUY-1/SELL-3,
-  // Fibonacci-band/PAPA-trigger for BUY-4/SELL-4). Null whenever no route
-  // has been detected this run -- either the weekly+daily direction lock
-  // (M1-M4/S1-S4) hasn't cleared yet (1-hour bars are never even fetched
-  // until it does, architecture-plan.md Phase 2), or it cleared but matched
-  // none of the 2 (of 10) implemented hourly routes.
   routeEvidence: unknown | null;
   pendingConditions: string[];
   finalAction: string;
   dataQuality: string;
-  // One row per gate (WBP-M1..M8 or WSP-S1..S8), in canonical order --
-  // swing_analysis_rule_traces, the same real explanation/observed_values
-  // every automated gate's evaluateRules() trace carries, filtered to this
-  // hypothesis's own rows (never pooled, see the module comment above).
   conditions: RuleCondition[];
+  computedAt: string | null;
+  dailyChartUrl: string | null;
+  hourlyChartUrl: string | null;
+  hourlyOpened: boolean;
 };
 
-/**
- * One row per instrument that has a swing_analysis_results row for this run
- * and hypothesis (i.e. it had at least one WBP-/WSP- prefixed trace to
- * filter -- see evaluateSwingHypothesis's own "returns null when neither
- * hypothesis has any swing-gate traces at all" note), ranked by how many of
- * the four automated weekly+daily direction-lock gates (M1-M4) came back
- * PASS.
- */
-export async function getSwingAnalysisCandidates(
-  runId: string,
-  hypothesis: "bullish" | "bearish"
-): Promise<SwingCandidate[]> {
-  const automatedGates = hypothesis === "bullish" ? WBP_AUTOMATED_GATES : WSP_AUTOMATED_GATES;
-  const gateOrder = hypothesis === "bullish" ? WBP_GATE_ORDER : WSP_GATE_ORDER;
+export type SwingCandidatePage = {
+  rows: SwingCandidate[];
+  totalCount: number;
+  page: number;
+  pageCount: number;
+  pageSize: number;
+};
 
+type AlignmentMembership = {
+  instrument_id: string;
+  final_alignment: string;
+  instruments: { symbol: string; name: string | null; is_index: boolean };
+};
+
+type SwingRow = {
+  id: number;
+  instrument_id: string;
+  mandatory_gates: Record<string, string> | null;
+  selected_route: string | null;
+  route_evidence: unknown | null;
+  pending_conditions: unknown;
+  final_action: string;
+  data_quality: string;
+  computed_at: string;
+  daily_chart_object_path?: string | null;
+  hourly_chart_object_path?: string | null;
+};
+
+type TraceRow = {
+  analysis_result_id: number;
+  rule_id: string;
+  result: string;
+  explanation: string | null;
+  observed_values: Record<string, unknown> | null;
+  thresholds: Record<string, unknown> | null;
+  source_locator: string | null;
+  required_condition?: string | null;
+  evidence_timestamp?: string | null;
+  data_quality?: string | null;
+};
+
+export async function getAnalysisCounts(runId: string): Promise<Record<AnalysisHypothesis, number>> {
   const supabase = await createClient();
-  const { data: rows, error } = await supabase
-    .from("swing_analysis_results")
-    .select("id, instrument_id, mandatory_gates, selected_route, route_evidence, pending_conditions, final_action, data_quality")
+  const count = async (hypothesis: AnalysisHypothesis) => {
+    const { count: total, error } = await supabase
+      .from("instrument_alignment")
+      .select("instrument_id, instruments!inner(is_index)", { count: "exact", head: true })
+      .eq("run_id", runId)
+      .eq("final_alignment", expectedAlignment(hypothesis))
+      .eq("instruments.is_index", false);
+    if (error) throw error;
+    return total ?? 0;
+  };
+  const [bullish, bearish] = await Promise.all([count("bullish"), count("bearish")]);
+  return { bullish, bearish };
+}
+
+/**
+ * Candidate membership is exclusively the persisted Direction alignment from
+ * the same published run. Swing rows enrich that membership; they never widen
+ * it, and index instruments are rejected at the membership query.
+ */
+export async function getSwingAnalysisPage(
+  runId: string,
+  hypothesis: AnalysisHypothesis,
+  requestedPage = 1,
+  pageSize = ANALYSIS_PAGE_SIZE
+): Promise<SwingCandidatePage> {
+  const supabase = await createClient();
+  const { data: memberships, error: membershipError } = await supabase
+    .from("instrument_alignment")
+    .select("instrument_id, final_alignment, instruments!inner(symbol, name, is_index)")
     .eq("run_id", runId)
-    .eq("hypothesis", hypothesis);
-  if (error) throw error;
-  if (!rows || rows.length === 0) return [];
+    .eq("final_alignment", expectedAlignment(hypothesis))
+    .eq("instruments.is_index", false);
+  if (membershipError) throw membershipError;
 
-  const instrumentIds = rows.map((r) => r.instrument_id);
-  const { data: instruments, error: instError } = await supabase
-    .from("instruments")
-    .select("id, symbol, name")
-    .in("id", instrumentIds);
-  if (instError) throw instError;
-  const instrumentById = new Map((instruments ?? []).map((i) => [i.id, i]));
+  const eligible = ((memberships ?? []) as unknown as AlignmentMembership[])
+    .filter((row) => isAnalysisMember({ finalAlignment: row.final_alignment, isIndex: row.instruments.is_index }, hypothesis))
+    .sort((a, b) => a.instruments.symbol.localeCompare(b.instruments.symbol));
+  const safePageSize = Math.max(1, Math.min(50, pageSize));
+  const pageCount = Math.max(1, Math.ceil(eligible.length / safePageSize));
+  const page = Math.min(Math.max(1, requestedPage), pageCount);
+  const pageMemberships = eligible.slice((page - 1) * safePageSize, page * safePageSize);
+  const instrumentIds = pageMemberships.map((row) => row.instrument_id);
+  if (instrumentIds.length === 0) return { rows: [], totalCount: eligible.length, page, pageCount, pageSize: safePageSize };
 
-  // "All the analysis conditions": the real per-gate explanation/observed
-  // values behind every badge, not just the pass/fail color -- one query
-  // for every candidate row's own conditions via analysis_result_id.
-  const resultIds = rows.map((r) => r.id);
-  const { data: traces, error: traceError } = await supabase
-    .from("swing_analysis_rule_traces")
-    .select("analysis_result_id, rule_id, result, explanation, observed_values, thresholds")
-    .in("analysis_result_id", resultIds);
-  if (traceError) throw traceError;
-  const tracesByResultId = new Map<number, RuleCondition[]>();
-  for (const t of traces ?? []) {
-    if (!tracesByResultId.has(t.analysis_result_id)) tracesByResultId.set(t.analysis_result_id, []);
-    tracesByResultId.get(t.analysis_result_id)!.push({
-      ruleId: t.rule_id,
-      result: t.result,
-      explanation: t.explanation,
-      observedValues: t.observed_values as Record<string, unknown> | null,
-      thresholds: t.thresholds as Record<string, unknown> | null,
-    });
+  const [{ data: resultData, error: resultError }, { data: dailyData, error: dailyError }] = await Promise.all([
+    supabase.from("swing_analysis_results").select("*").eq("run_id", runId).eq("hypothesis", hypothesis).in("instrument_id", instrumentIds),
+    supabase
+      .from("instrument_direction_runs")
+      .select("instrument_id, chart_object_path")
+      .eq("run_id", runId)
+      .eq("timeframe", "daily")
+      .in("instrument_id", instrumentIds),
+  ]);
+  if (resultError) throw resultError;
+  if (dailyError) throw dailyError;
+  const results = (resultData ?? []) as unknown as SwingRow[];
+  const resultByInstrument = new Map(results.map((row) => [row.instrument_id, row]));
+  const fallbackDailyPath = new Map((dailyData ?? []).map((row) => [row.instrument_id, row.chart_object_path]));
+
+  const resultIds = results.map((row) => row.id);
+  const tracesByResultId = new Map<number, TraceRow[]>();
+  if (resultIds.length > 0) {
+    const { data: traces, error: traceError } = await supabase
+      .from("swing_analysis_rule_traces")
+      .select("*")
+      .in("analysis_result_id", resultIds);
+    if (traceError) throw traceError;
+    for (const trace of (traces ?? []) as unknown as TraceRow[]) {
+      const current = tracesByResultId.get(trace.analysis_result_id) ?? [];
+      current.push(trace);
+      tracesByResultId.set(trace.analysis_result_id, current);
+    }
   }
 
-  const candidates: SwingCandidate[] = rows.map((r) => {
-    const gateResults = (r.mandatory_gates ?? {}) as Record<string, string>;
-    const automatedGatesPassed = automatedGates.filter((g) => gateResults[g] === "PASS").length;
-    const instrument = instrumentById.get(r.instrument_id);
-    const conditionsById = new Map((tracesByResultId.get(r.id) ?? []).map((c) => [c.ruleId, c]));
-    const conditions = gateOrder.map(
-      (ruleId) => conditionsById.get(ruleId) ?? { ruleId, result: gateResults[ruleId] ?? "NO_DATA", explanation: null, observedValues: null, thresholds: null }
-    );
+  const chartPaths = new Set<string>();
+  for (const membership of pageMemberships) {
+    const row = resultByInstrument.get(membership.instrument_id);
+    const dailyPath = row?.daily_chart_object_path ?? fallbackDailyPath.get(membership.instrument_id);
+    if (dailyPath) chartPaths.add(dailyPath);
+    if (row?.hourly_chart_object_path) chartPaths.add(row.hourly_chart_object_path);
+  }
+  const signedUrlByPath = new Map<string, string>();
+  if (chartPaths.size > 0) {
+    const { data: signed } = await supabase.storage.from("direction-charts").createSignedUrls([...chartPaths], 60 * 60);
+    for (const item of signed ?? []) if (item.path && item.signedUrl) signedUrlByPath.set(item.path, item.signedUrl);
+  }
+
+  const automatedGates = hypothesis === "bullish" ? WBP_AUTOMATED_GATES : WSP_AUTOMATED_GATES;
+  const gateOrder = hypothesis === "bullish" ? WBP_GATE_ORDER : WSP_GATE_ORDER;
+  const rows = pageMemberships.map((membership): SwingCandidate => {
+    const result = resultByInstrument.get(membership.instrument_id);
+    const gateResults = result?.mandatory_gates ?? {};
+    const conditionsById = new Map((result ? tracesByResultId.get(result.id) ?? [] : []).map((trace) => [trace.rule_id, trace]));
+    const conditions = gateOrder.map((ruleId): RuleCondition => {
+      const trace = conditionsById.get(ruleId);
+      const thresholds = trace?.thresholds ?? null;
+      return {
+        ruleId,
+        result: trace?.result ?? gateResults[ruleId] ?? "UNAVAILABLE",
+        requiredCondition: trace?.required_condition ?? (thresholds && Object.keys(thresholds).length > 0 ? JSON.stringify(thresholds) : "See documented source locator"),
+        explanation: trace?.explanation ?? (result ? "No trace was persisted for this gate." : "Analysis artifact unavailable for this aligned equity."),
+        observedValues: trace?.observed_values ?? null,
+        thresholds,
+        sourceLocator: trace?.source_locator ?? null,
+        evidenceTimestamp: trace?.evidence_timestamp ?? result?.computed_at ?? null,
+        dataQuality: trace?.data_quality ?? result?.data_quality ?? "NO_DATA",
+      };
+    });
+    const dailyPath = result?.daily_chart_object_path ?? fallbackDailyPath.get(membership.instrument_id) ?? null;
+    const hourlyPath = result?.hourly_chart_object_path ?? null;
     return {
-      instrumentId: r.instrument_id,
-      symbol: instrument?.symbol ?? r.instrument_id,
-      name: instrument?.name ?? r.instrument_id,
+      instrumentId: membership.instrument_id,
+      symbol: membership.instruments.symbol,
+      name: membership.instruments.name ?? membership.instruments.symbol,
       gateResults,
-      automatedGatesPassed,
+      automatedGatesPassed: automatedGates.filter((gate) => gateResults[gate] === "PASS").length,
       automatedGatesTotal: automatedGates.length,
-      selectedRoute: r.selected_route,
-      routeEvidence: r.route_evidence,
-      pendingConditions: (r.pending_conditions ?? []) as string[],
-      finalAction: r.final_action,
-      dataQuality: r.data_quality,
+      selectedRoute: result?.selected_route ?? null,
+      routeEvidence: result?.route_evidence ?? null,
+      pendingConditions: Array.isArray(result?.pending_conditions) ? result.pending_conditions.filter((value): value is string => typeof value === "string") : [],
+      finalAction: result?.final_action ?? "UNAVAILABLE",
+      dataQuality: result?.data_quality ?? "NO_DATA",
       conditions,
+      computedAt: result?.computed_at ?? null,
+      dailyChartUrl: dailyPath ? signedUrlByPath.get(dailyPath) ?? null : null,
+      hourlyChartUrl: hourlyPath ? signedUrlByPath.get(hourlyPath) ?? null : null,
+      hourlyOpened: automatedGates.every((gate) => gateResults[gate] === "PASS"),
     };
   });
 
-  candidates.sort(
-    (a, b) => b.automatedGatesPassed - a.automatedGatesPassed || a.symbol.localeCompare(b.symbol)
-  );
-  return candidates;
+  return { rows, totalCount: eligible.length, page, pageCount, pageSize: safePageSize };
 }

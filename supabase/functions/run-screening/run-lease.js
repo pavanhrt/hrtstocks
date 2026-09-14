@@ -41,17 +41,23 @@ export async function acquireRunLease(supabase, runType, runId, { leaseDurationM
 }
 
 /** Extends an already-held lease's expiry -- call periodically during a long run so it isn't mistaken for abandoned. */
-export async function heartbeatRunLease(supabase, runType, { leaseDurationMs = 10 * 60 * 1000 } = {}) {
+export async function heartbeatRunLease(supabase, runType, runId, { leaseDurationMs = 10 * 60 * 1000 } = {}) {
   const { error } = await supabase
     .from("screening_run_leases")
     .update({ heartbeat_at: new Date().toISOString(), expires_at: new Date(Date.now() + leaseDurationMs).toISOString() })
     .eq("run_type", runType)
+    .eq("run_id", runId)
     .eq("status", "active");
   if (error && error.code !== TABLE_NOT_FOUND) throw error;
 }
 
 /** Releases a held lease on clean completion (success or handled failure) so the next run doesn't wait for expiry. */
-export async function releaseRunLease(supabase, runType) {
-  const { error } = await supabase.from("screening_run_leases").update({ status: "released" }).eq("run_type", runType);
+export async function releaseRunLease(supabase, runType, runId) {
+  const { error } = await supabase
+    .from("screening_run_leases")
+    .update({ status: "released" })
+    .eq("run_type", runType)
+    .eq("run_id", runId)
+    .eq("status", "active");
   if (error && error.code !== TABLE_NOT_FOUND) throw error;
 }

@@ -34,7 +34,7 @@ test("stays 'running' while a batch is in_progress, under the duration cap", () 
   assert.equal(status, "running");
 });
 
-test("'completed' once every blocking batch is done and every expected instrument has a result", () => {
+test("'ready_to_publish' once blocking work and expected results are complete", () => {
   const status = decideRunStatus({
     batches: [
       { stage: "universe", status: "done" },
@@ -46,10 +46,10 @@ test("'completed' once every blocking batch is done and every expected instrumen
     elapsedMs: 8 * 60_000,
     maxDurationMs,
   });
-  assert.equal(status, "completed");
+  assert.equal(status, "ready_to_publish");
 });
 
-test("'completed' even with backfill batches still pending -- backfill never blocks completion", () => {
+test("'ready_to_publish' even with backfill batches pending -- publication validates artifacts", () => {
   const status = decideRunStatus({
     batches: [
       { stage: "universe", status: "done" },
@@ -63,7 +63,7 @@ test("'completed' even with backfill batches still pending -- backfill never blo
     elapsedMs: 8 * 60_000,
     maxDurationMs,
   });
-  assert.equal(status, "completed");
+  assert.equal(status, "ready_to_publish");
 });
 
 test("'partial' when the duration cap is exceeded while blocking work is still pending", () => {
@@ -115,7 +115,7 @@ test("'partial' when blocking work is done but coverage still falls short of the
   assert.equal(status, "partial");
 });
 
-test("a slow-but-fully-covered run past the duration cap is still 'completed', not punished for being slow", () => {
+test("a slow-but-fully-covered run past the duration cap is still ready to publish", () => {
   const status = decideRunStatus({
     batches: [
       { stage: "universe", status: "done" },
@@ -127,5 +127,5 @@ test("a slow-but-fully-covered run past the duration cap is still 'completed', n
     elapsedMs: 45 * 60_000,
     maxDurationMs,
   });
-  assert.equal(status, "completed");
+  assert.equal(status, "ready_to_publish");
 });

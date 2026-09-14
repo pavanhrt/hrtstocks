@@ -106,9 +106,23 @@ test("buildFeatureContext computes weekly and daily Elliott position (structure_
   assert.equal("monthly_elliott_structure_type" in context, false);
 });
 
-test("buildFeatureContext computes daily_no_live_triggered_{bullish,bearish}_pattern as booleans", () => {
+test("buildFeatureContext exposes partial pattern coverage and never treats unevaluated families as negative evidence", () => {
   const bars = makeDailyBars(365);
   const context = buildFeatureContext(bars, DOCUMENTED);
-  assert.equal(typeof context.daily_no_live_triggered_bearish_pattern, "boolean");
-  assert.equal(typeof context.daily_no_live_triggered_bullish_pattern, "boolean");
+  assert.equal(context.daily_pattern_evaluation_state, "PARTIAL");
+  assert.ok(context.daily_pattern_not_evaluated.includes("Head and Shoulder"));
+  assert.equal(context.daily_no_live_triggered_bearish_pattern, null);
+  assert.equal(context.daily_no_live_triggered_bullish_pattern, null);
+});
+
+test("buildFeatureContext carries Elliott per-rule evidence and never confirms mandatory rules on an incomplete count", () => {
+  const context = buildFeatureContext(makeDailyBars(365), DOCUMENTED);
+  for (const prefix of ["weekly", "daily"]) {
+    assert.ok(Array.isArray(context[`${prefix}_elliott_rule_evidence`]));
+    assert.ok(Array.isArray(context[`${prefix}_elliott_uncheckable_rules`]));
+    assert.ok([true, null].includes(context[`${prefix}_elliott_mandatory_evidence_confirmed`]));
+    if (context[`${prefix}_elliott_confidence`] !== "confirmed") {
+      assert.equal(context[`${prefix}_elliott_mandatory_evidence_confirmed`], null);
+    }
+  }
 });

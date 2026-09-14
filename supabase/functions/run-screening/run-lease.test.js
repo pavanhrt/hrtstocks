@@ -73,11 +73,21 @@ test("acquireRunLease throws on an unrelated database error", async () => {
 test("releaseRunLease does not throw when migration 0006 isn't applied yet", async () => {
   const notFoundError = Object.assign(new Error("not found"), { code: "PGRST205" });
   const supabase = fakeSupabase({ data: null, error: notFoundError });
-  await assert.doesNotReject(() => releaseRunLease(supabase, "eod_screening"));
+  await assert.doesNotReject(() => releaseRunLease(supabase, "eod_screening", "run-123"));
+  assert.ok(supabase.calls.some((c) => c.method === "eq" && c.col === "run_id" && c.val === "run-123"));
 });
 
 test("heartbeatRunLease does not throw when migration 0006 isn't applied yet", async () => {
   const notFoundError = Object.assign(new Error("not found"), { code: "PGRST205" });
   const supabase = fakeSupabase({ data: null, error: notFoundError });
-  await assert.doesNotReject(() => heartbeatRunLease(supabase, "eod_screening"));
+  await assert.doesNotReject(() => heartbeatRunLease(supabase, "eod_screening", "run-123"));
+  assert.ok(supabase.calls.some((c) => c.method === "eq" && c.col === "run_id" && c.val === "run-123"));
+});
+
+test("only the current lease holder can heartbeat or release", async () => {
+  const supabase = fakeSupabase({ data: null, error: null });
+  await heartbeatRunLease(supabase, "eod_screening", "holder-b");
+  await releaseRunLease(supabase, "eod_screening", "holder-b");
+  const ownershipFilters = supabase.calls.filter((c) => c.method === "eq" && c.col === "run_id");
+  assert.deepEqual(ownershipFilters.map((c) => c.val), ["holder-b", "holder-b"]);
 });

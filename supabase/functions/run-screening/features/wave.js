@@ -26,6 +26,27 @@
 
 const HIGH_TYPES = new Set(["H", "HH", "LH", "EH"]);
 
+const GUE_RULES = [
+  {
+    id: "GUE-IMPULSE-001",
+    sourceDocument: "GUE Concepts - Part 1.pdf",
+    sourceLocator: "page 9, Wave Principles, rule 1",
+    expected: "wave 2 retraces less than 100% of wave 1",
+  },
+  {
+    id: "GUE-IMPULSE-002",
+    sourceDocument: "GUE Concepts - Part 1.pdf",
+    sourceLocator: "page 9, Wave Principles, rule 2; diagonal exception pages 27-28",
+    expected: "wave 4 does not enter wave 1 price territory unless the structure is a diagonal",
+  },
+  {
+    id: "GUE-IMPULSE-003",
+    sourceDocument: "GUE Concepts - Part 1.pdf",
+    sourceLocator: "page 9, Wave Principles, rule 3",
+    expected: "wave 3 is not the shortest of waves 1, 3, and 5",
+  },
+];
+
 function isHigh(pivot) {
   return HIGH_TYPES.has(pivot.type);
 }
@@ -59,6 +80,9 @@ export function labelWave(labeledPivots, unconfirmedLeg, dowState) {
           ? "fewer than 2 confirmed swings -- not enough structure to label"
           : "trailing swings do not satisfy GUE's impulse hard gates at any length, nor a simple zigzag shape",
       passedGates: [],
+      ruleEvidence: GUE_RULES.map((rule) => uncheckableRule(rule, "no valid impulse hypothesis to test")),
+      uncheckableRules: GUE_RULES.map((rule) => rule.id),
+      mandatoryEvidenceConfirmed: false,
       ruleArithmetic: {},
       invalidationPrice: null,
       invalidationCondition: null,
@@ -118,6 +142,13 @@ function tryImpulseProgress(labeledPivots, unconfirmedLeg, bullish) {
         ? "all 5 waves satisfy GUE-IMPULSE-001/002/003"
         : `waves 1-${confirmedWaveCount} satisfy every GUE hard gate checkable so far`,
       passedGates: check.passedGates,
+      ruleEvidence: check.ruleEvidence,
+      uncheckableRules: check.ruleEvidence.filter((e) => e.result === "MANUAL_REVIEW").map((e) => e.ruleId),
+      // The playbooks require the three Elliott rules with arithmetic. A
+      // forming/prefix count cannot satisfy rules whose later waves do not
+      // exist yet, so it must never pass a mandatory wave gate merely
+      // because the visible prefix has not failed so far.
+      mandatoryEvidenceConfirmed: isFullImpulse && check.ruleEvidence.every((e) => e.result === "PASS"),
       ruleArithmetic: check.arithmetic,
       invalidationPrice: isFullImpulse ? null : impulseInvalidation(window, bullish, waveState, confirmedWaveCount).price,
       invalidationCondition: isFullImpulse ? null : impulseInvalidation(window, bullish, waveState, confirmedWaveCount).condition,
@@ -143,16 +174,23 @@ function validateImpulsePrefix(window, bullish) {
   const arithmetic = {};
   const passedGates = [];
 
-  if (window.length < 2) return { valid: true, arithmetic, passedGates }; // just the origin confirmed -- nothing to validate yet
+  if (window.length < 2) {
+    return {
+      valid: true,
+      arithmetic,
+      passedGates,
+      ruleEvidence: GUE_RULES.map((rule) => uncheckableRule(rule, "the required wave endpoints are not confirmed")),
+    };
+  }
 
   const wave1 = dir * (window[1].price - window[0].price);
   arithmetic.wave1 = wave1;
-  if (wave1 <= 0) return { valid: false, arithmetic, passedGates };
+  if (wave1 <= 0) return { valid: false, arithmetic, passedGates, ruleEvidence: [] };
 
   if (window.length >= 3) {
     const wave2Retracement = (dir * (window[1].price - window[2].price)) / wave1;
     arithmetic.wave2RetracementFraction = wave2Retracement;
-    if (!(wave2Retracement < 1.0)) return { valid: false, arithmetic, passedGates };
+    if (!(wave2Retracement < 1.0)) return { valid: false, arithmetic, passedGates, ruleEvidence: [checkedRule(GUE_RULES[0], "FAIL", { wave1, wave2RetracementFraction: wave2Retracement })] };
     passedGates.push("GUE-IMPULSE-001");
   }
 
@@ -160,27 +198,84 @@ function validateImpulsePrefix(window, bullish) {
   if (window.length >= 4) {
     wave3 = dir * (window[3].price - window[2].price);
     arithmetic.wave3 = wave3;
-    if (wave3 <= 0) return { valid: false, arithmetic, passedGates };
+    if (wave3 <= 0) return { valid: false, arithmetic, passedGates, ruleEvidence: [] };
   }
 
   if (window.length >= 5) {
     const noOverlap = bullish ? window[4].price > window[1].price : window[4].price < window[1].price;
     arithmetic.wave4EntersWave1Territory = !noOverlap;
-    if (!noOverlap) return { valid: false, arithmetic, passedGates };
+    if (!noOverlap) {
+      return {
+        valid: false,
+        arithmetic,
+        passedGates,
+        ruleEvidence: [
+          checkedRule(GUE_RULES[0], "PASS", { wave1, wave2RetracementFraction: arithmetic.wave2RetracementFraction }),
+          checkedRule(GUE_RULES[1], "FAIL", { wave1Terminus: window[1].price, wave4Terminus: window[4].price }),
+        ],
+      };
+    }
     passedGates.push("GUE-IMPULSE-002");
   }
 
   if (window.length >= 6) {
     const wave5 = dir * (window[5].price - window[4].price);
     arithmetic.wave5 = wave5;
-    if (wave5 <= 0) return { valid: false, arithmetic, passedGates };
+    if (wave5 <= 0) return { valid: false, arithmetic, passedGates, ruleEvidence: [] };
     const wave3NotShortest = wave3 >= Math.min(wave1, wave5);
     arithmetic.wave3NotShortest = wave3NotShortest;
-    if (!wave3NotShortest) return { valid: false, arithmetic, passedGates };
+    if (!wave3NotShortest) {
+      return {
+        valid: false,
+        arithmetic,
+        passedGates,
+        ruleEvidence: [
+          checkedRule(GUE_RULES[0], "PASS", { wave1, wave2RetracementFraction: arithmetic.wave2RetracementFraction }),
+          checkedRule(GUE_RULES[1], "PASS", { wave1Terminus: window[1].price, wave4Terminus: window[4].price }),
+          checkedRule(GUE_RULES[2], "FAIL", { wave1Length: wave1, wave3Length: wave3, wave5Length: wave5 }),
+        ],
+      };
+    }
     passedGates.push("GUE-IMPULSE-003");
   }
 
-  return { valid: true, arithmetic, passedGates };
+  const ruleEvidence = [
+    window.length >= 3
+      ? checkedRule(GUE_RULES[0], "PASS", { wave1, wave2RetracementFraction: arithmetic.wave2RetracementFraction })
+      : uncheckableRule(GUE_RULES[0], "wave 2 is not confirmed"),
+    window.length >= 5
+      ? checkedRule(GUE_RULES[1], "PASS", { wave1Terminus: window[1].price, wave4Terminus: window[4].price })
+      : uncheckableRule(GUE_RULES[1], "wave 4 is not confirmed"),
+    window.length >= 6
+      ? checkedRule(GUE_RULES[2], "PASS", { wave1Length: wave1, wave3Length: wave3, wave5Length: arithmetic.wave5 })
+      : uncheckableRule(GUE_RULES[2], "wave 5 is not confirmed, so all three motive-wave lengths cannot be compared"),
+  ];
+
+  return { valid: true, arithmetic, passedGates, ruleEvidence };
+}
+
+function checkedRule(rule, result, observedValues) {
+  return {
+    ruleId: rule.id,
+    sourceDocument: rule.sourceDocument,
+    sourceLocator: rule.sourceLocator,
+    expected: rule.expected,
+    observedValues,
+    result,
+    reason: result === "PASS" ? `${rule.id} passed with the recorded arithmetic` : `${rule.id} failed with the recorded arithmetic`,
+  };
+}
+
+function uncheckableRule(rule, reason) {
+  return {
+    ruleId: rule.id,
+    sourceDocument: rule.sourceDocument,
+    sourceLocator: rule.sourceLocator,
+    expected: rule.expected,
+    observedValues: null,
+    result: "MANUAL_REVIEW",
+    reason,
+  };
 }
 
 /**
@@ -241,6 +336,9 @@ function tryCorrectiveProgress(labeledPivots, unconfirmedLeg) {
       confidence: "tentative",
       reason: "wave A confirmed; wave B is the current forming leg",
       passedGates: [],
+      ruleEvidence: [],
+      uncheckableRules: ["GUE-ZIGZAG-SUBWAVES"],
+      mandatoryEvidenceConfirmed: false,
       ruleArithmetic: { waveA },
       invalidationPrice: null,
       invalidationCondition: "no documented hard-rule invalidation level for a forming wave B",
@@ -263,6 +361,9 @@ function tryCorrectiveProgress(labeledPivots, unconfirmedLeg) {
         confidence: "tentative",
         reason: "waves A and B confirmed, stay within zigzag shape; no forming wave C observed yet",
         passedGates: [],
+        ruleEvidence: [],
+        uncheckableRules: ["GUE-ZIGZAG-SUBWAVES"],
+        mandatoryEvidenceConfirmed: false,
         ruleArithmetic: { waveA, waveBRetracedPastOrigin: bRetracesPastOrigin },
         invalidationPrice: null,
         invalidationCondition: "no documented hard-rule invalidation level for this position",
@@ -278,6 +379,9 @@ function tryCorrectiveProgress(labeledPivots, unconfirmedLeg) {
       confidence: "tentative",
       reason: "waves A and B confirmed, stay within zigzag shape; wave C is the current forming leg",
       passedGates: [],
+      ruleEvidence: [],
+      uncheckableRules: ["GUE-ZIGZAG-SUBWAVES"],
+      mandatoryEvidenceConfirmed: false,
       ruleArithmetic: { waveA, waveBRetracedPastOrigin: bRetracesPastOrigin },
       invalidationPrice: null,
       invalidationCondition: "no documented hard-rule invalidation level for a forming wave C",
@@ -295,9 +399,12 @@ function tryCorrectiveProgress(labeledPivots, unconfirmedLeg) {
     direction: correctionIsDown ? "bearish" : "bullish",
     currentWave: "C",
     waveState: "completed",
-    confidence: "confirmed",
-    reason: "wave B stayed within the origin of wave A, and wave C extended beyond wave A -- a valid zigzag shape",
+    confidence: "tentative",
+    reason: "the A-B-C pivot shape is complete, but the documented 5-3-5 internal sub-wave structure is not checkable from these pivots",
     passedGates: [],
+    ruleEvidence: [],
+    uncheckableRules: ["GUE-ZIGZAG-SUBWAVES"],
+    mandatoryEvidenceConfirmed: false,
     ruleArithmetic: { waveA, waveBRetracedPastOrigin: bRetracesPastOrigin, waveCExtendsBeyondA: cExtendsBeyondA },
     invalidationPrice: null,
     invalidationCondition: null,

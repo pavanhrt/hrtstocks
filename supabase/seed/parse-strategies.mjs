@@ -66,7 +66,10 @@ function normalizeRule(rule, framework) {
     // they're stored in the same column.
     hard_gate: Boolean(rule.hard_gate ?? rule.hard_gate_for_count ?? false),
     parameters: rule.parameters ?? [],
-    source_refs: null, // framework-level provenance only until page/row mapping is done (see rule-schema.md)
+    // Exact per-rule provenance is part of the executable rule contract.
+    // Keep it beside the normalized expression instead of discarding it and
+    // forcing every runtime trace to store null source fields.
+    source_refs: rule.source_refs ?? null,
     raw: rule,
   };
 }

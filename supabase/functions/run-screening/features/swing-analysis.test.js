@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { evaluateSwingHypothesis, directionLockPassed } from "./swing-analysis.js";
+import { evaluateSwingHypothesis, directionLockPassed, toPersistedSwingTrace } from "./swing-analysis.js";
 
 function trace(rule_id, result, explanation = `${rule_id} evaluated to ${result}`) {
   return { rule_id, result, explanation, observed_values: {}, thresholds: {}, source_locator: null };
@@ -28,6 +28,16 @@ const FULLY_SUPPORTIVE_EVIDENCE = {
   vetoes: [],
 };
 
+test("toPersistedSwingTrace maps lifecycle states to the rule_result enum without losing evidence", () => {
+  const waiting = toPersistedSwingTrace(trace("WBP-M5", "WAIT", "route forming"));
+  const unavailable = toPersistedSwingTrace(trace("WBP-M6", "UNAVAILABLE", "hourly data missing"));
+
+  assert.equal(waiting.result, "WATCH");
+  assert.equal(waiting.explanation, "route forming");
+  assert.equal(unavailable.result, "NO_DATA");
+  assert.equal(unavailable.explanation, "hourly data missing");
+});
+
 test("evaluateSwingHypothesis returns null when none of this hypothesis's gates were evaluated (strategy not seeded/active)", () => {
   const traces = [trace("SMM-TREND-001", "PASS"), trace("BSP-M1", "PASS")];
   assert.equal(evaluateSwingHypothesis("bullish", traces), null);
@@ -37,7 +47,7 @@ test("evaluateSwingHypothesis returns null when none of this hypothesis's gates 
 test("evaluateSwingHypothesis: M1-M4 pass but no M5-M8 evidence supplied -- stays WAIT, discloses each missing gate", () => {
   const result = evaluateSwingHypothesis("bullish", fullBullishGateSet());
   assert.equal(result.finalAction, "WAIT");
-  assert.equal(result.dataQuality, "PASS");
+  assert.equal(result.dataQuality, "PARTIAL");
   assert.equal(result.selectedRoute, null);
   assert.equal(result.rewardRiskRatio, null);
   assert.ok(result.pendingConditions.some((p) => p.startsWith("M5/S5:")));
@@ -119,18 +129,20 @@ test("evaluateSwingHypothesis: a single veto kills an otherwise fully-passing si
   assert.deepEqual(result.vetoes, evidence.vetoes);
 });
 
-test("evaluateSwingHypothesis captures every mandatory gate's result, M1-M8, in mandatory_gates (from the pooled trace array, unaffected by the new evidence-driven finalAction)", () => {
+test("evaluateSwingHypothesis records canonical evidence-driven M5-M8 results instead of YAML sentinel statuses", () => {
   const result = evaluateSwingHypothesis("bullish", fullBullishGateSet(), FULLY_SUPPORTIVE_EVIDENCE);
   assert.deepEqual(result.mandatoryGates, {
     "WBP-M1": "PASS",
     "WBP-M2": "PASS",
     "WBP-M3": "PASS",
     "WBP-M4": "PASS",
-    "WBP-M5": "MANUAL_REVIEW",
-    "WBP-M6": "MANUAL_REVIEW",
-    "WBP-M7": "MANUAL_REVIEW",
-    "WBP-M8": "MANUAL_REVIEW",
+    "WBP-M5": "PASS",
+    "WBP-M6": "PASS",
+    "WBP-M7": "PASS",
+    "WBP-M8": "PASS",
   });
+  assert.equal(result.canonicalGateTraces.length, 8);
+  assert.equal(result.canonicalGateTraces.find((t) => t.rule_id === "WBP-M8").source_locator, "BUY_Signal_Playbook_Weekly_Daily_1H.md §7, M8");
 });
 
 test("evaluateSwingHypothesis: dataQuality is PARTIAL when some direction-lock gates are NO_DATA, NO_DATA when all four are", () => {
@@ -157,7 +169,7 @@ test("evaluateSwingHypothesis handles the bearish hypothesis independently from 
   const bullish = evaluateSwingHypothesis("bullish", traces);
   const bearish = evaluateSwingHypothesis("bearish", traces);
   assert.ok(bullish.pendingConditions.some((p) => p.startsWith("WBP-M1 FAILed")));
-  assert.equal(bearish.dataQuality, "PASS");
+  assert.equal(bearish.dataQuality, "PARTIAL");
   assert.equal(bearish.pendingConditions.some((p) => p.includes("FAILed")), false);
 });
 
@@ -195,4 +207,20 @@ test("evaluateSwingHypothesis discloses a non-blocking combination-matrix ADX co
   const adxCondition = { adx: 32.5, plusDI: 30, minusDI: 10, slope: "rising", wait: false, reason: null };
   const result = evaluateSwingHypothesis("bullish", fullBullishGateSet(), { adxCondition });
   assert.ok(result.pendingConditions.some((p) => p.includes("does not block entry: hourly ADX 32.50, slope rising")));
+});
+
+test("canonical hourly gate statuses distinguish unavailable evidence from evaluated failures", () => {
+  const unavailable = evaluateSwingHypothesis("bullish", fullBullishGateSet());
+  assert.equal(unavailable.mandatoryGates["WBP-M5"], "UNAVAILABLE");
+  assert.equal(unavailable.mandatoryGates["WBP-M6"], "UNAVAILABLE");
+  assert.equal(unavailable.mandatoryGates["WBP-M7"], "UNAVAILABLE");
+  assert.equal(unavailable.mandatoryGates["WBP-M8"], "UNAVAILABLE");
+
+  const failed = evaluateSwingHypothesis("bullish", fullBullishGateSet(), {
+    ...FULLY_SUPPORTIVE_EVIDENCE,
+    smmHat: { hat: "no hat", step1: { reading: "BUY" }, step2: { reading: null } },
+    rewardRisk: { ...FULLY_SUPPORTIVE_EVIDENCE.rewardRisk, passes: false, rewardRiskRatio: 2.5 },
+  });
+  assert.equal(failed.mandatoryGates["WBP-M7"], "FAIL");
+  assert.equal(failed.mandatoryGates["WBP-M8"], "FAIL");
 });

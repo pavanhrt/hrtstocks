@@ -2,11 +2,13 @@
   "name": "stock-research-workspace",
   "private": true,
   "version": "0.1.0",
+  "type": "module",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint . --max-warnings=0",
+    "typecheck": "tsc --noEmit --incremental false",
     "test": "node --test src/lib/*.test.ts src/lib/**/*.test.ts"
   },
   "dependencies": {
@@ -21,6 +23,8 @@
     "@types/node": "^20.14.15",
     "@types/react": "^18.3.5",
     "@types/react-dom": "^18.3.0",
+    "eslint": "8.57.1",
+    "eslint-config-next": "15.5.25",
     "typescript": "^5.5.4"
   },
   "overrides": {

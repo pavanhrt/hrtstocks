@@ -19,7 +19,7 @@ export default async function NewsPage() {
   const run = await getLatestPublishedRun();
   const ledgerRows = run ? await getStockLedger(run.id) : [];
 
-  const instruments: LedgerInstrument[] = ledgerRows.map((r: any) => ({
+  const instruments: LedgerInstrument[] = ledgerRows.map((r) => ({
     instrumentId: r.instrument_id,
     symbol: r.instruments?.symbol ?? r.instrument_id,
     name: r.instruments?.name ?? null,

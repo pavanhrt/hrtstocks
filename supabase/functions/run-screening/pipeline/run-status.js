@@ -34,7 +34,7 @@ const BLOCKING_STAGES = new Set(["universe", "incremental"]);
  * @param {number} params.resultCount - actual instrument_run_results rows for this run (non-index)
  * @param {number} params.elapsedMs - wall-clock time since the run started
  * @param {number} params.maxDurationMs - the run's total time budget before giving up on pending work
- * @returns {"running"|"completed"|"partial"}
+ * @returns {"running"|"ready_to_publish"|"partial"}
  */
 export function decideRunStatus({ batches, universeCount, resultCount, elapsedMs, maxDurationMs }) {
   const hasPendingBlockingWork = batches.some(
@@ -50,5 +50,8 @@ export function decideRunStatus({ batches, universeCount, resultCount, elapsedMs
 
   const hasFailedBlockingBatch = batches.some((b) => BLOCKING_STAGES.has(b.stage) && b.status === "failed");
   const fullyCovered = resultCount >= universeCount;
-  return fullyCovered && !hasFailedBlockingBatch ? "completed" : "partial";
+  // Coverage readiness is necessary but not sufficient for publication.
+  // The transactional publish_screening_run RPC validates every required
+  // artifact and is the only code allowed to set status='completed'.
+  return fullyCovered && !hasFailedBlockingBatch ? "ready_to_publish" : "partial";
 }

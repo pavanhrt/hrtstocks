@@ -55,7 +55,7 @@ import { buildFeatureContext } from "./features/context.js";
 import { buildDirectionAnalysis, ALGORITHM_VERSION as DIRECTION_ALGORITHM_VERSION } from "./features/direction.js";
 import { detectCandlestickPatterns, detectDoubleExtremePatterns, PATTERN_PARAM_VERSION } from "./features/patterns.js";
 import { computeFinalAlignment } from "./features/alignment.js";
-import { evaluateSwingHypothesis, directionLockPassed } from "./features/swing-analysis.js";
+import { evaluateSwingHypothesis, directionLockPassed, toPersistedSwingTrace } from "./features/swing-analysis.js";
 import { detectWave3Ignition, detectWave2Pullback, detectWave5Exhaustion } from "./features/hourly-routes.js";
 import { evaluateHourlyAdxCondition } from "./features/hourly-conditions.js";
 import { zigzagPivots, classifyDowStructure, aggregateBars } from "./features/structure.js";
@@ -65,13 +65,15 @@ import { evaluateSmmHat } from "./features/smm-hat.js";
 import { computeRewardRisk } from "./features/reward-risk.js";
 import { evaluateConfirmationGroups } from "./features/confirmation-groups.js";
 import { evaluateSwingVetoes } from "./features/swing-vetoes.js";
-import { computeAdjustedBars, ADJUSTMENT_VERSION } from "./features/corporate-actions.js";
+import { ANALYSIS_SERIES_VERSION, buildAnalysisBars, FYERS_ADJUSTMENT_PROVENANCE, FYERS_ADJUSTMENT_STATE } from "./features/analysis-bars.js";
 import { renderChartSvg, RENDER_VERSION } from "./charts/render.js";
+import { immutableChartIdentity, isExistingChartObjectError } from "./charts/immutable-path.js";
 import { evaluateRules } from "./rules/evaluate.js";
 import { classify, scoreComponents, rankWithinTiers } from "./rank.js";
+import { filterScreeningRules } from "./pipeline/screening-rules.js";
 import { reconcileCoverage } from "./reconcile.js";
 import { acquireRunLease, heartbeatRunLease, releaseRunLease } from "./run-lease.js";
-import { latestCompletedNseSession, normalizeHourlyBars } from "./nse-calendar.js";
+import { freezeEodCutoff, normalizeCompletedHourlyBars } from "./nse-calendar.js";
 import { seededShuffle } from "./pipeline/shuffle.js";
 import { buildChunks, CHUNK_SIZE, BACKFILL_CHUNK_SIZE } from "./pipeline/chunks.js";
 import { decideRunStatus } from "./pipeline/run-status.js";
@@ -154,6 +156,15 @@ Deno.serve(async (req) => {
 
   let runId = resumeRunId;
   if (!runId) {
+    // Auditable recovery for abandoned historical runs. Six hours is far
+    // beyond the 40-minute total-run budget, so a healthy run cannot be
+    // expired by this sweep.
+    const staleBoundary = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
+    const { error: expirationError } = await supabase.rpc("expire_stale_screening_runs", {
+      p_older_than: staleBoundary,
+    });
+    if (expirationError && expirationError.code !== "PGRST202") throw expirationError;
+
     // Fresh run: acquire the lease under a brand-new id before creating
     // anything -- a single atomic UPDATE...WHERE...RETURNING (run-lease.js),
     // so there is no window where two concurrent invocations can both see
@@ -173,7 +184,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const runDate = latestCompletedNseSession(new Date());
+    const { runDate, asOfTimestamp } = freezeEodCutoff(new Date());
     const { data: parameterVersion } = await supabase
       .from("parameter_versions")
       .select("*")
@@ -186,20 +197,28 @@ Deno.serve(async (req) => {
       .eq("is_active", true);
     const strategyVersionIds = (strategyVersions ?? []).map((v) => v.id);
 
-    await supabase.from("screening_runs").insert({
+    const { error: runInsertError } = await supabase.from("screening_runs").insert({
       id: runId,
       run_date: runDate,
+      as_of_timestamp: asOfTimestamp,
       mode: "EOD",
       status: "queued",
+      publication_state: "processing",
       universe_version: UNIVERSE_VERSION,
       parameter_version_id: parameterVersion?.id ?? null,
       strategy_version_ids: strategyVersionIds,
       providers: { universe: "nse_archives", ohlcv: "fyers" },
+      analysis_provider: "fyers",
+      analysis_adjustment_state: FYERS_ADJUSTMENT_STATE,
+      analysis_series_version: ANALYSIS_SERIES_VERSION,
+      data_provenance: { analysisBars: FYERS_ADJUSTMENT_PROVENANCE },
       trigger_type: triggerType,
       triggered_by: triggeredBy,
       started_at: new Date().toISOString(),
     });
-    await supabase.from("pipeline_batches").insert({ run_id: runId, stage: "universe", cursor: null, status: "pending" });
+    if (runInsertError) throw runInsertError;
+    const { error: batchInsertError } = await supabase.from("pipeline_batches").insert({ run_id: runId, stage: "universe", cursor: null, status: "pending" });
+    if (batchInsertError) throw batchInsertError;
     await logStage(supabase, runId, "start", "ok", `Run started (${triggerType})`);
   } else {
     // Resuming: acquireRunLease's CAS matches status='released' regardless
@@ -252,10 +271,11 @@ async function runPipeline({ supabase, runId, invocationStartedAtMs }) {
       : { data: null };
     const parameterValues = flattenParameters(parameterVersion?.values ?? {});
 
-    const { data: ruleDefinitions } = run.strategy_version_ids?.length
+    const { data: allRuleDefinitions } = run.strategy_version_ids?.length
       ? await supabase.from("rule_definitions").select("*").in("strategy_version_id", run.strategy_version_ids)
       : { data: [] };
-    const ruleDirectionById = Object.fromEntries((ruleDefinitions ?? []).map((r) => [r.rule_id, r.direction]));
+    const ruleDefinitions = filterScreeningRules(allRuleDefinitions);
+    const ruleDirectionById = Object.fromEntries(ruleDefinitions.map((r) => [r.rule_id, r.direction]));
 
     for (;;) {
       const elapsedTotalMs = Date.now() - runStartedAtMs;
@@ -307,13 +327,14 @@ async function runPipeline({ supabase, runId, invocationStartedAtMs }) {
             supabase,
             runId,
             runDate: run.run_date,
+            asOfTimestamp: run.as_of_timestamp,
             batch,
             parameterValues,
             ruleDefinitions: ruleDefinitions ?? [],
             ruleDirectionById,
           });
         } else if (batch.stage === "backfill") {
-          await processBackfillBatch({ supabase, batch });
+          await processBackfillBatch({ supabase, batch, asOfTimestamp: run.as_of_timestamp });
         } else if (batch.stage === "reconcile") {
           await processReconcileBatch({ supabase, runId, runStartedAtMs });
         }
@@ -337,14 +358,14 @@ async function runPipeline({ supabase, runId, invocationStartedAtMs }) {
         }
       }
 
-      await heartbeatRunLease(supabase, RUN_TYPE, { leaseDurationMs: LEASE_DURATION_MS });
+      await heartbeatRunLease(supabase, RUN_TYPE, runId, { leaseDurationMs: LEASE_DURATION_MS });
 
       if (Date.now() - invocationStartedAtMs > TIME_BUDGET_MS) {
         // Hand off to a fresh invocation. Release FIRST: the next
         // invocation's own acquireRunLease call must see status='released',
         // or it fails to acquire since the lease still looks "active" even
         // though this invocation is about to stop.
-        await releaseRunLease(supabase, RUN_TYPE);
+        await releaseRunLease(supabase, RUN_TYPE, runId);
         releasedForHandoff = true;
         await selfChain(runId);
         return;
@@ -355,7 +376,7 @@ async function runPipeline({ supabase, runId, invocationStartedAtMs }) {
     await logStage(supabase, runId, "error", "failed", message);
     await supabase.from("screening_runs").update({ status: "failed", completed_at: new Date().toISOString() }).eq("id", runId);
   } finally {
-    if (!releasedForHandoff) await releaseRunLease(supabase, RUN_TYPE);
+    if (!releasedForHandoff) await releaseRunLease(supabase, RUN_TYPE, runId);
   }
 }
 
@@ -455,8 +476,20 @@ async function recordGaveUpBulk({ supabase, runId, instruments, reason }) {
     result: "NO_DATA",
     details: { note: reason },
   }));
-  await supabase.from("instrument_run_results").upsert(resultRows, { onConflict: "run_id,instrument_id" });
-  await supabase.from("data_quality_results").insert(qualityRows);
+  const { error: resultError } = await supabase.from("instrument_run_results").upsert(resultRows, { onConflict: "run_id,instrument_id" });
+  if (resultError) throw resultError;
+  const { error: qualityError } = await supabase.from("data_quality_results").insert(qualityRows);
+  if (qualityError) throw qualityError;
+  const { error: alignmentError } = await supabase.from("instrument_alignment").upsert(
+    instruments.map((instrument) => ({
+      run_id: runId,
+      instrument_id: instrument.instrumentId,
+      final_alignment: "UNAVAILABLE",
+      computed_at: new Date().toISOString(),
+    })),
+    { onConflict: "run_id,instrument_id" }
+  );
+  if (alignmentError) throw alignmentError;
   return resultRows;
 }
 
@@ -525,7 +558,7 @@ async function processUniverseBatch({ supabase, runId, runDate }) {
  * retry -- no wasted Fyers requests re-attempting already-done work),
  * evaluated with INSTRUMENT_CONCURRENCY-bounded concurrency.
  */
-async function processIncrementalBatch({ supabase, runId, runDate, batch, parameterValues, ruleDefinitions, ruleDirectionById }) {
+async function processIncrementalBatch({ supabase, runId, runDate, asOfTimestamp, batch, parameterValues, ruleDefinitions, ruleDirectionById }) {
   const instruments = JSON.parse(batch.cursor);
   const { data: alreadyDone } = await supabase
     .from("instrument_run_results")
@@ -539,7 +572,7 @@ async function processIncrementalBatch({ supabase, runId, runDate, batch, parame
   const remaining = instruments.filter((i) => !doneSet.has(i.instrumentId));
 
   await runWithConcurrencyLimit(remaining, INSTRUMENT_CONCURRENCY, (instrument) =>
-    evaluateInstrument({ supabase, runId, runDate, instrument, ruleDefinitions, parameterValues, ruleDirectionById })
+    evaluateInstrument({ supabase, runId, runDate, asOfTimestamp, instrument, ruleDefinitions, parameterValues, ruleDirectionById })
   );
 }
 
@@ -552,7 +585,7 @@ async function processIncrementalBatch({ supabase, runId, runDate, batch, parame
  * Best-effort: a failed leg keeps whatever earlier legs already fetched
  * rather than discarding real, honestly-obtained history.
  */
-async function processBackfillBatch({ supabase, batch }) {
+async function processBackfillBatch({ supabase, batch, asOfTimestamp }) {
   const instruments = JSON.parse(batch.cursor);
   await runWithConcurrencyLimit(instruments, INSTRUMENT_CONCURRENCY, async (instrument) => {
     const { data: existing } = await supabase
@@ -564,7 +597,7 @@ async function processBackfillBatch({ supabase, batch }) {
       .maybeSingle();
     if (existing) return;
 
-    let to = new Date();
+    let to = new Date(asOfTimestamp);
     let allBars = [];
     for (let leg = 0; leg < MAX_BACKFILL_LEGS; leg++) {
       const from = new Date(to.getTime() - BACKFILL_LEG_DAYS * 24 * 60 * 60 * 1000);
@@ -637,8 +670,9 @@ async function finalizeRunStatus({ supabase, runId, runStartedAtMs, forceStatus 
     );
   }
 
-  const coverage = reconcileCoverage(rows.map((r) => ({ tier: r.tier })));
-  await supabase.from("coverage_reconciliation").upsert({ run_id: runId, ...coverage }, { onConflict: "run_id" });
+  const coverage = reconcileCoverage(rows.map((r) => ({ tier: r.tier })), universeCount);
+  const { error: coverageError } = await supabase.from("coverage_reconciliation").upsert({ run_id: runId, ...coverage }, { onConflict: "run_id" });
+  if (coverageError) throw coverageError;
 
   let status = forceStatus;
   if (!status) {
@@ -652,7 +686,34 @@ async function finalizeRunStatus({ supabase, runId, runStartedAtMs, forceStatus 
     });
   }
 
-  await supabase.from("screening_runs").update({ status, completed_at: new Date().toISOString() }).eq("id", runId);
+  if (status === "ready_to_publish") {
+    const { data: publication, error: publicationError } = await supabase.rpc("publish_screening_run", {
+      p_run_id: runId,
+    });
+    if (publicationError) throw publicationError;
+    const published = publication?.published === true;
+    await logStage(
+      supabase,
+      runId,
+      "publication",
+      published ? "ok" : "warning",
+      published
+        ? `Published validated snapshot: universeCount=${universeCount} resultCount=${rows.length}`
+        : `Publication validation failed: ${(publication?.errors ?? []).join("; ")}`
+    );
+    return;
+  }
+
+  const isTerminal = status === "partial" || status === "failed";
+  const { error: statusError } = await supabase
+    .from("screening_runs")
+    .update({
+      status,
+      publication_state: isTerminal ? "validation_failed" : "processing",
+      completed_at: isTerminal ? new Date().toISOString() : null,
+    })
+    .eq("id", runId);
+  if (statusError) throw statusError;
   await logStage(supabase, runId, "complete", status === "completed" ? "ok" : "warning", `status=${status} universeCount=${universeCount} resultCount=${rows.length}`);
 }
 
@@ -682,11 +743,55 @@ async function runWithConcurrencyLimit(items, limit, worker) {
 }
 
 async function buildUniverse(supabase, runId, runDate) {
+  // Idempotent-retry guard: a crash between buildUniverse's own writes and
+  // processUniverseBatch's "reconcile" seeding marker causes this function to
+  // be called again for the SAME run. Without this check it would re-fetch
+  // live NSE data and overwrite the first attempt's run_universe_sources
+  // content_hash/retrieved_at -- silently un-freezing what is documented as
+  // an immutable, run-scoped snapshot (a same-day NSE constituent change
+  // between the two fetches would make the retried snapshot disagree with
+  // the first). Once all 4 index sources are already persisted for this
+  // run_id, reconstruct membership from those persisted rows instead of
+  // fetching again.
+  const { data: existingSources, error: existingSourcesError } = await supabase
+    .from("run_universe_sources")
+    .select("index_id")
+    .eq("run_id", runId);
+  if (existingSourcesError) throw existingSourcesError;
+  if (existingSources && existingSources.length === INDEX_IDS.length) {
+    const { data: existingMembers, error: membersError } = await supabase
+      .from("run_universe_instruments")
+      .select("instrument_id, membership_tags")
+      .eq("run_id", runId)
+      .eq("is_index", false);
+    if (membersError) throw membersError;
+    const instrumentIds = (existingMembers ?? []).map((m) => m.instrument_id);
+    const { data: instrumentRows, error: instrumentsError } = instrumentIds.length
+      ? await supabase.from("instruments").select("id, symbol, name").in("id", instrumentIds)
+      : { data: [], error: null };
+    if (instrumentsError) throw instrumentsError;
+    const byId = new Map((instrumentRows ?? []).map((row) => [row.id, row]));
+    const membership = new Map();
+    for (const m of existingMembers ?? []) {
+      const inst = byId.get(m.instrument_id);
+      membership.set(m.instrument_id, {
+        symbol: inst?.symbol ?? m.instrument_id,
+        name: inst?.name ?? m.instrument_id,
+        indexIds: new Set(m.membership_tags ?? []),
+      });
+    }
+    return membership;
+  }
+
   const membership = new Map(); // instrumentId -> { symbol, name, indexIds: Set }
+  const sourceSnapshots = [];
+  const sourceErrors = [];
 
   for (const indexId of INDEX_IDS) {
     try {
-      const { data: constituents } = await fetchIndexConstituents(indexId);
+      const snapshot = await fetchIndexConstituents(indexId);
+      const constituents = snapshot.data;
+      sourceSnapshots.push({ indexId, ...snapshot });
       for (const c of constituents) {
         if (!membership.has(c.instrumentId)) {
           membership.set(c.instrumentId, { symbol: c.symbol, name: c.name, indexIds: new Set() });
@@ -694,9 +799,16 @@ async function buildUniverse(supabase, runId, runDate) {
         membership.get(c.instrumentId).indexIds.add(indexId);
       }
     } catch (err) {
-      await logStage(supabase, runId, "universe", "warning", `${indexId} constituent fetch failed: ${err.message}`);
+      const message = err instanceof Error ? err.message : String(err);
+      sourceErrors.push(`${indexId}: ${message}`);
+      await logStage(supabase, runId, "universe", "failed", `${indexId} constituent fetch failed: ${message}`);
     }
   }
+
+  if (sourceSnapshots.length !== INDEX_IDS.length) {
+    throw new Error(`Immutable universe snapshot incomplete (${sourceSnapshots.length}/${INDEX_IDS.length} indexes): ${sourceErrors.join(" | ")}`);
+  }
+  if (membership.size === 0) throw new Error("Immutable universe snapshot contains zero equities");
 
   const instrumentRows = [
     ...INDEX_IDS.map((id) => ({ id, symbol: id, name: id, exchange: "NSE", is_index: true })),
@@ -709,8 +821,37 @@ async function buildUniverse(supabase, runId, runDate) {
     })),
   ];
   if (instrumentRows.length > 0) {
-    await supabase.from("instruments").upsert(instrumentRows, { onConflict: "id" });
+    const { error } = await supabase.from("instruments").upsert(instrumentRows, { onConflict: "id" });
+    if (error) throw error;
   }
+
+  const { error: sourceError } = await supabase.from("run_universe_sources").upsert(
+    sourceSnapshots.map((snapshot) => ({
+      run_id: runId,
+      index_id: snapshot.indexId,
+      provider: snapshot.provider,
+      retrieved_at: snapshot.retrievedAt,
+      constituent_count: snapshot.data.length,
+      source_uri: snapshot.sourceUri,
+      content_hash: snapshot.contentHash,
+    })),
+    { onConflict: "run_id,index_id" }
+  );
+  if (sourceError) throw sourceError;
+
+  const { error: universeError } = await supabase.from("run_universe_instruments").upsert(
+    [
+      ...INDEX_IDS.map((id) => ({ run_id: runId, instrument_id: id, is_index: true, membership_tags: [] })),
+      ...[...membership.entries()].map(([id, member]) => ({
+        run_id: runId,
+        instrument_id: id,
+        is_index: false,
+        membership_tags: [...member.indexIds].sort(),
+      })),
+    ],
+    { onConflict: "run_id,instrument_id" }
+  );
+  if (universeError) throw universeError;
 
   const membershipRows = [];
   for (const [instrumentId, m] of membership.entries()) {
@@ -779,6 +920,38 @@ async function writeRawBars(supabase, instrumentId, bars) {
   }
 }
 
+async function persistAnalysisBars({ supabase, runId, instrumentId, series }) {
+  if (series.bars.length === 0) return;
+  const rows = series.bars.map((bar) => ({
+    run_id: runId,
+    instrument_id: instrumentId,
+    interval: series.interval,
+    session_date: bar.sessionDate ?? bar.date.slice(0, 10),
+    ts: bar.ts ?? `${bar.date}T00:00:00+05:30`,
+    open: bar.open,
+    high: bar.high,
+    low: bar.low,
+    close: bar.close,
+    volume: bar.volume,
+    provider: series.provider,
+    adjustment_state: series.adjustmentState,
+    algorithm_version: series.algorithmVersion,
+    provenance: series.provenance,
+    is_complete: bar.isComplete ?? true,
+    source_retrieved_at: bar.sourceRetrievedAt ?? null,
+  }));
+  const { error } = await supabase.from("analysis_bars").upsert(rows, { onConflict: "run_id,instrument_id,interval,ts" });
+  if (error) throw error;
+}
+
+async function persistUnavailableAlignment(supabase, runId, instrumentId) {
+  const { error } = await supabase.from("instrument_alignment").upsert(
+    { run_id: runId, instrument_id: instrumentId, final_alignment: "UNAVAILABLE", computed_at: new Date().toISOString() },
+    { onConflict: "run_id,instrument_id" }
+  );
+  if (error) throw error;
+}
+
 /**
  * Evaluates one instrument for this run: incremental Fyers fetch (only the
  * days missing since the last stored bar -- nextIncrementalRange,
@@ -788,7 +961,7 @@ async function writeRawBars(supabase, instrumentId, bars) {
  * not), validation, direction analysis, rule evaluation, hourly routes, and
  * the final classified result row.
  */
-async function evaluateInstrument({ supabase, runId, runDate, instrument, ruleDefinitions, parameterValues, ruleDirectionById }) {
+async function evaluateInstrument({ supabase, runId, runDate, asOfTimestamp, instrument, ruleDefinitions, parameterValues, ruleDirectionById }) {
   // SMM/PAPA/GUE all declare `scope: [index, equity]` at the strategy level
   // (strategies/*.yaml), so indexes run through the same OHLCV -> quality ->
   // rule-evaluation -> classify pipeline as stocks, using Fyers' index
@@ -820,34 +993,47 @@ async function evaluateInstrument({ supabase, runId, runDate, instrument, ruleDe
       .slice(0, 10);
     const { data: storedBars, error: readError } = await supabase
       .from("market_bars_raw")
-      .select("session_date, open, high, low, close, volume")
+      .select("session_date, ts, open, high, low, close, volume, provider, retrieved_at, is_complete")
       .eq("instrument_id", instrument.instrumentId)
       .eq("interval", "1d")
+      .eq("provider", "fyers")
       .gte("session_date", windowStartDate)
       .lte("session_date", runDate)
       .order("session_date", { ascending: true });
     if (readError) throw readError;
 
-    bars = (storedBars ?? []).map((b) => ({ date: b.session_date, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume }));
-    const validation = validateBars(bars);
+    bars = (storedBars ?? []).map((b) => ({
+      date: b.session_date,
+      ts: b.ts,
+      open: b.open,
+      high: b.high,
+      low: b.low,
+      close: b.close,
+      volume: b.volume,
+      sourceRetrievedAt: b.retrieved_at,
+      isComplete: b.is_complete,
+    }));
+    const validation = validateBars(bars, { asOfTimestamp, cutoffDate: runDate });
     dataQuality = validation.result;
     if (validation.issues.length > 0) {
-      await supabase.from("data_quality_results").insert({
+      const { error: qualityError } = await supabase.from("data_quality_results").insert({
         run_id: runId,
         instrument_id: instrument.instrumentId,
         check_name: "bar_validation",
         result: dataQuality,
         details: { issues: validation.issues.slice(0, 20) },
       });
+      if (qualityError) throw qualityError;
     }
   } catch (err) {
-    await supabase.from("data_quality_results").insert({
+    const { error: ingestionQualityError } = await supabase.from("data_quality_results").insert({
       run_id: runId,
       instrument_id: instrument.instrumentId,
       check_name: "ingestion",
       result: "NO_DATA",
       details: { error: err instanceof Error ? err.message : String(err) },
     });
+    if (ingestionQualityError) throw ingestionQualityError;
   }
 
   if (dataQuality !== "PASS") {
@@ -863,50 +1049,18 @@ async function evaluateInstrument({ supabase, runId, runDate, instrument, ruleDe
       failed_gates: [],
       data_quality: dataQuality,
     };
-    await supabase.from("instrument_run_results").upsert(resultRow, { onConflict: "run_id,instrument_id" });
+    const { error: resultError } = await supabase.from("instrument_run_results").upsert(resultRow, { onConflict: "run_id,instrument_id" });
+    if (resultError) throw resultError;
+    await persistUnavailableAlignment(supabase, runId, instrument.instrumentId);
     return { resultRow };
   }
 
-  // Adjusted bars (problem #20): raw + adjusted are stored separately, with
-  // an explicit adjustment_version, rather than pivots/patterns ever running
-  // on raw unadjusted data. No corporate-action data is ingested into this
-  // project yet (corporate_actions stays empty -- no ingestion source has
-  // been identified; separately, whether Fyers' own history API already
-  // returns split/bonus-adjusted prices is UNRESOLVED -- couldn't be
-  // confirmed from public docs, only that the charting UI is adjusted with
-  // a user toggle -- so this must be empirically verified against a known
-  // past split before corporate-action ingestion is ever built, to avoid
-  // double-adjusting), so this is a structural no-op today -- computeAdjustedBars
-  // returns bars unchanged when there are no qualifying actions -- but the
-  // storage path and versioning are real.
-  try {
-    const { data: corporateActions } = await supabase.from("corporate_actions").select("action_type, ex_date, factor").eq("instrument_id", instrument.instrumentId);
-    const adjustedBars = computeAdjustedBars(bars, corporateActions ?? []);
-    await supabase.from("market_bars_adjusted").upsert(
-      adjustedBars.map((b) => ({
-        instrument_id: instrument.instrumentId,
-        interval: "1d",
-        session_date: b.date,
-        ts: `${b.date}T00:00:00+05:30`,
-        open: b.open,
-        high: b.high,
-        low: b.low,
-        close: b.close,
-        volume: b.volume,
-        adjustment_version: ADJUSTMENT_VERSION,
-        is_complete: true,
-      })),
-      { onConflict: "instrument_id,interval,ts,adjustment_version" }
-    );
-  } catch (err) {
-    await logStage(
-      supabase,
-      runId,
-      "adjusted_bars",
-      "warning",
-      `${instrument.instrumentId}: adjusted-bar storage failed: ${err instanceof Error ? err.message : String(err)}`
-    );
-  }
+  // FYERS History already adjusts both price and volume for corporate
+  // actions. This explicit run-scoped series is the sole downstream input;
+  // applying corporate_actions again would double-adjust it.
+  const analysisSeries = buildAnalysisBars({ bars, provider: "fyers", interval: "1d", asOfTimestamp });
+  await persistAnalysisBars({ supabase, runId, instrumentId: instrument.instrumentId, series: analysisSeries });
+  bars = analysisSeries.bars;
 
   // Idempotent-retry cleanup: clear this instrument's own prior
   // bar_validation/rule_traces rows for this run before rewriting them,
@@ -922,11 +1076,12 @@ async function evaluateInstrument({ supabase, runId, runDate, instrument, ruleDe
   // instrument_alignment) and rule evaluation (writes rule_traces) both only
   // need `bars` -- neither reads the other's output, so they run
   // concurrently rather than one blocking the other's network round trips.
-  const [, { traces, failedGates }] = await Promise.all([
+  const [directionArtifacts, { traces, failedGates }] = await Promise.all([
     (async () => {
       try {
-        await upsertDirectionAnalysis({ supabase, runId, instrument, bars, documentedParams: parameterValues.documented ?? {} });
+        return await upsertDirectionAnalysis({ supabase, runId, instrument, bars, documentedParams: parameterValues.documented ?? {} });
       } catch (err) {
+        await recordCriticalPersistenceError(supabase, runId, instrument.instrumentId, "direction_analysis", err);
         await logStage(
           supabase,
           runId,
@@ -934,15 +1089,17 @@ async function evaluateInstrument({ supabase, runId, runDate, instrument, ruleDe
           "warning",
           `${instrument.instrumentId}: direction analysis failed: ${err instanceof Error ? err.message : String(err)}`
         );
+        return { chartsByTimeframe: {} };
       }
     })(),
     (async () => {
       const context = buildFeatureContext(bars, parameterValues.documented ?? {});
       const result = evaluateRules(ruleDefinitions, context, parameterValues);
       if (result.traces.length > 0) {
-        await supabase
+        const { error: traceError } = await supabase
           .from("rule_traces")
           .insert(result.traces.map((t) => ({ run_id: runId, instrument_id: instrument.instrumentId, ...t })));
+        if (traceError) throw traceError;
       }
       return result;
     })(),
@@ -959,6 +1116,8 @@ async function evaluateInstrument({ supabase, runId, runDate, instrument, ruleDe
     try {
       routeEvidence = await ingestHourlyBarsAndDetectRoutes({
         supabase,
+        runId,
+        asOfTimestamp,
         instrument,
         dailyBars: bars,
         parameterValues: parameterValues.documented ?? {},
@@ -966,6 +1125,7 @@ async function evaluateInstrument({ supabase, runId, runDate, instrument, ruleDe
         bearishQualifiesForHourly,
       });
     } catch (err) {
+      await recordCriticalPersistenceError(supabase, runId, instrument.instrumentId, "hourly_ingest", err);
       await logStage(
         supabase,
         runId,
@@ -980,8 +1140,18 @@ async function evaluateInstrument({ supabase, runId, runDate, instrument, ruleDe
   // bearish are always separate rows (problem #15). Failure here must never
   // block instrument_run_results below.
   try {
-    await persistSwingAnalysisResults({ supabase, runId, instrument, traces, routeEvidence, dailyBars: bars, parameterValues: parameterValues.documented ?? {} });
+    await persistSwingAnalysisResults({
+      supabase,
+      runId,
+      instrument,
+      traces,
+      routeEvidence,
+      directionCharts: directionArtifacts.chartsByTimeframe,
+      dailyBars: bars,
+      parameterValues: parameterValues.documented ?? {},
+    });
   } catch (err) {
+    await recordCriticalPersistenceError(supabase, runId, instrument.instrumentId, "swing_analysis", err);
     await logStage(
       supabase,
       runId,
@@ -1008,7 +1178,8 @@ async function evaluateInstrument({ supabase, runId, runDate, instrument, ruleDe
     failed_gates: failedGates,
     data_quality: dataQuality,
   };
-  await supabase.from("instrument_run_results").upsert(resultRow, { onConflict: "run_id,instrument_id" });
+  const { error: resultError } = await supabase.from("instrument_run_results").upsert(resultRow, { onConflict: "run_id,instrument_id" });
+  if (resultError) throw resultError;
 
   return { resultRow };
 }
@@ -1028,7 +1199,7 @@ async function evaluateInstrument({ supabase, runId, runDate, instrument, ruleDe
  * place finalAction actually gets decided -- this function only gathers
  * evidence, it never computes a verdict itself.
  */
-async function persistSwingAnalysisResults({ supabase, runId, instrument, traces, routeEvidence, dailyBars, parameterValues }) {
+async function persistSwingAnalysisResults({ supabase, runId, instrument, traces, routeEvidence, directionCharts, dailyBars, parameterValues }) {
   const minimumRewardRiskStrict = parameterValues.swing_minimum_reward_risk_strict ?? null;
   const hourlyBars = routeEvidence?.hourlyBars ?? [];
   const latestDailyClose = dailyBars.length > 0 ? dailyBars[dailyBars.length - 1].close : null;
@@ -1093,6 +1264,8 @@ async function persistSwingAnalysisResults({ supabase, runId, instrument, traces
     });
     if (!analysis) continue; // no WBP-/WSP- gates evaluated this run -- strategy not seeded/active yet
 
+    const evidenceTimestamp = new Date().toISOString();
+
     const { data: resultRow, error: resultError } = await supabase
       .from("swing_analysis_results")
       .upsert(
@@ -1116,7 +1289,11 @@ async function persistSwingAnalysisResults({ supabase, runId, instrument, traces
           reward_risk_ratio: analysis.rewardRiskRatio,
           final_action: analysis.finalAction,
           data_quality: analysis.dataQuality,
-          computed_at: new Date().toISOString(),
+          daily_chart_object_path: directionCharts?.daily?.objectPath ?? null,
+          daily_chart_content_hash: directionCharts?.daily?.contentHash ?? null,
+          hourly_chart_object_path: routeEvidence?.hourlyChart?.objectPath ?? null,
+          hourly_chart_content_hash: routeEvidence?.hourlyChart?.contentHash ?? null,
+          computed_at: evidenceTimestamp,
         },
         { onConflict: "run_id,instrument_id,hypothesis" }
       )
@@ -1129,23 +1306,56 @@ async function persistSwingAnalysisResults({ supabase, runId, instrument, traces
     }
 
     const gatePrefix = hypothesis === "bullish" ? "WBP-" : "WSP-";
-    const gateTraces = traces.filter((t) => t.rule_id.startsWith(gatePrefix));
+    const gateTraces = analysis.canonicalGateTraces.map(toPersistedSwingTrace);
 
-    await supabase.from("swing_analysis_rule_traces").delete().eq("analysis_result_id", resultRow.id);
+    const [{ error: swingTraceDeleteError }, { error: ruleTraceDeleteError }] = await Promise.all([
+      supabase.from("swing_analysis_rule_traces").delete().eq("analysis_result_id", resultRow.id),
+      supabase
+        .from("rule_traces")
+        .delete()
+        .eq("run_id", runId)
+        .eq("instrument_id", instrument.instrumentId)
+        .like("rule_id", `${gatePrefix}%`),
+    ]);
+    if (swingTraceDeleteError) throw swingTraceDeleteError;
+    if (ruleTraceDeleteError) throw ruleTraceDeleteError;
+
     if (gateTraces.length > 0) {
-      const { error: traceError } = await supabase.from("swing_analysis_rule_traces").insert(
-        gateTraces.map((t) => ({
-          analysis_result_id: resultRow.id,
-          rule_id: t.rule_id,
-          group_name: null,
-          result: t.result,
-          observed_values: t.observed_values,
-          thresholds: t.thresholds,
-          explanation: t.explanation,
-          source_locator: t.source_locator,
-        }))
-      );
-      if (traceError) throw traceError;
+      const [swingTraceInsert, ruleTraceInsert] = await Promise.all([
+        supabase.from("swing_analysis_rule_traces").insert(
+          gateTraces.map((t) => ({
+            analysis_result_id: resultRow.id,
+            rule_id: t.rule_id,
+            group_name: null,
+            result: t.result,
+            observed_values: t.observed_values,
+            thresholds: t.thresholds,
+            explanation: t.explanation,
+            source_locator: t.source_locator,
+            required_condition:
+              t.thresholds && Object.keys(t.thresholds).length > 0
+                ? JSON.stringify(t.thresholds)
+                : "Apply the documented condition at the cited source locator.",
+            evidence_timestamp: evidenceTimestamp,
+            data_quality: t.result === "NO_DATA" ? "NO_DATA" : "PASS",
+          }))
+        ),
+        supabase.from("rule_traces").insert(
+          gateTraces.map((t) => ({
+            run_id: runId,
+            instrument_id: instrument.instrumentId,
+            rule_id: t.rule_id,
+            observed_values: t.observed_values,
+            thresholds: t.thresholds,
+            result: t.result,
+            source_document: t.source_locator?.split(" §")[0] ?? null,
+            source_locator: t.source_locator,
+            explanation: t.explanation,
+          }))
+        ),
+      ]);
+      if (swingTraceInsert.error) throw swingTraceInsert.error;
+      if (ruleTraceInsert.error) throw ruleTraceInsert.error;
     }
   }
 }
@@ -1195,10 +1405,13 @@ async function persistSwingAnalysisResults({ supabase, runId, instrument, traces
  *   zigzag_hourly_pct/dailyZigzagPct/hour_slot_volume_lookback_sessions
  *   parameters are unresolved -- never guessed)
  */
-async function ingestHourlyBarsAndDetectRoutes({ supabase, instrument, dailyBars, parameterValues, bullishQualifiesForHourly, bearishQualifiesForHourly }) {
-  const { data: rawCandles } = await fetchHourlyOHLCV(instrument.instrumentId, instrument.symbol, supabase);
-  const hourlyBars = normalizeHourlyBars(rawCandles);
+async function ingestHourlyBarsAndDetectRoutes({ supabase, runId, asOfTimestamp, instrument, dailyBars, parameterValues, bullishQualifiesForHourly, bearishQualifiesForHourly }) {
+  const { data: rawCandles, retrievedAt } = await fetchHourlyOHLCV(instrument.instrumentId, instrument.symbol, supabase, { asOfTimestamp });
+  const hourlyBars = normalizeCompletedHourlyBars(rawCandles, asOfTimestamp).map((bar) => ({ ...bar, sourceRetrievedAt: retrievedAt }));
   if (hourlyBars.length === 0) return null;
+
+  const analysisSeries = buildAnalysisBars({ bars: hourlyBars, provider: "fyers", interval: "1h", asOfTimestamp });
+  await persistAnalysisBars({ supabase, runId, instrumentId: instrument.instrumentId, series: analysisSeries });
 
   const rows = hourlyBars.map((b) => ({
     instrument_id: instrument.instrumentId,
@@ -1250,6 +1463,33 @@ async function ingestHourlyBarsAndDetectRoutes({ supabase, instrument, dailyBars
   const dailyPivots = zigzagPivots(dailyBars, dailyZigzagPct);
   const dailyDowStructure = classifyDowStructure(dailyPivots, dailyBars[dailyBars.length - 1].close);
   const hourlyPivots = zigzagPivots(hourlyBars, hourlyZigzagPct);
+  const hourlyDowStructure = classifyDowStructure(hourlyPivots, hourlyBars[hourlyBars.length - 1].close);
+  let hourlyChart = null;
+  try {
+    const hourlySvg = renderChartSvg({
+      symbol: instrument.symbol,
+      timeframe: "hourly",
+      bars: hourlyBars,
+      pivots: hourlyPivots,
+      wave: null,
+      dowState: hourlyDowStructure.state,
+    });
+    hourlyChart = await uploadImmutableChart({
+      supabase,
+      instrumentId: instrument.instrumentId,
+      timeframe: "hourly",
+      svg: hourlySvg,
+    });
+  } catch (err) {
+    await recordCriticalPersistenceError(supabase, runId, instrument.instrumentId, "hourly_chart", err);
+    await logStage(
+      supabase,
+      runId,
+      "hourly_chart",
+      "warning",
+      `${instrument.instrumentId}: immutable hourly chart upload failed: ${err instanceof Error ? err.message : String(err)}`
+    );
+  }
 
   const macdFast = parameterValues.macd_fast;
   const macdSlow = parameterValues.macd_slow;
@@ -1280,6 +1520,7 @@ async function ingestHourlyBarsAndDetectRoutes({ supabase, instrument, dailyBars
     dailySwingHigh: dailyDowStructure.lastSwingHigh,
     dailySwingLow: dailyDowStructure.lastSwingLow,
     hourlyBars,
+    hourlyChart,
   };
 }
 
@@ -1294,12 +1535,6 @@ async function ingestHourlyBarsAndDetectRoutes({ supabase, instrument, dailyBars
 async function upsertDirectionAnalysis({ supabase, runId, instrument, bars, documentedParams }) {
   const analysis = await buildDirectionAnalysis(bars, documentedParams);
 
-  const { data: existingRows } = await supabase
-    .from("instrument_direction")
-    .select("timeframe, input_hash")
-    .eq("instrument_id", instrument.instrumentId);
-  const existingHashByTimeframe = Object.fromEntries((existingRows ?? []).map((r) => [r.timeframe, r.input_hash]));
-
   // Each timeframe's chart/direction/pattern work below is fully
   // independent of every other timeframe's -- nothing reads another
   // timeframe's result until persistFinalAlignment, which needs all three
@@ -1311,29 +1546,23 @@ async function upsertDirectionAnalysis({ supabase, runId, instrument, bars, docu
       const tf = analysis[timeframe];
       if (!tf) return null; // unresolved zigzag parameter or not enough bars -- never fabricated
 
-      const objectPath = `${instrument.instrumentId}/${timeframe}.svg`;
-      const unchanged = existingHashByTimeframe[timeframe] === tf.inputHash;
+      const svg = renderChartSvg({
+        symbol: instrument.symbol,
+        timeframe,
+        bars: tf.bars,
+        pivots: tf.pivots,
+        unconfirmedLeg: tf.unconfirmedLeg,
+        wave: tf.wave,
+        dowState: tf.dowState,
+      });
+      const { objectPath, contentHash } = await uploadImmutableChart({
+        supabase,
+        instrumentId: instrument.instrumentId,
+        timeframe,
+        svg,
+      });
 
-      if (!unchanged) {
-        const svg = renderChartSvg({
-          symbol: instrument.symbol,
-          timeframe,
-          bars: tf.bars,
-          pivots: tf.pivots,
-          unconfirmedLeg: tf.unconfirmedLeg,
-          wave: tf.wave,
-          dowState: tf.dowState,
-        });
-        const { error: uploadError } = await supabase.storage
-          .from("direction-charts")
-          .upload(objectPath, new Blob([svg], { type: "image/svg+xml" }), { contentType: "image/svg+xml", upsert: true });
-        if (uploadError) {
-          await logStage(supabase, runId, "direction_chart", "warning", `${instrument.instrumentId}/${timeframe}: chart upload failed: ${uploadError.message}`);
-          return null; // don't point instrument_direction at a chart that isn't actually there
-        }
-      }
-
-      await supabase.from("instrument_direction").upsert(
+      const { error: latestDirectionError } = await supabase.from("instrument_direction").upsert(
         {
           instrument_id: instrument.instrumentId,
           timeframe,
@@ -1351,6 +1580,7 @@ async function upsertDirectionAnalysis({ supabase, runId, instrument, bars, docu
         },
         { onConflict: "instrument_id,timeframe" }
       );
+      if (latestDirectionError) throw latestDirectionError;
 
       // Run-scoped schema: instrument_direction above is latest-state only
       // and gets overwritten every run, so it can never answer "what did we
@@ -1358,7 +1588,7 @@ async function upsertDirectionAnalysis({ supabase, runId, instrument, bars, docu
       // evidence. Failure here must never block the legacy row above (still
       // what the live Direction page reads) or pattern detection below.
       try {
-        await persistDirectionRun({ supabase, runId, instrument, timeframe, tf, objectPath });
+        await persistDirectionRun({ supabase, runId, instrument, timeframe, tf, objectPath, contentHash });
       } catch (err) {
         await logStage(
           supabase,
@@ -1367,6 +1597,7 @@ async function upsertDirectionAnalysis({ supabase, runId, instrument, bars, docu
           "warning",
           `${instrument.instrumentId}/${timeframe}: run-scoped direction/wave persistence failed: ${err instanceof Error ? err.message : String(err)}`
         );
+        await recordCriticalPersistenceError(supabase, runId, instrument.instrumentId, "direction_run", err);
       }
 
       // Pattern detection is computed regardless of persistence success (the
@@ -1391,13 +1622,18 @@ async function upsertDirectionAnalysis({ supabase, runId, instrument, bars, docu
           "warning",
           `${instrument.instrumentId}/${timeframe}: pattern detection persistence failed: ${err instanceof Error ? err.message : String(err)}`
         );
+        await recordCriticalPersistenceError(supabase, runId, instrument.instrumentId, "pattern_detection", err);
       }
 
-      return [timeframe, patterns];
+      return { timeframe, patterns, objectPath, contentHash };
     })
   );
 
-  const patternsByTimeframe = Object.fromEntries(perTimeframeResults.filter(Boolean));
+  const successfulResults = perTimeframeResults.filter(Boolean);
+  const patternsByTimeframe = Object.fromEntries(successfulResults.map((result) => [result.timeframe, result.patterns]));
+  const chartsByTimeframe = Object.fromEntries(
+    successfulResults.map((result) => [result.timeframe, { objectPath: result.objectPath, contentHash: result.contentHash }])
+  );
 
   // final_alignment (#1, #6): combines SMM (all 3 timeframes' dow_state),
   // GUE (disclosed but non-authoritative, see alignment.js), and PAPA
@@ -1414,7 +1650,21 @@ async function upsertDirectionAnalysis({ supabase, runId, instrument, bars, docu
       "warning",
       `${instrument.instrumentId}: final_alignment computation/persistence failed: ${err instanceof Error ? err.message : String(err)}`
     );
+    await recordCriticalPersistenceError(supabase, runId, instrument.instrumentId, "final_alignment", err);
   }
+  return { chartsByTimeframe };
+}
+
+async function uploadImmutableChart({ supabase, instrumentId, timeframe, svg }) {
+  const identity = await immutableChartIdentity(instrumentId, timeframe, svg);
+  const { error } = await supabase.storage
+    .from("direction-charts")
+    .upload(identity.objectPath, new Blob([svg], { type: "image/svg+xml" }), {
+      contentType: "image/svg+xml",
+      upsert: false,
+    });
+  if (error && !isExistingChartObjectError(error)) throw error;
+  return identity;
 }
 
 /**
@@ -1434,7 +1684,7 @@ async function upsertDirectionAnalysis({ supabase, runId, instrument, bars, docu
  * level (it's a live example in the source -- "weekly close above 24,800" --
  * not a formula), so computing one would mean inventing it.
  */
-async function persistDirectionRun({ supabase, runId, instrument, timeframe, tf, objectPath }) {
+async function persistDirectionRun({ supabase, runId, instrument, timeframe, tf, objectPath, contentHash }) {
   const directionalLevel = trendDefiningLevelFor(tf.dowState, tf.lastSwingHigh, tf.lastSwingLow);
 
   const { error: runError } = await supabase.from("instrument_direction_runs").upsert(
@@ -1450,6 +1700,7 @@ async function persistDirectionRun({ supabase, runId, instrument, timeframe, tf,
       invalidation_level: directionalLevel,
       chart_object_path: objectPath,
       chart_input_hash: tf.inputHash,
+      chart_content_hash: contentHash,
       chart_algorithm_version: DIRECTION_ALGORITHM_VERSION,
       chart_renderer_version: RENDER_VERSION,
       data_quality: "PASS",
@@ -1631,6 +1882,17 @@ function groupBy(arr, keyFn) {
 
 async function logStage(supabase, runId, stage, status, message) {
   await supabase.from("pipeline_audit_log").insert({ run_id: runId, stage, status, message });
+}
+
+async function recordCriticalPersistenceError(supabase, runId, instrumentId, stage, err) {
+  const message = err instanceof Error ? err.message : String(err);
+  const { error } = await supabase.from("pipeline_persistence_errors").insert({
+    run_id: runId,
+    instrument_id: instrumentId,
+    stage,
+    message,
+  });
+  if (error) throw error;
 }
 
 function json(body, status = 200) {

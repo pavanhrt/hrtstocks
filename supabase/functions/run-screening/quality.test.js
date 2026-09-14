@@ -50,3 +50,21 @@ test("all-bad bars is INVALID, not PARTIAL", () => {
   const result = validateBars([bad]);
   assert.equal(result.result, "INVALID");
 });
+
+test("future candles relative to the frozen cutoff never pass quality", () => {
+  const result = validateBars([goodBar("2026-09-11"), goodBar("2026-09-12")], {
+    asOfTimestamp: "2026-09-11T10:00:00.000Z",
+    cutoffDate: "2026-09-11",
+  });
+  assert.notEqual(result.result, "PASS");
+  assert.ok(result.issues.some((issue) => issue.includes("newer than frozen cutoff")));
+});
+
+test("staleness is evaluated against frozen run time, not wall-clock time", () => {
+  const result = validateBars([goodBar("2026-09-10")], {
+    staleDays: 5,
+    asOfTimestamp: "2026-09-11T10:00:00.000Z",
+    cutoffDate: "2026-09-11",
+  });
+  assert.equal(result.result, "PASS");
+});

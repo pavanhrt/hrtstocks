@@ -7,6 +7,9 @@ import {
   isCompletedHourlyBoundary,
   HOURLY_STUB_POLICY,
   normalizeHourlyBars,
+  normalizeCompletedHourlyBars,
+  nseSessionCloseTimestamp,
+  freezeEodCutoff,
 } from "./nse-calendar.js";
 
 function epoch(isoUtc) {
@@ -44,6 +47,22 @@ test("latestCompletedNseSession returns the prior trading day when called before
   // 10:00 IST = 04:30 UTC -- session is still open.
   const duringSession = new Date("2026-09-10T04:30:00Z");
   assert.equal(latestCompletedNseSession(duringSession), "2026-09-09");
+});
+
+test("freezeEodCutoff pins a pre-close run to the prior session close", () => {
+  const frozen = freezeEodCutoff(new Date("2026-09-10T04:30:00Z")); // 10:00 IST Thursday
+  assert.deepEqual(frozen, { runDate: "2026-09-09", asOfTimestamp: "2026-09-09T10:00:00.000Z" });
+});
+
+test("freezeEodCutoff uses today's close at and after 15:30 IST", () => {
+  assert.deepEqual(freezeEodCutoff(new Date("2026-09-10T10:00:00Z")), {
+    runDate: "2026-09-10",
+    asOfTimestamp: "2026-09-10T10:00:00.000Z",
+  });
+});
+
+test("NSE session close conversion is stable across the UTC date edge", () => {
+  assert.equal(nseSessionCloseTimestamp("2026-01-02"), "2026-01-02T10:00:00.000Z");
 });
 
 test("latestCompletedNseSession skips weekends", () => {
@@ -122,4 +141,14 @@ test("normalizeHourlyBars marks the still-forming current hour as incomplete, pa
 
 test("normalizeHourlyBars returns an empty list for an empty input, never throwing", () => {
   assert.deepEqual(normalizeHourlyBars([]), []);
+});
+
+test("normalizeCompletedHourlyBars excludes candles ending after the frozen cutoff", () => {
+  const raw = [
+    candle(epoch("2026-09-09T08:45:00Z"), 100), // prior session, closes 14:45 UTC? actually 15:15 IST / 09:45 UTC
+    candle(epoch("2026-09-10T03:45:00Z"), 101), // next session, future relative to cutoff below
+  ];
+  const bars = normalizeCompletedHourlyBars(raw, "2026-09-09T10:00:00.000Z");
+  assert.equal(bars.length, 1);
+  assert.equal(bars[0].sessionDate, "2026-09-09");
 });

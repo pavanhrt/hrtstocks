@@ -24,6 +24,9 @@ test("labelWave: a full, valid bullish impulse is reported as wave 5 completed",
   assert.equal(primary.currentWave, "5");
   assert.equal(primary.waveState, "completed");
   assert.equal(primary.confidence, "confirmed");
+  assert.equal(primary.mandatoryEvidenceConfirmed, true);
+  assert.deepEqual(primary.ruleEvidence.map((e) => e.result), ["PASS", "PASS", "PASS"]);
+  assert.ok(primary.ruleEvidence.every((e) => e.sourceDocument === "GUE Concepts - Part 1.pdf"));
   assert.deepEqual(primary.passedGates, ["GUE-IMPULSE-001", "GUE-IMPULSE-002", "GUE-IMPULSE-003"]);
   assert.equal(primary.ruleArithmetic.wave1, 10);
   assert.equal(primary.invalidationPrice, null); // impulse is complete, not forming
@@ -60,6 +63,8 @@ test("labelWave: wave 4 forming is reported with a real invalidation price (GUE-
   assert.equal(primary.structureType, "impulse");
   assert.equal(primary.currentWave, "4");
   assert.equal(primary.waveState, "forming");
+  assert.equal(primary.mandatoryEvidenceConfirmed, false);
+  assert.ok(primary.uncheckableRules.includes("GUE-IMPULSE-003"));
   assert.equal(primary.invalidationPrice, 110);
   assert.match(primary.invalidationCondition, /wave 1's territory/);
 });
@@ -124,7 +129,9 @@ test("labelWave: a valid completed zigzag (B stays within origin, C extends beyo
   assert.equal(zigzag.direction, "bearish"); // wave A moved down from the origin
   assert.equal(zigzag.currentWave, "C");
   assert.equal(zigzag.waveState, "completed");
-  assert.equal(zigzag.confidence, "confirmed");
+  assert.equal(zigzag.confidence, "tentative");
+  assert.equal(zigzag.mandatoryEvidenceConfirmed, false);
+  assert.deepEqual(zigzag.uncheckableRules, ["GUE-ZIGZAG-SUBWAVES"]);
 });
 
 test("labelWave: wave B retracing past the origin fails the zigzag shape check (not mislabeled)", () => {

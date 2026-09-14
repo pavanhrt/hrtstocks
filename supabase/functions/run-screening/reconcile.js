@@ -7,8 +7,10 @@
 /**
  * @param {{ tier: string }[]} stockResults - instrument_run_results rows for
  *   non-index instruments only (indexes are contextual, never counted here)
+ * @param {number|null} expectedStockCount immutable run-universe size. When
+ *   supplied, missing result rows cannot redefine the universe downward.
  */
-export function reconcileCoverage(stockResults) {
+export function reconcileCoverage(stockResults, expectedStockCount = null) {
   const counts = {
     tier_a: 0,
     tier_b: 0,
@@ -23,7 +25,7 @@ export function reconcileCoverage(stockResults) {
   }
 
   const summed = Object.values(counts).reduce((a, b) => a + b, 0);
-  const uniqueStockCount = stockResults.length;
+  const uniqueStockCount = expectedStockCount ?? stockResults.length;
 
   return {
     unique_stock_count: uniqueStockCount,
@@ -33,6 +35,6 @@ export function reconcileCoverage(stockResults) {
     manual_review: counts.manual_review,
     rejected: counts.rejected,
     unavailable: counts.unavailable,
-    reconciled: summed === uniqueStockCount,
+    reconciled: uniqueStockCount > 0 && summed === uniqueStockCount && stockResults.length === uniqueStockCount,
   };
 }
