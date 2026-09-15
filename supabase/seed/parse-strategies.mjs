@@ -24,6 +24,7 @@ const STRATEGY_FILES = [
   "sell-signal-playbook.yaml",
   "buy-swing.yaml",
   "sell-swing.yaml",
+  "buy-setup-analysis.yaml",
 ];
 
 function loadYaml(relativePath) {

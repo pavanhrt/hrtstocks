@@ -444,6 +444,35 @@ h1 {
   background: rgba(239, 91, 106, 0.15);
   color: var(--fail);
 }
+/* /buy-setup-analysis's own status vocabulary. NOT_APPLICABLE is
+   deliberately visually distinct from FAIL/NO_DATA -- it means "this stage
+   was correctly skipped because an earlier hard gate did not pass," not
+   "this stage ran and found nothing." */
+.badge-NOT_APPLICABLE {
+  background: rgba(90, 98, 117, 0.12);
+  color: var(--text-dim);
+  border: 1px dashed var(--text-dim);
+}
+.badge-TRIGGERED,
+.badge-CONFIRMED,
+.badge-TECHNICAL_EVIDENCE_PRESENT,
+.badge-QUALIFIED_FOR_15M_ANALYSIS,
+.badge-ABOVE_UPPER {
+  background: rgba(53, 201, 143, 0.15);
+  color: var(--pass);
+}
+.badge-ALREADY_ABOVE,
+.badge-PRICE_ONLY,
+.badge-WITHIN_BANDS {
+  background: rgba(224, 178, 60, 0.15);
+  color: var(--watch);
+}
+.badge-NOT_TRIGGERED,
+.badge-NONE,
+.badge-BELOW_LOWER {
+  background: rgba(90, 98, 117, 0.2);
+  color: var(--nodata);
+}
 
 input,
 button,

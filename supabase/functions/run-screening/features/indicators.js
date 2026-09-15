@@ -104,6 +104,29 @@ export function bollingerBands(closes, period, deviations) {
 }
 
 /**
+ * Full Bollinger upper/middle/lower series (same length as input, leading
+ * `period - 1` entries null) -- for buy-setup/charts, which plots the whole
+ * band across the visible window, not just the latest reading
+ * `bollingerBands()` above returns. Same formula, just evaluated at every
+ * index instead of only the last one.
+ */
+export function bollingerBandsSeries(closes, period, deviations) {
+  const middle = new Array(closes.length).fill(null);
+  const upper = new Array(closes.length).fill(null);
+  const lower = new Array(closes.length).fill(null);
+  for (let i = period - 1; i < closes.length; i++) {
+    const window = closes.slice(i - period + 1, i + 1);
+    const mean = window.reduce((a, b) => a + b, 0) / period;
+    const variance = window.reduce((a, b) => a + (b - mean) ** 2, 0) / period;
+    const sd = Math.sqrt(variance);
+    middle[i] = mean;
+    upper[i] = mean + deviations * sd;
+    lower[i] = mean - deviations * sd;
+  }
+  return { upper, middle, lower };
+}
+
+/**
  * Fibonacci retracement fraction of the current close within [swingLow, swingHigh]
  * for a bullish continuation (0 = at the high, 1 = fully retraced to the low).
  * Direction is the caller's responsibility: pass swing points appropriate to
@@ -165,8 +188,12 @@ function smaSeries(values, period) {
   return out;
 }
 
-/** Wilder-smoothed RSI series (same length as input, leading `period` entries null). */
-function rsiSeries(closes, period) {
+/**
+ * Wilder-smoothed RSI series (same length as input, leading `period` entries
+ * null). Exported (previously module-private) so buy-setup/divergence.js can
+ * compare RSI at two confirmed pivot bars without a separate reimplementation.
+ */
+export function rsiSeries(closes, period) {
   const out = new Array(closes.length).fill(null);
   if (closes.length < period + 1) return out;
   let gainSum = 0;
@@ -205,9 +232,11 @@ export function rsiWithPrevious(closes, period) {
 /**
  * Slow stochastic: raw %K over `lookback`, smoothed by `kSmoothing` to give
  * "slow %K", then smoothed again by `dSmoothing` to give %D -- the standard
- * (14, 3, 3) convention the playbooks document.
+ * (14, 3, 3) convention the playbooks document. Exported (previously
+ * module-private) so buy-setup/charts can plot the full %K/%D lines, not
+ * just the latest crossover values `stochastic()` below returns.
  */
-function stochasticSeries(highs, lows, closes, lookback, kSmoothing, dSmoothing) {
+export function stochasticSeries(highs, lows, closes, lookback, kSmoothing, dSmoothing) {
   const rawK = closes.map((close, i) => {
     if (i < lookback - 1) return null;
     const hh = Math.max(...highs.slice(i - lookback + 1, i + 1));
@@ -230,8 +259,33 @@ export function stochastic(highs, lows, closes, lookback, kSmoothing, dSmoothing
   };
 }
 
-/** Full MACD histogram series (same length as input, leading entries null). */
-function macdHistogramSeries(closes, fastPeriod, slowPeriod, signalPeriod) {
+/**
+ * Full MACD line and signal-line series (same length as input, leading
+ * entries null) -- for buy-setup/charts, which plots the whole MACD line
+ * across the visible window, not just the latest value macd() returns.
+ */
+export function macdLineAndSignalSeries(closes, fastPeriod, slowPeriod, signalPeriod) {
+  const fastSeries = emaSeries(closes, fastPeriod);
+  const slowSeries = emaSeries(closes, slowPeriod);
+  const macdSeries = closes.map((_, i) =>
+    fastSeries[i] === null || slowSeries[i] === null ? null : fastSeries[i] - slowSeries[i]
+  );
+  const validStart = macdSeries.findIndex((v) => v !== null);
+  const signalOut = new Array(closes.length).fill(null);
+  if (validStart === -1) return { macdSeries, signalSeries: signalOut };
+  const validMacd = macdSeries.slice(validStart);
+  const signalSeries = emaSeries(validMacd, signalPeriod);
+  for (let i = 0; i < validMacd.length; i++) signalOut[validStart + i] = signalSeries[i];
+  return { macdSeries, signalSeries: signalOut };
+}
+
+/**
+ * Full MACD histogram series (same length as input, leading entries null).
+ * Exported (previously module-private) so buy-setup/divergence.js can
+ * compare the MACD histogram at two confirmed pivot bars without a separate
+ * reimplementation.
+ */
+export function macdHistogramSeries(closes, fastPeriod, slowPeriod, signalPeriod) {
   const fastSeries = emaSeries(closes, fastPeriod);
   const slowSeries = emaSeries(closes, slowPeriod);
   const macdSeries = closes.map((_, i) =>
@@ -313,9 +367,11 @@ function directionalMovement(highs, lows, i) {
  * first `period` DX values -- so ADX only becomes available from index
  * `2*period - 1` onward, i.e. the first `2*period - 1` bars (~27 for
  * period=14) never get a value, matching
- * `papa-price-action-SKILL.md`'s "discard the first ~28 bars."
+ * `papa-price-action-SKILL.md`'s "discard the first ~28 bars." Exported
+ * (previously module-private) so buy-setup/charts can plot the full
+ * +DI/-DI/ADX lines, not just the latest values `adx()` below returns.
  */
-function adxSeries(highs, lows, closes, period) {
+export function adxSeries(highs, lows, closes, period) {
   const n = closes.length;
   const plusDI = new Array(n).fill(null);
   const minusDI = new Array(n).fill(null);

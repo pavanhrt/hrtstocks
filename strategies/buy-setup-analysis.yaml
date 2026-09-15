@@ -1,0 +1,124 @@
+strategy:
+  id: buy-setup-analysis
+  name: Buy Setup Analysis -- Three-Timeframe Bullish Gate (Monthly + Weekly + Daily)
+  framework: BSA
+  rule_version: 1.0.0
+  parameter_version: 1.0.0
+  status: partially_automated
+  scope: [equity]
+
+provenance:
+  decision_record:
+    date: "2026-09-15"
+    requested_by: user (interactive session, /buy-setup-analysis page request)
+    source_status: PROJECT_DEFAULT
+    statement: >
+      This strategy file was NOT extracted from BUY_Signal_Playbook.md, any
+      GUE source document, or any other project source register entry. It is
+      user-requested logic, specified directly in the session that created
+      the /buy-setup-analysis page: "evaluate the existing bullish Dow
+      predicate independently across monthly, weekly, and daily, then require
+      all three (AND) before an instrument proceeds to 15-minute analysis."
+      Per AGENTS.md's provenance rule ("distinguish DOCUMENTED, PROJECT_DEFAULT,
+      INFERRED, CONFLICT, UNRESOLVED"), this is classified PROJECT_DEFAULT, not
+      DOCUMENTED -- it must never be presented as coming from the GUE documents
+      or the Buy Signal Playbook, even though it deliberately reuses that
+      playbook's own DOCUMENTED per-timeframe Dow predicate (BSP-M1's and
+      BSP-M3's expression, verbatim in shape) rather than inventing a new one.
+    reused_documented_predicate: >
+      strategies/buy-signal-playbook.yaml's BSP-M1 (Monthly Dow structure) and
+      BSP-M3 (Weekly Dow structure) are DOCUMENTED (playbooks/BUY_Signal_Playbook.md
+      §2 and §3). Their expression shape --
+      "dow_state == 'uptrend_intact' or dow_state == 'confirmed_reversal_bullish'
+      or (dow_state == 'sideways' and range_breakout_up_with_volume)" -- is
+      reused unchanged for the new daily-timeframe rule (BSA-D1) below, and
+      composed unchanged (a strict AND, no scoring, no "2 of 3") for the
+      combined gate (BSA-G1). No threshold, formula, or documented condition
+      from the source playbook was altered.
+    why_new_rule_ids: >
+      BSP-M2 (Monthly Elliott position) and BSP-M5 (Daily Elliott setup)
+      already exist in buy-signal-playbook.yaml with different meanings from
+      what this page needs at the daily timeframe, so a same-numbered BSP-M*
+      id would collide with an existing, unrelated MANUAL_REVIEW sentinel.
+      New, non-conflicting ids (BSA-D1, BSA-G1) are used instead, in a
+      separate strategy file (not merged into buy-signal-playbook.yaml) so
+      the original document's own extracted rules are never mixed with
+      user-requested logic that the document does not contain -- AGENTS.md
+      rule 10 ("Preserve the original strategy and any optimized variant as
+      separate, versioned definitions").
+  source_register: null
+  source_group: BSA
+  locator_granularity: gate_level
+  production_rule_trace_ready: true
+
+rules:
+  - id: BSA-D1
+    name: Daily Dow structure (bullish)
+    source_status: PROJECT_DEFAULT
+    source_refs:
+      document: "session decision record above (2026-09-15)"
+      locator: "reuses strategies/buy-signal-playbook.yaml BSP-M1/BSP-M3 expression shape, applied to the daily timeframe"
+    timeframe: daily
+    direction: bullish
+    inputs: [bsa_daily_dow_state, bsa_daily_range_breakout_up_with_volume]
+    expression: "bsa_daily_dow_state == 'uptrend_intact' or bsa_daily_dow_state == 'confirmed_reversal_bullish' or (bsa_daily_dow_state == 'sideways' and bsa_daily_range_breakout_up_with_volume)"
+    true_result: PASS
+    false_result: FAIL
+    missing_result: NO_DATA
+    hard_gate: false
+    note: >
+      hard_gate is false for the same cross-strategy-pooling reason documented
+      on BSP-M1 (evaluateRules()/classify() pool hard-gate failures across
+      every active strategy with no direction scoping) -- the
+      /buy-setup-analysis page applies this gate itself from the rule_trace,
+      exactly like the existing Buy signals page does for BSP-M1/M3/M4B/M7.
+      bsa_daily_dow_state/bsa_daily_range_breakout_up_with_volume are computed
+      by buy-setup/three-timeframe-gate.js by calling the SAME
+      features/structure.js functions (classifyDowStructure,
+      rangeBreakoutWithVolume) that context.js already uses for
+      monthly/weekly/daily, with the same zigzag_daily_pct/volume_lookback/
+      volume_multiplier parameters from config/parameters.yaml -- not a
+      reimplementation.
+
+  - id: BSA-G1
+    name: Three-timeframe bullish alignment gate (Monthly AND Weekly AND Daily)
+    source_status: PROJECT_DEFAULT
+    source_refs:
+      document: "session decision record above (2026-09-15)"
+      locator: "strict AND of BSP-M1 (monthly), BSP-M3 (weekly), and BSA-D1 (daily) -- see decision_record.reused_documented_predicate"
+    timeframe: combined
+    direction: bullish
+    inputs:
+      - bsa_monthly_dow_state
+      - bsa_monthly_range_breakout_up_with_volume
+      - bsa_weekly_dow_state
+      - bsa_weekly_range_breakout_up_with_volume
+      - bsa_daily_dow_state
+      - bsa_daily_range_breakout_up_with_volume
+    expression: >-
+      (bsa_monthly_dow_state == 'uptrend_intact' or bsa_monthly_dow_state == 'confirmed_reversal_bullish' or (bsa_monthly_dow_state == 'sideways' and bsa_monthly_range_breakout_up_with_volume))
+      and (bsa_weekly_dow_state == 'uptrend_intact' or bsa_weekly_dow_state == 'confirmed_reversal_bullish' or (bsa_weekly_dow_state == 'sideways' and bsa_weekly_range_breakout_up_with_volume))
+      and (bsa_daily_dow_state == 'uptrend_intact' or bsa_daily_dow_state == 'confirmed_reversal_bullish' or (bsa_daily_dow_state == 'sideways' and bsa_daily_range_breakout_up_with_volume))
+    true_result: PASS
+    false_result: FAIL
+    missing_result: NO_DATA
+    hard_gate: true
+    note: >
+      hard_gate is true here (unlike BSP-M1/M3/BSA-D1 individually) because
+      this rule is the page's own dedicated qualification gate for entry into
+      15-minute analysis, evaluated and stored only under the BSA framework --
+      it does not get pooled against SMM/PAPA/GUE/FOME's own bearish-capable
+      hard gates the way a bullish-only BSP-* gate would. rules/engine.js's
+      Kleene three-valued AND/OR guarantees: if any of the three timeframe
+      predicates is FAIL (a known false), the whole gate is FAIL, even if
+      another timeframe is NO_DATA -- a hard gate can never be silently
+      granted by missing data (AGENTS.md rule: "never convert ambiguity or
+      missing data into a pass"). If no timeframe is a known FAIL but at
+      least one is NO_DATA/unresolved, the whole gate resolves to NO_DATA
+      (missing_result) via the same three-valued logic -- never PASS. Only an
+      instrument whose monthly, weekly, and daily Dow predicates are ALL
+      affirmatively true proceeds to the 15-minute analysis stage
+      (three-timeframe-gate.js's isQualifiedForFifteenMinuteAnalysis()).
+      Sideways alone (no breakout, or breakout without volume confirmation)
+      correctly evaluates to FAIL for that timeframe and therefore FAILs the
+      whole gate -- never weakened to "2 of 3" or a score.

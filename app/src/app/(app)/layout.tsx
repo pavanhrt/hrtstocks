@@ -10,6 +10,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const links = [
     { href: "/dashboard", label: "Dashboard" },
     { href: "/buy-signals", label: "Buy signals" },
+    { href: "/buy-setup-analysis", label: "Buy setup analysis" },
     { href: "/sell-signals", label: "Sell signals" },
     { href: "/analysis", label: "Analysis" },
     { href: "/direction", label: "Direction" },

@@ -109,6 +109,12 @@ export default async function BuySignalsPage() {
           bars are ingested today -- so M7 will often read NO_DATA rather than PASS/FAIL until that
           lookback is extended.
         </p>
+        <p style={{ fontSize: 13 }}>
+          Looking for a strict Monthly + Weekly + Daily bullish AND gate with downstream 15-minute
+          indicators, GUE wave, and bullish-reversal evidence instead? See{" "}
+          <Link href="/buy-setup-analysis">Buy setup analysis</Link> -- a separate, user-requested screen with its
+          own versioned rules (strategies/buy-setup-analysis.yaml), not part of this Buy Signal Playbook.
+        </p>
       </div>
 
       <div className="card">

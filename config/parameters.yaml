@@ -1,4 +1,4 @@
-parameter_version: 1.5.0
+parameter_version: 1.6.0
 status: partially_resolved_from_buy_sell_signal_playbooks
 
 documented:
@@ -111,14 +111,97 @@ documented:
 
 project_defaults_requiring_backtest:
   atr_period: null
-  pivot_left_window: null
-  pivot_right_window: null
-  support_resistance_tolerance: null
-  breakout_buffer: null
   followup_window: null
   gap_significance_threshold: null
-  divergence_lookback: null
-  pivot_matching_tolerance: null
   minimum_liquidity_thresholds: null
+
+# Resolved in parameter_version 1.6.0 (2026-09-15), for the user-requested
+# /buy-setup-analysis page (strategies/buy-setup-analysis.yaml). None of
+# these come from a source document -- every value here is a disclosed
+# PROJECT_DEFAULT, dated and reasoned individually, per the null_policy's own
+# allowance for a versioned decision once code actually depends on the
+# specific value. They were previously null under
+# project_defaults_requiring_backtest above (unresolved, no code depended on
+# them); moving them here does not change their provenance label, it only
+# resolves the number now that supabase/functions/run-screening/buy-setup/
+# needs one.
+buy_setup_analysis_defaults:
+  # Pivot confirmation window for daily support/resistance and channel
+  # detection (buy-setup/chart-structure.js) -- how many bars on each side
+  # must be lower/higher for a bar to count as a confirmed swing pivot ("N
+  # bars either side," the standard fractal-pivot convention). No source
+  # document specifies a number for this page's chart-structure detection;
+  # 3 is a disclosed PROJECT_DEFAULT, deliberately smaller than
+  # zigzag_daily_pct's ~2.5% percentage-based swing detector (a different,
+  # coarser mechanism already used for Dow/Elliott structure) since S/R
+  # levels are expected to react to more local turning points than a full
+  # Dow swing.
+  pivot_left_window: 3
+  pivot_right_window: 3
+  # "Roughly at the same level" tolerance when grouping multiple pivots into
+  # one support/resistance level, and when comparing a close against a
+  # level for breakout confirmation. Same 0.5% figure structure.js's own
+  # compareLevel/classifyDowStructure already uses for "roughly equal"
+  # swing highs/lows (this project's own established convention for this
+  # kind of tolerance), reused here for consistency rather than inventing a
+  # different number.
+  support_resistance_tolerance: 0.005
+  # Minimum number of distinct pivot touches (within
+  # support_resistance_tolerance) required before a price level is reported
+  # as a "confirmed" support or resistance level, rather than a single
+  # unconfirmed swing point. 2 is the minimum that makes "level" meaningful
+  # (a single touch is just a pivot, not yet a level) -- a disclosed
+  # PROJECT_DEFAULT, not a documented number.
+  sr_touch_count_min: 2
+  # A close must clear a resistance level by this fraction before counting
+  # as a genuine breakout (not just a tag/wick through it) -- mirrors
+  # support_resistance_tolerance's own magnitude for consistency; a
+  # disclosed PROJECT_DEFAULT.
+  breakout_buffer: 0.005
+  # Reuses the existing documented volume_lookback/volume_multiplier
+  # (above) for breakout-volume confirmation -- no new volume parameter
+  # needed.
+  # Minimum confirmed pivots (alternating high/low) required before two
+  # trendlines are reported as a channel, rather than an unconfirmed
+  # 2-point line. A disclosed PROJECT_DEFAULT (4 lets both boundaries have
+  # at least 2 touches each).
+  channel_min_pivots: 4
+  # Daily/15-minute EMA positive crossover: reuses the already-documented
+  # ema_periods (5/13/26 among them, above) for the fast/slow pair per the
+  # user's own instruction ("EMA 5 crossing above EMA 13 or EMA 26... reuse
+  # the existing documented/configured project periods"). The number of
+  # bars within which the crossover must have occurred to still count as
+  # "current" evidence is not documented anywhere; 3 bars is a disclosed
+  # PROJECT_DEFAULT confirmation window, applied identically on daily and
+  # 15-minute bars (buy-setup/ema-crossover.js).
+  ema_crossover_confirmation_window: 3
+  # RSI/MACD bullish divergence (buy-setup/divergence.js): how many bars
+  # back to search for the prior confirmed pivot low being compared against
+  # the current one. No source document specifies a divergence lookback; 60
+  # 15-minute bars (~2.5 trading sessions) is a disclosed PROJECT_DEFAULT,
+  # intentionally short given 15-minute bars accumulate quickly and a
+  # "regular bullish divergence" is a short/medium-term reversal signal, not
+  # a multi-week comparison.
+  divergence_lookback: 60
+  # Same fractal-pivot window as pivot_left_window/pivot_right_window above,
+  # applied to 15-minute price and indicator series for divergence pivot
+  # confirmation -- reused for consistency, not a separate number.
+  pivot_matching_tolerance: 0.005
+  # Minimum relative slope (fraction of price per bar) for a linear fit
+  # through confirmed pivots to count as "rising" or "falling" rather than
+  # "sideways" (buy-setup/chart-structure.js's detectChannel). Below this
+  # magnitude a channel reads as flat/range-bound rather than trending. A
+  # disclosed PROJECT_DEFAULT -- no source document defines a numeric
+  # channel-slope threshold.
+  channel_slope_threshold: 0.001
+  # Zigzag swing-detector threshold for 15-minute bars, feeding the SAME
+  # structure.js/wave.js Elliott engine already used for daily/weekly/monthly
+  # (features/context.js) and 1-hour (zigzag_hourly_pct above) timeframes --
+  # reused unmodified, only the threshold differs per timeframe, matching
+  # this project's own established convention. No source document specifies
+  # a 15-minute swing threshold; 1% is a disclosed PROJECT_DEFAULT, smaller
+  # than zigzag_hourly_pct's 1.25% given 15-minute bars are finer-grained and
+  # noisier than hourly ones.
+  zigzag_fifteen_minute_pct: 0.01
 
 null_policy: unresolved_parameters_must_not_be_assumed_documented

@@ -326,4 +326,69 @@ export async function fetchHourlyOHLCV(
   };
 }
 
-export { HOURLY_LOOKBACK_DAYS };
+// The /buy-setup-analysis page (buy-setup/, PROJECT_DEFAULT user-requested
+// logic -- see strategies/buy-setup-analysis.yaml's decision record) only
+// ever fetches 15-minute bars for instruments that already passed the
+// three-timeframe gate -- a small subset of the universe, not every
+// instrument -- and only needs enough recent bars for GUE wave/divergence
+// pivot detection and a handful of oscillators, not a long history. 10
+// calendar days (~7 NSE trading sessions, ~26 fifteen-minute bars per session
+// = ~180 bars) comfortably covers this module's own
+// buy_setup_analysis_defaults.divergence_lookback (60 bars) with margin, and
+// is far under any plausible Fyers intraday date-range cap. A disclosed
+// PROJECT_DEFAULT, not independently confirmed against a live response in
+// this environment (no FYERS_ACCESS_TOKEN available here), same caveat as
+// HOURLY_LOOKBACK_DAYS above.
+const FIFTEEN_MINUTE_LOOKBACK_DAYS = 10;
+
+/**
+ * Fetches the trailing FIFTEEN_MINUTE_LOOKBACK_DAYS of 15-minute candles for
+ * three-timeframe-qualified instruments only (the caller's responsibility --
+ * this function itself has no gate awareness). Returns raw epoch-timestamped
+ * bars; callers should run these through
+ * buy-setup/fifteen-minute-bars.js's normalizeCompletedFifteenMinuteBars
+ * before storage/analysis, which drops any candle not yet fully closed as of
+ * the run's own as_of_timestamp (never a fabricated or partial candle).
+ *
+ * Same date_format=0 (epoch-second range bounds) and resolution-as-string
+ * convention as fetchHourlyOHLCV, and the same not-independently-confirmed
+ * caveat: resolution="15" follows Fyers' documented history API shape but
+ * has not been verified against a live response in this environment.
+ *
+ * @param {string} instrumentId
+ * @param {string} symbol
+ * @param {import("@supabase/supabase-js").SupabaseClient} [supabase]
+ * @param {number} [days]
+ * @param {string} [asOfTimestamp]
+ */
+export async function fetchFifteenMinuteOHLCV(
+  instrumentId,
+  symbol,
+  supabase = null,
+  { days = FIFTEEN_MINUTE_LOOKBACK_DAYS, asOfTimestamp = new Date().toISOString() } = {}
+) {
+  const to = new Date(asOfTimestamp);
+  if (!Number.isFinite(to.getTime())) throw new Error("fetchFifteenMinuteOHLCV requires a valid asOfTimestamp");
+  const from = new Date(to.getTime() - days * 24 * 60 * 60 * 1000);
+
+  const url = new URL(`${DATA_BASE_URL}/history`);
+  url.searchParams.set("symbol", toFyersSymbol(instrumentId, symbol));
+  url.searchParams.set("resolution", "15");
+  url.searchParams.set("date_format", "0");
+  url.searchParams.set("range_from", String(Math.floor(from.getTime() / 1000)));
+  url.searchParams.set("range_to", String(Math.floor(to.getTime() / 1000)));
+  url.searchParams.set("cont_flag", "1");
+
+  const body = await requestHistory(url, symbol, supabase);
+
+  const data = mapHourlyCandles(body.candles, from, to); // resolution-agnostic despite the name -- epoch-window filter + sort only
+
+  return {
+    data,
+    freshness: "INTRADAY",
+    provider: "fyers",
+    retrievedAt: new Date().toISOString(),
+  };
+}
+
+export { HOURLY_LOOKBACK_DAYS, FIFTEEN_MINUTE_LOOKBACK_DAYS };

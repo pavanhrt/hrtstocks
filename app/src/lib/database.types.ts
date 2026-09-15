@@ -101,6 +101,894 @@ export type Database = {
         }
         Relationships: []
       }
+      buy_setup_candlestick_detections: {
+        Row: {
+          anchor_points: Json
+          computed_at: string
+          confidence: string
+          direction: string
+          id: number
+          instrument_id: string
+          invalidation_price: number | null
+          lifecycle_state: string | null
+          pattern_name: string
+          run_id: string
+          source_locator: string
+          state: string
+          target_price: number | null
+          trigger_bar_ts: string | null
+          volume_evidence: Json | null
+        }
+        Insert: {
+          anchor_points?: Json
+          computed_at?: string
+          confidence?: string
+          direction: string
+          id?: never
+          instrument_id: string
+          invalidation_price?: number | null
+          lifecycle_state?: string | null
+          pattern_name: string
+          run_id: string
+          source_locator: string
+          state: string
+          target_price?: number | null
+          trigger_bar_ts?: string | null
+          volume_evidence?: Json | null
+        }
+        Update: {
+          anchor_points?: Json
+          computed_at?: string
+          confidence?: string
+          direction?: string
+          id?: never
+          instrument_id?: string
+          invalidation_price?: number | null
+          lifecycle_state?: string | null
+          pattern_name?: string
+          run_id?: string
+          source_locator?: string
+          state?: string
+          target_price?: number | null
+          trigger_bar_ts?: string | null
+          volume_evidence?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "buy_setup_candlestick_detections_instrument_id_fkey"
+            columns: ["instrument_id"]
+            isOneToOne: false
+            referencedRelation: "instruments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "buy_setup_candlestick_detections_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "screening_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      buy_setup_chart_levels: {
+        Row: {
+          breakout_candle_ts: string | null
+          breakout_detected: boolean | null
+          breakout_volume_confirmed: boolean | null
+          channel_lower: number | null
+          channel_type: string | null
+          channel_upper: number | null
+          computed_at: string
+          instrument_id: string
+          parameter_version: string
+          pivot_left_window: number
+          pivot_right_window: number
+          resistance_level: number | null
+          resistance_touch_count: number | null
+          run_id: string
+          support_level: number | null
+          support_touch_count: number | null
+        }
+        Insert: {
+          breakout_candle_ts?: string | null
+          breakout_detected?: boolean | null
+          breakout_volume_confirmed?: boolean | null
+          channel_lower?: number | null
+          channel_type?: string | null
+          channel_upper?: number | null
+          computed_at?: string
+          instrument_id: string
+          parameter_version: string
+          pivot_left_window: number
+          pivot_right_window: number
+          resistance_level?: number | null
+          resistance_touch_count?: number | null
+          run_id: string
+          support_level?: number | null
+          support_touch_count?: number | null
+        }
+        Update: {
+          breakout_candle_ts?: string | null
+          breakout_detected?: boolean | null
+          breakout_volume_confirmed?: boolean | null
+          channel_lower?: number | null
+          channel_type?: string | null
+          channel_upper?: number | null
+          computed_at?: string
+          instrument_id?: string
+          parameter_version?: string
+          pivot_left_window?: number
+          pivot_right_window?: number
+          resistance_level?: number | null
+          resistance_touch_count?: number | null
+          run_id?: string
+          support_level?: number | null
+          support_touch_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "buy_setup_chart_levels_instrument_id_fkey"
+            columns: ["instrument_id"]
+            isOneToOne: false
+            referencedRelation: "instruments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "buy_setup_chart_levels_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "screening_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      buy_setup_chart_pattern_detections: {
+        Row: {
+          anchor_points: Json
+          computed_at: string
+          confidence: string
+          direction: string
+          id: number
+          instrument_id: string
+          invalidation_price: number | null
+          lifecycle_state: string | null
+          pattern_name: string
+          run_id: string
+          source_locator: string
+          state: string
+          target_price: number | null
+          trigger_bar_ts: string | null
+          volume_evidence: Json | null
+        }
+        Insert: {
+          anchor_points?: Json
+          computed_at?: string
+          confidence?: string
+          direction: string
+          id?: never
+          instrument_id: string
+          invalidation_price?: number | null
+          lifecycle_state?: string | null
+          pattern_name: string
+          run_id: string
+          source_locator: string
+          state: string
+          target_price?: number | null
+          trigger_bar_ts?: string | null
+          volume_evidence?: Json | null
+        }
+        Update: {
+          anchor_points?: Json
+          computed_at?: string
+          confidence?: string
+          direction?: string
+          id?: never
+          instrument_id?: string
+          invalidation_price?: number | null
+          lifecycle_state?: string | null
+          pattern_name?: string
+          run_id?: string
+          source_locator?: string
+          state?: string
+          target_price?: number | null
+          trigger_bar_ts?: string | null
+          volume_evidence?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "buy_setup_chart_pattern_detections_instrument_id_fkey"
+            columns: ["instrument_id"]
+            isOneToOne: false
+            referencedRelation: "instruments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "buy_setup_chart_pattern_detections_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "screening_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      buy_setup_charts: {
+        Row: {
+          chart_algorithm_version: string
+          chart_content_hash: string
+          chart_object_path: string
+          computed_at: string
+          instrument_id: string
+          run_id: string
+          timeframe: string
+        }
+        Insert: {
+          chart_algorithm_version: string
+          chart_content_hash: string
+          chart_object_path: string
+          computed_at?: string
+          instrument_id: string
+          run_id: string
+          timeframe: string
+        }
+        Update: {
+          chart_algorithm_version?: string
+          chart_content_hash?: string
+          chart_object_path?: string
+          computed_at?: string
+          instrument_id?: string
+          run_id?: string
+          timeframe?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "buy_setup_charts_instrument_id_fkey"
+            columns: ["instrument_id"]
+            isOneToOne: false
+            referencedRelation: "instruments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "buy_setup_charts_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "screening_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      buy_setup_divergence_evidence: {
+        Row: {
+          computed_at: string
+          id: number
+          indicator: string
+          indicator_pivot_1_value: number | null
+          indicator_pivot_2_value: number | null
+          instrument_id: string
+          parameter_version: string
+          price_pivot_1_ts: string | null
+          price_pivot_1_value: number | null
+          price_pivot_2_ts: string | null
+          price_pivot_2_value: number | null
+          reason: string | null
+          result: string
+          run_id: string
+        }
+        Insert: {
+          computed_at?: string
+          id?: never
+          indicator: string
+          indicator_pivot_1_value?: number | null
+          indicator_pivot_2_value?: number | null
+          instrument_id: string
+          parameter_version: string
+          price_pivot_1_ts?: string | null
+          price_pivot_1_value?: number | null
+          price_pivot_2_ts?: string | null
+          price_pivot_2_value?: number | null
+          reason?: string | null
+          result: string
+          run_id: string
+        }
+        Update: {
+          computed_at?: string
+          id?: never
+          indicator?: string
+          indicator_pivot_1_value?: number | null
+          indicator_pivot_2_value?: number | null
+          instrument_id?: string
+          parameter_version?: string
+          price_pivot_1_ts?: string | null
+          price_pivot_1_value?: number | null
+          price_pivot_2_ts?: string | null
+          price_pivot_2_value?: number | null
+          reason?: string | null
+          result?: string
+          run_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "buy_setup_divergence_evidence_instrument_id_fkey"
+            columns: ["instrument_id"]
+            isOneToOne: false
+            referencedRelation: "instruments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "buy_setup_divergence_evidence_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "screening_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      buy_setup_ema_crossover: {
+        Row: {
+          computed_at: string
+          confirmation_window: number
+          crossover_bar_ts: string | null
+          fast_period: number
+          fast_previous: number | null
+          fast_value: number | null
+          id: number
+          instrument_id: string
+          parameter_version: string
+          run_id: string
+          slow_period: number
+          slow_previous: number | null
+          slow_value: number | null
+          status: string
+          timeframe: string
+        }
+        Insert: {
+          computed_at?: string
+          confirmation_window: number
+          crossover_bar_ts?: string | null
+          fast_period: number
+          fast_previous?: number | null
+          fast_value?: number | null
+          id?: never
+          instrument_id: string
+          parameter_version: string
+          run_id: string
+          slow_period: number
+          slow_previous?: number | null
+          slow_value?: number | null
+          status: string
+          timeframe: string
+        }
+        Update: {
+          computed_at?: string
+          confirmation_window?: number
+          crossover_bar_ts?: string | null
+          fast_period?: number
+          fast_previous?: number | null
+          fast_value?: number | null
+          id?: never
+          instrument_id?: string
+          parameter_version?: string
+          run_id?: string
+          slow_period?: number
+          slow_previous?: number | null
+          slow_value?: number | null
+          status?: string
+          timeframe?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "buy_setup_ema_crossover_instrument_id_fkey"
+            columns: ["instrument_id"]
+            isOneToOne: false
+            referencedRelation: "instruments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "buy_setup_ema_crossover_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "screening_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      buy_setup_fifteen_minute_bars: {
+        Row: {
+          adjustment_state: string
+          algorithm_version: string
+          close: number
+          created_at: string
+          high: number
+          instrument_id: string
+          is_complete: boolean
+          low: number
+          open: number
+          provenance: Json
+          provider: string
+          run_id: string
+          session_date: string
+          source_retrieved_at: string | null
+          ts: string
+          volume: number
+        }
+        Insert: {
+          adjustment_state: string
+          algorithm_version: string
+          close: number
+          created_at?: string
+          high: number
+          instrument_id: string
+          is_complete?: boolean
+          low: number
+          open: number
+          provenance: Json
+          provider: string
+          run_id: string
+          session_date: string
+          source_retrieved_at?: string | null
+          ts: string
+          volume: number
+        }
+        Update: {
+          adjustment_state?: string
+          algorithm_version?: string
+          close?: number
+          created_at?: string
+          high?: number
+          instrument_id?: string
+          is_complete?: boolean
+          low?: number
+          open?: number
+          provenance?: Json
+          provider?: string
+          run_id?: string
+          session_date?: string
+          source_retrieved_at?: string | null
+          ts?: string
+          volume?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "buy_setup_fifteen_minute_bars_instrument_id_fkey"
+            columns: ["instrument_id"]
+            isOneToOne: false
+            referencedRelation: "instruments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "buy_setup_fifteen_minute_bars_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "screening_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      buy_setup_fifteen_minute_wave: {
+        Row: {
+          computed_at: string
+          confidence: string
+          current_wave: string | null
+          id: number
+          instrument_id: string
+          invalidation_condition: string | null
+          invalidation_price: number | null
+          reason: string | null
+          rule_arithmetic: Json
+          rule_evidence: Json
+          run_id: string
+          source_locator: string
+          structure_type: string | null
+          wave_state: string | null
+        }
+        Insert: {
+          computed_at?: string
+          confidence: string
+          current_wave?: string | null
+          id?: never
+          instrument_id: string
+          invalidation_condition?: string | null
+          invalidation_price?: number | null
+          reason?: string | null
+          rule_arithmetic?: Json
+          rule_evidence?: Json
+          run_id: string
+          source_locator?: string
+          structure_type?: string | null
+          wave_state?: string | null
+        }
+        Update: {
+          computed_at?: string
+          confidence?: string
+          current_wave?: string | null
+          id?: never
+          instrument_id?: string
+          invalidation_condition?: string | null
+          invalidation_price?: number | null
+          reason?: string | null
+          rule_arithmetic?: Json
+          rule_evidence?: Json
+          run_id?: string
+          source_locator?: string
+          structure_type?: string | null
+          wave_state?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "buy_setup_fifteen_minute_wave_instrument_id_fkey"
+            columns: ["instrument_id"]
+            isOneToOne: false
+            referencedRelation: "instruments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "buy_setup_fifteen_minute_wave_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "screening_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      buy_setup_gate_traces: {
+        Row: {
+          computed_at: string
+          explanation: string | null
+          id: number
+          instrument_id: string
+          observed_values: Json
+          parameter_version: string
+          result: Database["public"]["Enums"]["rule_result"]
+          rule_id: string
+          rule_version: string
+          run_id: string
+          source_locator: string
+          source_status: string
+          thresholds: Json
+        }
+        Insert: {
+          computed_at?: string
+          explanation?: string | null
+          id?: never
+          instrument_id: string
+          observed_values?: Json
+          parameter_version: string
+          result: Database["public"]["Enums"]["rule_result"]
+          rule_id: string
+          rule_version: string
+          run_id: string
+          source_locator?: string
+          source_status?: string
+          thresholds?: Json
+        }
+        Update: {
+          computed_at?: string
+          explanation?: string | null
+          id?: never
+          instrument_id?: string
+          observed_values?: Json
+          parameter_version?: string
+          result?: Database["public"]["Enums"]["rule_result"]
+          rule_id?: string
+          rule_version?: string
+          run_id?: string
+          source_locator?: string
+          source_status?: string
+          thresholds?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "buy_setup_gate_traces_instrument_id_fkey"
+            columns: ["instrument_id"]
+            isOneToOne: false
+            referencedRelation: "instruments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "buy_setup_gate_traces_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "screening_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      buy_setup_intraday_indicators: {
+        Row: {
+          adx: number | null
+          bollinger_lower: number | null
+          bollinger_middle: number | null
+          bollinger_status: string | null
+          bollinger_upper: number | null
+          computed_at: string
+          evidence_candle_ts: string | null
+          instrument_id: string
+          macd_histogram: number | null
+          macd_histogram_previous: number | null
+          macd_line: number | null
+          macd_signal: number | null
+          minus_di: number | null
+          parameter_version: string
+          plus_di: number | null
+          rsi: number | null
+          rsi_previous: number | null
+          run_id: string
+          stochastic_d: number | null
+          stochastic_d_previous: number | null
+          stochastic_k: number | null
+          stochastic_k_previous: number | null
+        }
+        Insert: {
+          adx?: number | null
+          bollinger_lower?: number | null
+          bollinger_middle?: number | null
+          bollinger_status?: string | null
+          bollinger_upper?: number | null
+          computed_at?: string
+          evidence_candle_ts?: string | null
+          instrument_id: string
+          macd_histogram?: number | null
+          macd_histogram_previous?: number | null
+          macd_line?: number | null
+          macd_signal?: number | null
+          minus_di?: number | null
+          parameter_version: string
+          plus_di?: number | null
+          rsi?: number | null
+          rsi_previous?: number | null
+          run_id: string
+          stochastic_d?: number | null
+          stochastic_d_previous?: number | null
+          stochastic_k?: number | null
+          stochastic_k_previous?: number | null
+        }
+        Update: {
+          adx?: number | null
+          bollinger_lower?: number | null
+          bollinger_middle?: number | null
+          bollinger_status?: string | null
+          bollinger_upper?: number | null
+          computed_at?: string
+          evidence_candle_ts?: string | null
+          instrument_id?: string
+          macd_histogram?: number | null
+          macd_histogram_previous?: number | null
+          macd_line?: number | null
+          macd_signal?: number | null
+          minus_di?: number | null
+          parameter_version?: string
+          plus_di?: number | null
+          rsi?: number | null
+          rsi_previous?: number | null
+          run_id?: string
+          stochastic_d?: number | null
+          stochastic_d_previous?: number | null
+          stochastic_k?: number | null
+          stochastic_k_previous?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "buy_setup_intraday_indicators_instrument_id_fkey"
+            columns: ["instrument_id"]
+            isOneToOne: false
+            referencedRelation: "instruments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "buy_setup_intraday_indicators_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "screening_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      buy_setup_manifests: {
+        Row: {
+          computed_at: string
+          enrichment_state: string
+          error_count: number
+          expected_equity_count: number
+          fifteen_minute_completed_count: number
+          manual_review_count: number
+          no_data_count: number
+          parameter_version: string
+          parameter_version_id: string | null
+          published_at: string | null
+          qualified_count: number
+          rule_version: string
+          run_id: string
+          strategy_version_id: string | null
+          triggered_by: string | null
+          validated_at: string | null
+          validation_errors: Json
+        }
+        Insert: {
+          computed_at?: string
+          enrichment_state: string
+          error_count?: number
+          expected_equity_count?: number
+          fifteen_minute_completed_count?: number
+          manual_review_count?: number
+          no_data_count?: number
+          parameter_version: string
+          parameter_version_id?: string | null
+          published_at?: string | null
+          qualified_count?: number
+          rule_version: string
+          run_id: string
+          strategy_version_id?: string | null
+          triggered_by?: string | null
+          validated_at?: string | null
+          validation_errors?: Json
+        }
+        Update: {
+          computed_at?: string
+          enrichment_state?: string
+          error_count?: number
+          expected_equity_count?: number
+          fifteen_minute_completed_count?: number
+          manual_review_count?: number
+          no_data_count?: number
+          parameter_version?: string
+          parameter_version_id?: string | null
+          published_at?: string | null
+          qualified_count?: number
+          rule_version?: string
+          run_id?: string
+          strategy_version_id?: string | null
+          triggered_by?: string | null
+          validated_at?: string | null
+          validation_errors?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "buy_setup_manifests_parameter_version_id_fkey"
+            columns: ["parameter_version_id"]
+            isOneToOne: false
+            referencedRelation: "parameter_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "buy_setup_manifests_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: true
+            referencedRelation: "screening_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "buy_setup_manifests_strategy_version_id_fkey"
+            columns: ["strategy_version_id"]
+            isOneToOne: false
+            referencedRelation: "strategy_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "buy_setup_manifests_triggered_by_fkey"
+            columns: ["triggered_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      buy_setup_pattern_detector_coverage: {
+        Row: {
+          candlestick_implemented: string[]
+          candlestick_not_evaluated: string[]
+          chart_pattern_implemented: string[]
+          chart_pattern_not_evaluated: string[]
+          computed_at: string
+          run_id: string
+        }
+        Insert: {
+          candlestick_implemented?: string[]
+          candlestick_not_evaluated?: string[]
+          chart_pattern_implemented?: string[]
+          chart_pattern_not_evaluated?: string[]
+          computed_at?: string
+          run_id: string
+        }
+        Update: {
+          candlestick_implemented?: string[]
+          candlestick_not_evaluated?: string[]
+          chart_pattern_implemented?: string[]
+          chart_pattern_not_evaluated?: string[]
+          computed_at?: string
+          run_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "buy_setup_pattern_detector_coverage_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: true
+            referencedRelation: "screening_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      buy_setup_persistence_errors: {
+        Row: {
+          created_at: string
+          error_message: string
+          id: number
+          instrument_id: string
+          run_id: string
+          stage: string
+        }
+        Insert: {
+          created_at?: string
+          error_message: string
+          id?: never
+          instrument_id: string
+          run_id: string
+          stage: string
+        }
+        Update: {
+          created_at?: string
+          error_message?: string
+          id?: never
+          instrument_id?: string
+          run_id?: string
+          stage?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "buy_setup_persistence_errors_instrument_id_fkey"
+            columns: ["instrument_id"]
+            isOneToOne: false
+            referencedRelation: "instruments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "buy_setup_persistence_errors_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "screening_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      buy_setup_pipeline_batches: {
+        Row: {
+          attempt: number
+          cursor: string | null
+          id: number
+          last_error: string | null
+          run_id: string
+          stage: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempt?: number
+          cursor?: string | null
+          id?: never
+          last_error?: string | null
+          run_id: string
+          stage: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attempt?: number
+          cursor?: string | null
+          id?: never
+          last_error?: string | null
+          run_id?: string
+          stage?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "buy_setup_pipeline_batches_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "screening_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       corporate_actions: {
         Row: {
           action_type: string
@@ -1840,9 +2728,68 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      buy_setup_analysis_ledger: {
+        Row: {
+          daily_breakout_up_with_volume: boolean | null
+          daily_dow_state: string | null
+          daily_result: Database["public"]["Enums"]["rule_result"] | null
+          evidence_timestamp: string | null
+          fifteen_min_wave: string | null
+          gate_result: Database["public"]["Enums"]["rule_result"] | null
+          has_intraday_indicators: boolean | null
+          instrument_id: string | null
+          macd_reversal_result: string | null
+          monthly_breakout_up_with_volume: boolean | null
+          monthly_dow_state: string | null
+          monthly_result: Database["public"]["Enums"]["rule_result"] | null
+          name: string | null
+          overall_status: string | null
+          qualified: boolean | null
+          rsi_reversal_result: string | null
+          run_id: string | null
+          symbol: string | null
+          weekly_breakout_up_with_volume: boolean | null
+          weekly_dow_state: string | null
+          weekly_result: Database["public"]["Enums"]["rule_result"] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "instrument_run_results_instrument_id_fkey"
+            columns: ["instrument_id"]
+            isOneToOne: false
+            referencedRelation: "instruments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "instrument_run_results_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "screening_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
+      claim_next_buy_setup_batch: {
+        Args: { p_run_id: string }
+        Returns: {
+          attempt: number
+          cursor: string | null
+          id: number
+          last_error: string | null
+          run_id: string
+          stage: string
+          status: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "buy_setup_pipeline_batches"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       claim_next_pipeline_batch: {
         Args: { p_run_id: string }
         Returns: {
@@ -1870,7 +2817,34 @@ export type Database = {
         Args: { p_older_than: string }
         Returns: number
       }
+      publish_buy_setup_enrichment: {
+        Args: { p_run_id: string }
+        Returns: Json
+      }
       publish_screening_run: { Args: { p_run_id: string }; Returns: Json }
+      reset_stale_buy_setup_batches: {
+        Args: {
+          p_max_attempts: number
+          p_run_id: string
+          p_stale_after_seconds: number
+        }
+        Returns: {
+          attempt: number
+          cursor: string | null
+          id: number
+          last_error: string | null
+          run_id: string
+          stage: string
+          status: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "buy_setup_pipeline_batches"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       reset_stale_pipeline_batches: {
         Args: {
           p_max_attempts: number
