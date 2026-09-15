@@ -80,12 +80,31 @@ import { decideRunStatus } from "./pipeline/run-status.js";
 
 const DIRECTION_TIMEFRAMES = ["daily", "weekly", "monthly"];
 const RUN_TYPE = "eod_screening";
-// Shortened from run-lease.js's own default (10 min) specifically for this
-// run type: a healthy ~60-instrument chunk finishes in well under a minute,
-// so 3 minutes is ~2x margin -- cuts dead-invocation detection from up to
-// 10-11 minutes down to ~4 (this lease timeout + one recovery-sweep cron
-// interval).
+// History: originally 3 min. Raised to 10 min on 2026-09-14 after confirming
+// live (five straight fresh runs) that heartbeatRunLease was only called
+// once per *completed* batch, so a single slow batch (a chunk sharing the
+// cross-invocation Fyers rate-limit bucket with another in-flight chunk can
+// legitimately take several minutes) let the lease expire mid-batch --
+// the very next eod-screening-recovery-sweep cron tick (every minute) then
+// started a genuinely concurrent SECOND invocation for the same run, which
+// competed for the same shared rate-limit budget. That fixed the race, but
+// tied dead-invocation recovery time to the same 10 minutes, and a run
+// needing two such recoveries blew its own MAX_TOTAL_RUN_DURATION_MS budget
+// (confirmed live 2026-09-15). Reverted to a short value now that
+// withLeaseHeartbeat (below) refreshes the lease continuously *during* a
+// batch's own processing, not just after -- a genuinely live invocation
+// never loses its lease regardless of how long one batch takes, while a
+// truly dead one (hard-killed, crashed) stops heartbeating immediately and
+// is detected within one lease window. Must comfortably exceed
+// HEARTBEAT_INTERVAL_MS (several heartbeat opportunities per window, so one
+// dropped heartbeat is never fatal).
 const LEASE_DURATION_MS = 3 * 60 * 1000;
+// How often a live invocation refreshes its own lease while a batch is
+// still being processed (see withLeaseHeartbeat) -- decoupled from
+// heartbeatRunLease's other call site (once per completed batch, a
+// cheap immediate refresh) so lease freshness no longer depends on how long
+// an individual batch's own work takes.
+const HEARTBEAT_INTERVAL_MS = 45 * 1000;
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 // SUPABASE_SERVICE_ROLE_KEY is deprecated on this project (it migrated to
@@ -127,11 +146,22 @@ const TIME_BUDGET_MS = 110_000;
 // run (e.g. Fyers down all day, an expired token nobody rotated) ever gets
 // given up on.
 const MAX_TOTAL_RUN_DURATION_MS = 40 * 60 * 1000;
-// Comfortably longer than one healthy chunk's own processing time (~40-50s
-// worst case) -- long enough a healthy chunk is never falsely reclaimed,
-// short enough to catch a genuinely stuck one well before an operator would
-// notice.
-const STALE_BATCH_AFTER_SECONDS = 240;
+// Originally 240s ("comfortably longer than one healthy chunk's own ~40-50s
+// worst case"), but confirmed live on 2026-09-14 across two separate fresh
+// runs (both for run_date 2026-09-11, same deterministically-seeded chunk
+// order -- see shuffle.js) that a specific 60-instrument incremental chunk
+// legitimately needs close to this original window just to finish its own
+// serialized Fyers request queue (fyers.js's serializeFyersRequest allows
+// only one Fyers HTTP call in flight per isolate at a time) -- both runs
+// independently confirmed every one of that chunk's 60 instruments DID get
+// a real, correct instrument_run_results row, just not before
+// MAX_CHUNK_ATTEMPTS was exhausted via repeated premature resets, each
+// costing a full stale-timeout window even when the still-live invocation
+// was legitimately mid-chunk and would have finished on its own. Doubled to
+// give a genuinely slow-but-healthy chunk real room to finish in fewer,
+// less-interrupted attempts, rather than being raced away from underneath
+// a still-working invocation.
+const STALE_BATCH_AFTER_SECONDS = 480;
 const MAX_CHUNK_ATTEMPTS = 3;
 // 10 concurrent instrument evaluations per chunk: the shared Fyers rate
 // limiter (providers/rate-limiter.js, 180/min) serializes the actual HTTP
@@ -248,6 +278,26 @@ Deno.serve(async (req) => {
 });
 
 /**
+ * Runs `work` while periodically refreshing this invocation's own run lease
+ * in the background (see LEASE_DURATION_MS / HEARTBEAT_INTERVAL_MS above) --
+ * so a live invocation's lease freshness no longer depends on how long the
+ * batch it's currently processing takes to resolve. The interval is always
+ * cleared before returning, success or failure, so it can never fire after
+ * this invocation has moved on (e.g. into the release-lease-and-self-chain
+ * handoff).
+ */
+async function withLeaseHeartbeat(supabase, runId, work) {
+  const interval = setInterval(() => {
+    heartbeatRunLease(supabase, RUN_TYPE, runId, { leaseDurationMs: LEASE_DURATION_MS }).catch(() => {});
+  }, HEARTBEAT_INTERVAL_MS);
+  try {
+    return await work();
+  } finally {
+    clearInterval(interval);
+  }
+}
+
+/**
  * Claims and processes pipeline_batches rows for `runId` one at a time until
  * either none remain claimable (the run is actually finished, for real,
  * this invocation) or this invocation's own wall-clock budget is nearly
@@ -304,40 +354,62 @@ async function runPipeline({ supabase, runId, invocationStartedAtMs }) {
       const { data: claimedBatches } = await supabase.rpc("claim_next_pipeline_batch", { p_run_id: runId });
       const batch = claimedBatches?.[0] ?? null;
       if (!batch) {
-        // Normally this means processReconcileBatch already ran and
-        // finalized the run (reconcile is the last stage, its own batch
-        // marked 'done' right after it returns) -- but if reconcile itself
-        // permanently failed (exhausted MAX_CHUNK_ATTEMPTS via the stale
-        // sweep above), nothing is ever claimable again yet the run was
-        // never finalized either. Detect and fix that directly rather than
-        // leaving the run stuck 'running'/'queued' forever.
+        // claim_next_pipeline_batch() deliberately withholds reconcile while
+        // any universe/incremental batch is still pending or in_progress
+        // (see migration 0008) -- so "nothing claimable" does NOT by itself
+        // mean the pipeline is stuck. A batch can be legitimately in_progress
+        // under another concurrent invocation (or merely one recovery-sweep
+        // tick away from its own stale-reset) when this invocation's claim
+        // attempt lands. Only treat the run as genuinely stuck when there is
+        // truly no outstanding (pending/in_progress) batch left anywhere for
+        // it -- otherwise just yield and let a later invocation (self-chain
+        // or the next sweep tick) pick up where things stand.
+        const { data: outstanding } = await supabase
+          .from("pipeline_batches")
+          .select("id")
+          .eq("run_id", runId)
+          .in("status", ["pending", "in_progress"])
+          .limit(1);
+        if (outstanding && outstanding.length > 0) {
+          break;
+        }
+        // Normally reaching here with nothing outstanding means
+        // processReconcileBatch already ran and finalized the run (reconcile
+        // is the last stage, its own batch marked 'done' right after it
+        // returns) -- but if reconcile itself permanently failed (exhausted
+        // MAX_CHUNK_ATTEMPTS via the stale sweep above), nothing is ever
+        // claimable again yet the run was never finalized either. Detect and
+        // fix that directly rather than leaving the run stuck
+        // 'running'/'queued' forever.
         const { data: freshRun } = await supabase.from("screening_runs").select("status").eq("id", runId).single();
         if (freshRun && (freshRun.status === "queued" || freshRun.status === "running")) {
-          await logStage(supabase, runId, "reconcile_stuck", "warning", "No claimable batch remained but the run was never finalized (likely the reconcile stage permanently failed) -- forcing partial.");
+          await logStage(supabase, runId, "reconcile_stuck", "warning", "No claimable or outstanding batch remained but the run was never finalized (likely the reconcile stage permanently failed) -- forcing partial.");
           await finalizeRunStatus({ supabase, runId, runStartedAtMs, forceStatus: "partial" });
         }
         break;
       }
 
       try {
-        if (batch.stage === "universe") {
-          await processUniverseBatch({ supabase, runId, runDate: run.run_date });
-        } else if (batch.stage === "incremental") {
-          await processIncrementalBatch({
-            supabase,
-            runId,
-            runDate: run.run_date,
-            asOfTimestamp: run.as_of_timestamp,
-            batch,
-            parameterValues,
-            ruleDefinitions: ruleDefinitions ?? [],
-            ruleDirectionById,
-          });
-        } else if (batch.stage === "backfill") {
-          await processBackfillBatch({ supabase, batch, asOfTimestamp: run.as_of_timestamp });
-        } else if (batch.stage === "reconcile") {
-          await processReconcileBatch({ supabase, runId, runStartedAtMs });
-        }
+        await withLeaseHeartbeat(supabase, runId, async () => {
+          if (batch.stage === "universe") {
+            await processUniverseBatch({ supabase, runId, runDate: run.run_date });
+          } else if (batch.stage === "incremental") {
+            await processIncrementalBatch({
+              supabase,
+              runId,
+              runDate: run.run_date,
+              asOfTimestamp: run.as_of_timestamp,
+              batch,
+              parameterValues,
+              ruleDefinitions: ruleDefinitions ?? [],
+              ruleDirectionById,
+            });
+          } else if (batch.stage === "backfill") {
+            await processBackfillBatch({ supabase, batch, asOfTimestamp: run.as_of_timestamp });
+          } else if (batch.stage === "reconcile") {
+            await processReconcileBatch({ supabase, runId, runStartedAtMs });
+          }
+        });
         await supabase.from("pipeline_batches").update({ status: "done", updated_at: new Date().toISOString() }).eq("id", batch.id);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
