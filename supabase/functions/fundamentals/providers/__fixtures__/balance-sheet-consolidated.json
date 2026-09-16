@@ -1,0 +1,20 @@
+{
+  "status": "success",
+  "data": {
+    "type": "consolidated",
+    "time_period": "yearly",
+    "units_in": "crore",
+    "history": [
+      { "total_asset": 1950121, "total_liability": 940495, "period": "Mar 2025" },
+      { "total_asset": 1755986, "total_liability": 830198, "period": "Mar 2024" }
+    ],
+    "full_statement": [
+      { "particular": "Non-Current Assets", "history": [{ "period": "Mar 2025", "value": 1450851 }, { "period": "Mar 2024", "value": 1285886 }] },
+      { "particular": "Current Assets", "history": [{ "period": "Mar 2025", "value": 499270 }, { "period": "Mar 2024", "value": 470100 }] },
+      { "particular": "Total Assets", "history": [{ "period": "Mar 2025", "value": 1950121 }, { "period": "Mar 2024", "value": 1755986 }] },
+      { "particular": "Current Liabilities", "history": [{ "period": "Mar 2025", "value": 453737 }, { "period": "Mar 2024", "value": 397367 }] },
+      { "particular": "Equity Capital", "history": [{ "period": "Mar 2025", "value": 1009626 }, { "period": "Mar 2024", "value": 925788 }] },
+      { "particular": "Total Equity & Liabilities", "history": [{ "period": "Mar 2025", "value": 1950121 }, { "period": "Mar 2024", "value": 1755986 }] }
+    ]
+  }
+}

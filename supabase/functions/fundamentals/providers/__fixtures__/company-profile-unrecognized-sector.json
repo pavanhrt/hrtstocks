@@ -1,0 +1,9 @@
+{
+  "status": "success",
+  "data": {
+    "company_profile": "Engaged in hydrocarbon exploration, refining, petrochemicals, and retail.",
+    "sector": "Refineries",
+    "sector_market_cap_inr": { "value": 1942866.05, "unit": "crore", "formatted": "1,942,866.05 Cr" },
+    "sector_market_cap_usd": { "value": 215.87, "unit": "billion", "formatted": "$215.87B" }
+  }
+}

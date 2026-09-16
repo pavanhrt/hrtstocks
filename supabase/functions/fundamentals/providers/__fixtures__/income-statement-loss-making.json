@@ -1,0 +1,14 @@
+{
+  "status": "success",
+  "data": {
+    "type": "consolidated",
+    "time_period": "yearly",
+    "units_in": "crore",
+    "income_statement": [
+      { "category": "revenue", "history": [{ "value": 4200, "period": "Mar 2025" }, { "value": 3900, "period": "Mar 2024" }] },
+      { "category": "operating_profit", "history": [{ "value": -150, "period": "Mar 2025" }, { "value": -300, "period": "Mar 2024" }] },
+      { "category": "net_profit", "history": [{ "value": -420, "period": "Mar 2025" }, { "value": -610, "period": "Mar 2024" }] }
+    ],
+    "full_statement": []
+  }
+}

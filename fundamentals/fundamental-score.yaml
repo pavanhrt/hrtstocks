@@ -1,0 +1,436 @@
+definition:
+  id: fundamental-score
+  name: Fundamental Analysis Score -- evidence-based quality overlay
+  score_version: 1.0.0
+  status: partially_automated
+  scope: [equity]
+
+provenance:
+  decision_record:
+    date: "2026-09-15"
+    requested_by: user (interactive session, "/buy-setup-analysis fundamental score" request)
+    source_status: PROJECT_DEFAULT
+    statement: >
+      PROJECT_DEFAULT -- user-requested fundamental-quality overlay; not sourced
+      from GUE or the Buy Signal Playbook. This scoring framework is not
+      extracted from any GUE, SMM, PAPA, FOME, or Buy/Sell Signal Playbook
+      source document. It implements AGENTS.md's own "Optional Capabilities:
+      Fundamental quality overlays, when explicit criteria are supplied" --
+      the explicit criteria being the component list, weights, and thresholds
+      the user supplied directly in this session.
+    independence_guarantee: >
+      This scoring engine (supabase/functions/fundamentals/scoring.js) takes
+      only a FundamentalMetrics object as input -- a type that has no field
+      for price, volume, EMA, RSI, MACD, Bollinger Bands, DMI/ADX, Dow
+      structure, chart pattern, candlestick pattern, breakout, or GUE wave
+      evidence. It cannot read any technical value even if one were passed to
+      it, because no such field is destructured or referenced anywhere in the
+      module. See scoring.test.js's "technical-input-independence" test,
+      which asserts identical output whether or not arbitrary technical-looking
+      properties are attached to the input object.
+    why_never_a_gate: >
+      This score is stored and displayed as a separate column/section and is
+      never read by three-timeframe-gate.js, screening-rules.js's
+      classification, or publish_buy_setup_enrichment's own qualification
+      counts. It cannot affect BSA-D1/BSA-G1, overall_status,
+      TECHNICAL_EVIDENCE_PRESENT, candidate membership, or technical ranking
+      -- enforced structurally (no code path reads fundamental_score_results
+      from any technical evaluation function), not just by convention.
+  source_register: null
+  source_group: FUNDAMENTAL
+  locator_granularity: component_level
+  production_rule_trace_ready: true
+
+# Minimum fraction of TOTAL possible weight (100) that must be resolved
+# (not NO_DATA/NOT_APPLICABLE/MANUAL_REVIEW) before a numeric total score is
+# published. Below this, the terminal state is NO_DATA or MANUAL_REVIEW
+# instead of a number -- never a score computed from a shrunken base as if it
+# were out of 100.
+minimum_coverage_percentage: 60
+
+# Grade bands over the published 0-100 score. NO_DATA and MANUAL_REVIEW are
+# separate terminal states, never a grade.
+grades:
+  - grade: A
+    min: 80
+    max: 100
+  - grade: B
+    min: 65
+    max: 79
+  - grade: C
+    min: 50
+    max: 64
+  - grade: D
+    min: 35
+    max: 49
+  - grade: E
+    min: 0
+    max: 34
+
+# Sector models. Every instrument must resolve to exactly one of these (via
+# the fundamental snapshot's own provider-supplied sector/industry
+# classification, never inferred from technical data). An instrument whose
+# sector cannot be classified into one of BANK/NBFC/NON_FINANCIAL uses the
+# unsupported_fallback component set below -- MANUAL_REVIEW, not a guess.
+sector_models:
+  NON_FINANCIAL:
+    name: Non-financial company model
+    components:
+      balance_sheet: 20
+      profitability: 20
+      growth: 25
+      promoter_governance: 15
+      cash_flow: 10
+      future_growth: 10
+    notes: >
+      The default model for companies whose core business is not lending,
+      deposit-taking, or insurance underwriting -- ordinary corporate leverage
+      and liquidity ratios are meaningful for this group.
+
+  BANK:
+    name: Bank model
+    components:
+      balance_sheet: 20   # capital adequacy / CET1, not debt-to-equity
+      profitability: 20   # ROA, ROE, NIM
+      growth: 25          # credit/deposit growth, not revenue CAGR
+      promoter_governance: 15
+      cash_flow: 10       # funding/liquidity measures, not FCF
+      future_growth: 10
+    notes: >
+      debt_to_equity is NOT_APPLICABLE for banks -- leverage is intrinsic to
+      the deposit-taking business model, not a balance-sheet weakness.
+      balance_sheet instead scores capital adequacy/CET1, GNPA/NNPA, and
+      provision coverage. profitability scores ROA/ROE/NIM. growth scores
+      credit or deposit growth and asset-quality trend, not revenue CAGR.
+      cash_flow scores funding and liquidity measures, not operating
+      cash flow versus PAT (a bank's "cash flow statement" is not comparable
+      to a non-financial company's in the same way).
+
+  NBFC:
+    name: NBFC / financial-services model
+    components:
+      balance_sheet: 20   # capital adequacy, gearing appropriate to an NBFC
+      profitability: 20   # ROA, ROE, NIM/spread
+      growth: 25          # AUM growth, asset-quality trend
+      promoter_governance: 15
+      cash_flow: 10       # funding and liquidity measures
+      future_growth: 10
+    notes: >
+      Same rationale as BANK -- debt_to_equity is NOT_APPLICABLE (borrowing to
+      lend is the business model). balance_sheet scores capital adequacy and
+      gearing appropriate to an NBFC (not a flat corporate D/E threshold).
+      growth scores AUM growth and asset-quality trend (GNPA/NNPA-equivalent
+      where disclosed) rather than revenue CAGR.
+
+  UNSUPPORTED_FALLBACK:
+    name: Unsupported sector -- manual review
+    components: {}
+    notes: >
+      Used when the sector cannot be classified into NON_FINANCIAL/BANK/NBFC
+      from the snapshot's own provider-supplied classification (insurers and
+      other regulated financial businesses not yet modeled land here too, per
+      the requirement not to apply an ordinary corporate or bank/NBFC model to
+      a sector it was not designed for). Every component is MANUAL_REVIEW; no
+      numeric total is ever published for this sector model.
+
+# Non-financial component definitions: sub-metrics, thresholds, and formulas.
+# Every threshold lives here, not in UI or scoring code, so a future change is
+# one file, one diff, one version bump.
+components:
+  balance_sheet:
+    name: Balance-sheet strength and low debt
+    weight: 20
+    applies_to: [NON_FINANCIAL]
+    sub_metrics:
+      debt_to_equity:
+        weight: 8
+        formula: total_debt / total_equity
+        note: >
+          NOT_APPLICABLE (not scored, not penalized) when total_equity <= 0
+          (negative equity) -- a ratio computed against negative or zero
+          equity is not a meaningful leverage measure and must never be
+          silently treated as ordinary high/low debt.
+        thresholds: # lower is better
+          - {max: 0.3, points: 8}
+          - {max: 0.6, points: 6}
+          - {max: 1.0, points: 4}
+          - {max: 2.0, points: 2}
+          - {max: null, points: 0}
+      interest_coverage:
+        weight: 5
+        formula: ebit / interest_expense
+        note: NOT_APPLICABLE when interest_expense <= 0 (no debt service burden to cover).
+        thresholds: # higher is better
+          - {min: 6, points: 5}
+          - {min: 3, points: 3.5}
+          - {min: 1.5, points: 1.5}
+          - {min: null, points: 0}
+      net_debt_to_ebitda:
+        weight: 4
+        formula: net_debt / ebitda
+        note: NO_DATA when ebitda <= 0 (ratio not meaningful against non-positive earnings).
+        thresholds: # lower is better
+          - {max: 1.0, points: 4}
+          - {max: 2.5, points: 2.5}
+          - {max: 4.0, points: 1}
+          - {max: null, points: 0}
+      current_ratio:
+        weight: 3
+        formula: current_assets / current_liabilities
+        thresholds: # higher is better, but not unboundedly so
+          - {min: 1.5, max: 3.0, points: 3}
+          - {min: 1.0, max: 1.5, points: 2}
+          - {min: 1.0, max: null, points: 1} # >3.0 -- excess idle working capital, not penalized to 0 but not full marks
+          - {max: 1.0, points: 0}
+
+  profitability:
+    name: Profitability and capital returns
+    weight: 20
+    applies_to: [NON_FINANCIAL]
+    sub_metrics:
+      roe:
+        weight: 6
+        formula: net_profit / average_shareholder_equity
+        note: NOT_APPLICABLE when average_shareholder_equity <= 0.
+        thresholds:
+          - {min: 0.20, points: 6}
+          - {min: 0.15, points: 4.5}
+          - {min: 0.10, points: 3}
+          - {min: 0, points: 1}
+          - {max: 0, points: 0}
+      roce:
+        weight: 6
+        formula: ebit / capital_employed
+        note: NOT_APPLICABLE when capital_employed <= 0.
+        thresholds:
+          - {min: 0.20, points: 6}
+          - {min: 0.15, points: 4.5}
+          - {min: 0.10, points: 3}
+          - {min: 0, points: 1}
+          - {max: 0, points: 0}
+      operating_margin:
+        weight: 4
+        formula: operating_profit / revenue
+        note: NO_DATA when revenue <= 0.
+        thresholds:
+          - {min: 0.20, points: 4}
+          - {min: 0.12, points: 3}
+          - {min: 0.06, points: 1.5}
+          - {min: 0, points: 0.5}
+          - {max: 0, points: 0}
+      margin_stability:
+        weight: 4
+        formula: 1 - (stdev(operating_margin_last_5y) / mean(operating_margin_last_5y))
+        note: >
+          MANUAL_REVIEW when fewer than 3 years of operating-margin history
+          exist -- stability cannot be assessed from 1-2 data points.
+        thresholds:
+          - {min: 0.85, points: 4}
+          - {min: 0.7, points: 2.5}
+          - {min: 0.5, points: 1}
+          - {max: 0.5, points: 0}
+
+  growth:
+    name: Historical growth and growth consistency
+    weight: 25
+    applies_to: [NON_FINANCIAL]
+    sub_metrics:
+      revenue_cagr_5y:
+        weight: 8
+        formula: (revenue_t / revenue_t_minus_5) ^ (1/5) - 1
+        note: >
+          NO_DATA when fewer than 5 fiscal years of revenue history exist (a
+          newly listed or recently restructured company). Falls back to
+          revenue_cagr_3y's own weight reallocation, never a guessed 5-year
+          figure.
+        thresholds: {bands: [{min: 0.20, points: 8}, {min: 0.12, points: 6}, {min: 0.06, points: 3}, {min: 0, points: 1}, {max: 0, points: 0}]}
+      revenue_cagr_3y:
+        weight: 4
+        formula: (revenue_t / revenue_t_minus_3) ^ (1/3) - 1
+        note: NO_DATA when fewer than 3 fiscal years of revenue history exist.
+        thresholds: {bands: [{min: 0.20, points: 4}, {min: 0.12, points: 3}, {min: 0.06, points: 1.5}, {min: 0, points: 0.5}, {max: 0, points: 0}]}
+      pat_cagr_5y:
+        weight: 6
+        formula: (pat_t / pat_t_minus_5) ^ (1/5) - 1
+        note: >
+          NO_DATA when insufficient history, OR when pat_t_minus_5 <= 0 (a
+          CAGR against a loss-making or zero base year is not meaningful and
+          must never be reported as a fabricated large percentage). A
+          currently loss-making company (pat_t <= 0) also reports NO_DATA
+          here, not a negative/zero score dressed up as a real growth rate.
+        thresholds: {bands: [{min: 0.20, points: 6}, {min: 0.12, points: 4.5}, {min: 0.06, points: 2}, {min: 0, points: 0.5}, {max: 0, points: 0}]}
+      recent_growth_consistency:
+        weight: 4
+        formula: count(last_8_quarters where yoy_revenue_growth > 0) / 8
+        note: >
+          MANUAL_REVIEW when fewer than 4 quarters of history exist.
+          Distinguishing genuine operating growth from one-time/exceptional
+          gains is a per-metric provenance flag on the source snapshot
+          (is_exceptional_item), not inferred by this formula -- a quarter
+          flagged as containing a material exceptional/one-time item is
+          excluded from the numerator and denominator alike, never counted as
+          ordinary recurring growth.
+        thresholds: {bands: [{min: 0.75, points: 4}, {min: 0.5, points: 2.5}, {min: 0.25, points: 1}, {max: 0.25, points: 0}]}
+      growth_quality_flag:
+        weight: 3
+        formula: 1 if no material exceptional/one-time item inflated the latest reported PAT, else 0
+        note: >
+          Sourced directly from the snapshot's own is_exceptional_item /
+          exceptional_item_amount provenance fields, never inferred by this
+          engine. MANUAL_REVIEW when the snapshot does not disclose whether an
+          exceptional item exists.
+        thresholds: {bands: [{min: 1, points: 3}, {max: 1, points: 0}]}
+
+  promoter_governance:
+    name: Promoter/ownership quality and governance evidence
+    weight: 15
+    applies_to: [NON_FINANCIAL, BANK, NBFC]
+    sub_metrics:
+      promoter_holding_level:
+        weight: 4
+        note: >
+          NOT_APPLICABLE (never penalized) for a professionally managed or
+          no-promoter company -- the snapshot's own ownership_structure field
+          must say so explicitly; this is never inferred from a zero/missing
+          holding percentage, which instead reads NO_DATA (undisclosed, not
+          "no promoter").
+        thresholds: {bands: [{min: 0.50, points: 4}, {min: 0.25, points: 2.5}, {min: 0, points: 1}]}
+      promoter_holding_change:
+        weight: 3
+        formula: latest_promoter_holding - promoter_holding_4_quarters_ago
+        note: NOT_APPLICABLE for a professionally managed/no-promoter company. NO_DATA if fewer than 4 quarters of holding history exist.
+        thresholds: {bands: [{min: 0, points: 3}, {min: -0.02, points: 1.5}, {min: -0.05, points: 0.5}, {max: -0.05, points: 0}]}
+      promoter_pledge:
+        weight: 4
+        formula: pledged_shares / total_promoter_shares
+        note: NOT_APPLICABLE for a professionally managed/no-promoter company.
+        thresholds: {bands: [{max: 0, points: 4}, {max: 0.10, points: 2.5}, {max: 0.25, points: 1}, {max: null, points: 0}]}
+      dilution_and_governance_flags:
+        weight: 4
+        formula: 4 minus 1 point per disclosed red flag (material dilution in the trailing year, qualified audit opinion, disclosed regulatory default), floor 0
+        direct_points: true # the formula already yields a 0-4 point value, not a raw ratio to be banded
+        note: >
+          MANUAL_REVIEW when the snapshot does not disclose whether any of
+          these three flags apply (absence of a flag in the source is not
+          the same as a confirmed clean record).
+
+  cash_flow:
+    name: Cash-flow quality
+    weight: 10
+    applies_to: [NON_FINANCIAL]
+    sub_metrics:
+      ocf_to_pat:
+        weight: 4
+        formula: operating_cash_flow / pat
+        note: >
+          NO_DATA when pat <= 0 (ratio not meaningful against a loss).
+          Flags repeated negative cash flow / profit-cash-flow divergence via
+          the thresholds below rather than a separate boolean.
+        thresholds: {bands: [{min: 0.9, points: 4}, {min: 0.6, points: 2.5}, {min: 0.3, points: 1}, {max: 0.3, points: 0}]}
+      fcf_consistency:
+        weight: 3
+        formula: count(last_5_fiscal_years with free_cash_flow > 0) / 5
+        note: NO_DATA when fewer than 3 fiscal years of FCF history exist.
+        thresholds: {bands: [{min: 0.8, points: 3}, {min: 0.6, points: 2}, {min: 0.4, points: 1}, {max: 0.4, points: 0}]}
+      cash_conversion:
+        weight: 3
+        formula: operating_cash_flow / ebitda
+        note: NO_DATA when ebitda <= 0.
+        thresholds: {bands: [{min: 0.7, points: 3}, {min: 0.5, points: 2}, {min: 0.3, points: 1}, {max: 0.3, points: 0}]}
+
+  future_growth:
+    name: Evidence-supported future-growth outlook
+    weight: 10
+    applies_to: [NON_FINANCIAL, BANK, NBFC]
+    sub_metrics:
+      disclosed_forward_evidence:
+        weight: 10
+        note: >
+          Scored ONLY from dated, attributable evidence in the snapshot
+          (official filings, investor presentations, disclosed order book,
+          capacity expansion/capex, regulatory approvals, management
+          guidance) whose publication_timestamp is on or before the run's
+          cutoff. Never derived from stock-price momentum, and never invented
+          by an AI model -- if the snapshot has no such disclosed evidence, or
+          the evidence cannot be normalized into one of the defined
+          categories below, this reads MANUAL_REVIEW (subjective/unnormalized
+          evidence present) or NO_DATA (no evidence at all), never a guessed
+          number.
+        categories: # each independently disclosed by the snapshot as present/absent; points sum, capped at weight
+          - {key: disclosed_order_book_growth, points: 4}
+          - {key: disclosed_capacity_expansion_or_capex, points: 3}
+          - {key: disclosed_regulatory_approval_or_guidance, points: 3}
+
+# Bank/NBFC component definitions (distinct sub-metrics from the
+# non-financial model above, per the requirement not to apply ordinary
+# corporate ratios to a financial business). Weight totals per component
+# match the sector_models block above.
+bank_nbfc_components:
+  balance_sheet:
+    name: Capital adequacy and asset quality (balance-sheet strength for a financial business)
+    weight: 20
+    applies_to: [BANK, NBFC]
+    sub_metrics:
+      capital_adequacy:
+        weight: 8
+        note: CET1/CRAR. NO_DATA when not disclosed.
+        thresholds: {bands: [{min: 0.15, points: 8}, {min: 0.12, points: 6}, {min: 0.09, points: 3}, {max: 0.09, points: 0}]}
+      gnpa_ratio:
+        weight: 6
+        note: Lower is better. NO_DATA when not disclosed.
+        thresholds: {bands: [{max: 0.02, points: 6}, {max: 0.04, points: 4}, {max: 0.07, points: 2}, {max: null, points: 0}]}
+      provision_coverage_ratio:
+        weight: 6
+        note: Higher is better. NO_DATA when not disclosed.
+        thresholds: {bands: [{min: 0.75, points: 6}, {min: 0.6, points: 4}, {min: 0.4, points: 2}, {max: 0.4, points: 0}]}
+
+  profitability:
+    name: Return on assets/equity and margin (financial business)
+    weight: 20
+    applies_to: [BANK, NBFC]
+    sub_metrics:
+      roa:
+        weight: 8
+        thresholds: {bands: [{min: 0.018, points: 8}, {min: 0.012, points: 6}, {min: 0.006, points: 3}, {max: 0.006, points: 0}]}
+      roe:
+        weight: 6
+        note: NOT_APPLICABLE when average_shareholder_equity <= 0.
+        thresholds: {bands: [{min: 0.16, points: 6}, {min: 0.12, points: 4.5}, {min: 0.08, points: 2}, {max: 0.08, points: 0}]}
+      net_interest_margin:
+        weight: 6
+        thresholds: {bands: [{min: 0.04, points: 6}, {min: 0.03, points: 4}, {min: 0.02, points: 2}, {max: 0.02, points: 0}]}
+
+  growth:
+    name: Credit/deposit or AUM growth and asset-quality trend (financial business)
+    weight: 25
+    applies_to: [BANK, NBFC]
+    sub_metrics:
+      credit_or_aum_growth_3y_cagr:
+        weight: 12
+        note: NO_DATA when fewer than 3 years of history exist.
+        thresholds: {bands: [{min: 0.18, points: 12}, {min: 0.12, points: 8}, {min: 0.06, points: 4}, {min: 0, points: 1}, {max: 0, points: 0}]}
+      deposit_or_funding_growth_3y_cagr:
+        weight: 7
+        note: NOT_APPLICABLE for an NBFC with no deposit base -- use funding growth instead when disclosed as such by the snapshot.
+        thresholds: {bands: [{min: 0.15, points: 7}, {min: 0.08, points: 4.5}, {min: 0, points: 1.5}, {max: 0, points: 0}]}
+      asset_quality_trend:
+        weight: 6
+        note: NO_DATA when fewer than 2 comparable periods of GNPA disclosed.
+        formula: gnpa_ratio_previous_period - gnpa_ratio_latest_period # positive means improving
+        thresholds: {bands: [{min: 0.005, points: 6}, {min: 0, points: 3}, {min: -0.01, points: 1}, {max: -0.01, points: 0}]}
+
+  cash_flow:
+    name: Funding and liquidity (financial business)
+    weight: 10
+    applies_to: [BANK, NBFC]
+    sub_metrics:
+      liquidity_coverage_or_funding_measure:
+        weight: 10
+        note: >
+          Uses the snapshot's own disclosed liquidity coverage ratio (banks)
+          or funding-diversification/liquidity measure (NBFCs). NO_DATA when
+          not disclosed -- never substituted with a non-financial cash-flow
+          ratio.
+        thresholds: {bands: [{min: 1.1, points: 10}, {min: 1.0, points: 7}, {min: 0.9, points: 3}, {max: 0.9, points: 0}]}
+
+null_policy: unresolved_or_missing_evidence_must_never_become_zero_pass_or_a_fabricated_value

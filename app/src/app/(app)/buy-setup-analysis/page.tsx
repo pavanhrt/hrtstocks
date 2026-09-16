@@ -3,6 +3,7 @@ import { getBuySetupAnalysisPage, BUY_SETUP_PAGE_SIZE, type BuySetupFilters } fr
 import { getPublishedRunMetadata } from "@/lib/data/run-metadata";
 import { getLatestPublishedRun } from "@/lib/data/runs";
 import { getCurrentUser, roleAtLeast } from "@/lib/auth";
+import { formatIstDateTime } from "@/lib/date-format";
 import BuySetupControls from "./BuySetupControls";
 import BuySetupTable from "./BuySetupTable";
 import RunBuySetupAnalysisButton from "./RunBuySetupAnalysisButton";
@@ -32,9 +33,13 @@ function PageLink({ page, disabled, params, children }: { page: number; disabled
 export default async function BuySetupAnalysisPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string; q?: string; monthly?: string; weekly?: string; daily?: string; gate?: string; reversal?: string; status?: string; data?: string }>;
+  searchParams: Promise<{
+    page?: string; q?: string; monthly?: string; weekly?: string; daily?: string; gate?: string; reversal?: string; status?: string; data?: string;
+    minScore?: string; fdata?: string; sort?: string; dir?: string;
+  }>;
 }) {
   const sp = await searchParams;
+  const minScoreParsed = Number(sp.minScore);
   const filters: BuySetupFilters = {
     page: Math.max(1, Number(sp.page) || 1),
     pageSize: BUY_SETUP_PAGE_SIZE,
@@ -46,6 +51,10 @@ export default async function BuySetupAnalysisPage({
     reversal: (sp.reversal as BuySetupFilters["reversal"]) ?? "all",
     overallStatus: sp.status ?? "all",
     dataAvailability: (sp.data as BuySetupFilters["dataAvailability"]) ?? "all",
+    minFundamentalScore: sp.minScore && Number.isFinite(minScoreParsed) ? minScoreParsed : undefined,
+    fundamentalDataStatus: (sp.fdata as BuySetupFilters["fundamentalDataStatus"]) ?? "all",
+    sortBy: (sp.sort as BuySetupFilters["sortBy"]) ?? "symbol",
+    sortDirection: (sp.dir as BuySetupFilters["sortDirection"]) ?? "asc",
   };
 
   const [result, run, user] = await Promise.all([getBuySetupAnalysisPage(filters), getLatestPublishedRun(), getCurrentUser()]);
@@ -61,6 +70,10 @@ export default async function BuySetupAnalysisPage({
   if (filters.reversal && filters.reversal !== "all") paramsForLinks.set("reversal", filters.reversal);
   if (filters.overallStatus && filters.overallStatus !== "all") paramsForLinks.set("status", filters.overallStatus);
   if (filters.dataAvailability && filters.dataAvailability !== "all") paramsForLinks.set("data", filters.dataAvailability);
+  if (filters.minFundamentalScore != null) paramsForLinks.set("minScore", String(filters.minFundamentalScore));
+  if (filters.fundamentalDataStatus && filters.fundamentalDataStatus !== "all") paramsForLinks.set("fdata", filters.fundamentalDataStatus);
+  if (filters.sortBy && filters.sortBy !== "symbol") paramsForLinks.set("sort", filters.sortBy);
+  if (filters.sortDirection && filters.sortDirection !== "asc") paramsForLinks.set("dir", filters.sortDirection);
 
   return (
     <div className="page-grid">
@@ -77,7 +90,7 @@ export default async function BuySetupAnalysisPage({
         {run && (
           <p style={{ fontSize: 12, color: "var(--text-dim)" }}>
             Published run {run.run_date} &middot; run id {run.id.slice(0, 8)} &middot; analysis cutoff{" "}
-            {runMetadata?.cutoff ? new Date(runMetadata.cutoff).toLocaleString("en-IN") : "not recorded"} &middot; provider fyers &middot; rule v
+            {runMetadata?.cutoff ? formatIstDateTime(runMetadata.cutoff) : "not recorded"} &middot; provider fyers &middot; rule v
             {result?.manifest?.ruleVersion ?? "1.0.0"} / parameter v{result?.manifest?.parameterVersion ?? "1.0.0"}.
           </p>
         )}
@@ -87,11 +100,14 @@ export default async function BuySetupAnalysisPage({
 
       {result?.patternCoverage && (
         <div className="card">
-          <p style={{ fontSize: 12, color: "var(--text-dim)" }}>
-            <strong>Detector coverage:</strong> candlestick patterns implemented: {result.patternCoverage.candlestickImplemented.join(", ") || "none"}; not evaluated (absence is not evidence of no pattern):{" "}
-            {result.patternCoverage.candlestickNotEvaluated.join(", ") || "none"}. Chart patterns implemented: {result.patternCoverage.chartPatternImplemented.join(", ") || "none"}; not evaluated:{" "}
-            {result.patternCoverage.chartPatternNotEvaluated.join(", ") || "none"}.
-          </p>
+          <details>
+            <summary style={{ cursor: "pointer", fontSize: 12, fontWeight: 600 }}>Detector coverage (which patterns are actually implemented)</summary>
+            <p style={{ fontSize: 12, color: "var(--text-dim)", marginBottom: 0 }}>
+              Candlestick patterns implemented: {result.patternCoverage.candlestickImplemented.join(", ") || "none"}; not evaluated (absence is not evidence of no pattern):{" "}
+              {result.patternCoverage.candlestickNotEvaluated.join(", ") || "none"}. Chart patterns implemented: {result.patternCoverage.chartPatternImplemented.join(", ") || "none"}; not evaluated:{" "}
+              {result.patternCoverage.chartPatternNotEvaluated.join(", ") || "none"}.
+            </p>
+          </details>
         </div>
       )}
 
@@ -142,6 +158,10 @@ export default async function BuySetupAnalysisPage({
                 reversal: filters.reversal ?? "all",
                 overallStatus: filters.overallStatus ?? "all",
                 dataAvailability: filters.dataAvailability ?? "all",
+                minFundamentalScore: filters.minFundamentalScore != null ? String(filters.minFundamentalScore) : "",
+                fundamentalDataStatus: filters.fundamentalDataStatus ?? "all",
+                sortBy: filters.sortBy ?? "symbol",
+                sortDirection: filters.sortDirection ?? "asc",
               }}
             />
             <p style={{ color: "var(--text-dim)", fontSize: 12, margin: "8px 0" }}>

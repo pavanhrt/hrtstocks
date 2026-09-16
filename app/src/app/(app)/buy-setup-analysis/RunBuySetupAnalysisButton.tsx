@@ -65,13 +65,20 @@ export default function RunBuySetupAnalysisButton({ initialEnrichmentState }: { 
     }
   }
 
+  // Wording must match actual behavior: the Edge Function returns
+  // immediately for an already-published run WITHOUT creating or processing
+  // any new immutable analysis (its Deno.serve handler short-circuits on
+  // enrichment_state === "published"). Calling this "Re-run" implied a fresh
+  // computation that does not happen -- "Analysis published" is the truthful
+  // state, and clicking it only ever checks whether a NEWER published
+  // screening run now needs its own (not-yet-started) enrichment.
   const label =
     state === "processing"
       ? "Buy-setup analysis running..."
       : state === "validation_failed"
         ? "Retry buy-setup analysis"
         : state === "published"
-          ? "Re-run buy-setup analysis"
+          ? "Analysis published"
           : "Run buy-setup analysis";
 
   return (
@@ -79,6 +86,12 @@ export default function RunBuySetupAnalysisButton({ initialEnrichmentState }: { 
       <button onClick={trigger} disabled={pending || state === "processing"}>
         {pending ? "Starting..." : label}
       </button>
+      {state === "published" && (
+        <p style={{ color: "var(--text-dim)", fontSize: 12, margin: "4px 0 0" }}>
+          This run&apos;s 15-minute analysis is already published and immutable. Clicking only checks whether a newer
+          screening run now needs its own enrichment -- it never reprocesses this one.
+        </p>
+      )}
       {state === "processing" && (
         <p role="status" aria-live="polite" style={{ color: "var(--watch)", fontSize: 12, margin: "4px 0 0" }}>
           Processing -- this page refreshes automatically every 15s while it runs.

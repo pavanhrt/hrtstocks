@@ -1,0 +1,16 @@
+{
+  "status": "success",
+  "data": {
+    "type": "standalone",
+    "time_period": "yearly",
+    "units_in": "crore",
+    "history": [
+      { "total_asset": 500, "total_liability": 620, "period": "Mar 2025" }
+    ],
+    "full_statement": [
+      { "particular": "Current Assets", "history": [{ "period": "Mar 2025", "value": 120 }] },
+      { "particular": "Current Liabilities", "history": [{ "period": "Mar 2025", "value": 200 }] },
+      { "particular": "Equity Capital", "history": [{ "period": "Mar 2025", "value": -120 }] }
+    ]
+  }
+}

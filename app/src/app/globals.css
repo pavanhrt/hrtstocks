@@ -134,6 +134,29 @@ h1 {
   outline-offset: 2px;
 }
 
+/* Keeps Instrument + Fundamental score visible while the (very wide)
+   buy-setup-analysis table scrolls horizontally inside .table-scroll --
+   the scrolling itself stays contained to the table, never the page. */
+.sticky-col {
+  position: sticky;
+  background: var(--panel);
+  z-index: 1;
+}
+.sticky-col-1 {
+  left: 0;
+}
+.sticky-col-2 {
+  left: 90px;
+  border-right: 1px solid var(--panel-border);
+}
+@media (max-width: 640px) {
+  /* Sticky columns compete with the viewport for space on a phone --
+     scrolling the whole row is more usable there than pinning two columns. */
+  .sticky-col {
+    position: static;
+  }
+}
+
 .wrap-cell {
   min-width: 150px;
   max-width: 360px;
@@ -472,6 +495,27 @@ h1 {
 .badge-BELOW_LOWER {
   background: rgba(90, 98, 117, 0.2);
   color: var(--nodata);
+}
+
+/* Fundamental Analysis Score grade bands (fundamentals/fundamental-score.yaml).
+   Independent of every other badge above -- a fundamental grade is never
+   derived from, and never resembles, a technical PASS/FAIL/gate result. */
+.badge-grade-A {
+  background: rgba(53, 201, 143, 0.15);
+  color: var(--pass);
+}
+.badge-grade-B {
+  background: rgba(53, 201, 143, 0.08);
+  color: var(--pass);
+}
+.badge-grade-C {
+  background: rgba(224, 178, 60, 0.15);
+  color: var(--watch);
+}
+.badge-grade-D,
+.badge-grade-E {
+  background: rgba(239, 91, 106, 0.15);
+  color: var(--fail);
 }
 
 input,

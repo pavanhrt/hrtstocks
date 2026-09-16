@@ -1,7 +1,31 @@
 import Link from "next/link";
 import type { BuySetupRow } from "@/lib/data/buy-setup-analysis";
+import { formatIstDateTime } from "@/lib/date-format";
 import { Badge } from "../Badge";
 import ChartPreview from "../ChartPreview";
+
+const FUNDAMENTAL_SCORE_TOOLTIP = "Fundamental-only score. It does not include or alter technical analysis.";
+
+/** Compact main-table cell: "78/100  B  92%" or a NO_DATA/MANUAL_REVIEW/NOT_APPLICABLE badge. */
+function FundamentalScoreCell({ fundamentalScore }: { fundamentalScore: BuySetupRow["fundamentalScore"] }) {
+  if (fundamentalScore.dataStatus !== "SCORED" || fundamentalScore.score == null) {
+    return (
+      <span title={FUNDAMENTAL_SCORE_TOOLTIP}>
+        <Badge status={fundamentalScore.dataStatus} />
+      </span>
+    );
+  }
+  return (
+    <div title={FUNDAMENTAL_SCORE_TOOLTIP} style={{ display: "grid", gap: 2, fontSize: 12 }}>
+      <span style={{ fontWeight: 600 }}>
+        {fundamentalScore.score} / 100 <span className={`badge badge-grade-${fundamentalScore.grade}`}>{fundamentalScore.grade}</span>
+      </span>
+      {fundamentalScore.coveragePercentage != null && (
+        <span style={{ color: "var(--text-dim)", fontSize: 11 }}>{Math.round(fundamentalScore.coveragePercentage)}% coverage</span>
+      )}
+    </div>
+  );
+}
 
 function NotApplicableCell({ reason = "three-timeframe gate not passed" }: { reason?: string }) {
   return (
@@ -41,7 +65,10 @@ export default function BuySetupTable({ rows, startIndex }: { rows: BuySetupRow[
         <thead>
           <tr>
             <th>#</th>
-            <th>Instrument</th>
+            <th className="sticky-col sticky-col-1">Instrument</th>
+            <th className="sticky-col sticky-col-2" title={FUNDAMENTAL_SCORE_TOOLTIP}>
+              Fundamental score
+            </th>
             <th>Monthly Dow</th>
             <th>Monthly breakout/vol.</th>
             <th>Weekly Dow</th>
@@ -77,9 +104,12 @@ export default function BuySetupTable({ rows, startIndex }: { rows: BuySetupRow[
             return (
               <tr key={row.instrumentId}>
                 <td>{startIndex + i + 1}</td>
-                <td>
+                <td className="sticky-col sticky-col-1">
                   <Link href={`/buy-setup-analysis/${row.instrumentId}`}>{row.symbol}</Link>{" "}
                   <span style={{ color: "var(--text-dim)", fontSize: 11 }}>{row.name}</span>
+                </td>
+                <td className="sticky-col sticky-col-2">
+                  <FundamentalScoreCell fundamentalScore={row.fundamentalScore} />
                 </td>
                 <td>
                   <DowCell state={row.monthly.dowState} result={row.monthly.result} />
@@ -178,7 +208,7 @@ export default function BuySetupTable({ rows, startIndex }: { rows: BuySetupRow[
                 <td>
                   <Badge status={row.overallStatus} />
                 </td>
-                <td style={{ fontSize: 11 }}>{row.evidenceTimestamp ? new Date(row.evidenceTimestamp).toLocaleString("en-IN") : "—"}</td>
+                <td style={{ fontSize: 11 }}>{formatIstDateTime(row.evidenceTimestamp)}</td>
                 <td>
                   <div style={{ display: "flex", gap: 4 }}>
                     <ChartPreview src={row.dailyChartUrl} alt={`${row.symbol} daily buy-setup chart`} compact />

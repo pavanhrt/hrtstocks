@@ -1,0 +1,9 @@
+{
+  "status": "success",
+  "data": {
+    "company_profile": "A private sector bank offering retail and corporate banking services.",
+    "sector": "Banks",
+    "sector_market_cap_inr": { "value": 500000, "unit": "crore", "formatted": "5,00,000 Cr" },
+    "sector_market_cap_usd": { "value": 60, "unit": "billion", "formatted": "$60B" }
+  }
+}

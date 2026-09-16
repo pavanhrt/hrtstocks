@@ -1,0 +1,26 @@
+{
+  "status": "success",
+  "data": {
+    "type": "consolidated",
+    "time_period": "yearly",
+    "units_in": "crore",
+    "cash_flow": [
+      { "category": "operating", "history": [{ "value": 192113, "period": "Mar 2026", "change": "+7.5%" }, { "value": 178703, "period": "Mar 2025", "change": "+12.54%" }] },
+      { "category": "investing", "history": [{ "value": -101089, "period": "Mar 2026", "change": "+26.5%" }, { "value": -137535, "period": "Mar 2025", "change": "-21.09%" }] },
+      { "category": "financing", "history": [{ "value": -51549, "period": "Mar 2026", "change": "-61.64%" }, { "value": -31891, "period": "Mar 2025", "change": "-91.58%" }] }
+    ],
+    "full_statement": [
+      { "particular": "Profit before tax", "history": [{ "value": 91838, "period": "Mar 2026" }, { "value": 85162, "period": "Mar 2025" }] },
+      { "particular": "Income before WC changes", "history": [{ "value": 165482, "period": "Mar 2026" }, { "value": 150215, "period": "Mar 2025" }] },
+      { "particular": "Change in Assets", "history": [{ "value": -19842, "period": "Mar 2026" }, { "value": -14893, "period": "Mar 2025" }] },
+      { "particular": "Change in Liabilities", "history": [{ "value": 46473, "period": "Mar 2026" }, { "value": 43381, "period": "Mar 2025" }] },
+      { "particular": "Change in WC", "history": [{ "value": 26631, "period": "Mar 2026" }, { "value": 28488, "period": "Mar 2025" }] },
+      { "particular": "Cash flow from Operations", "history": [{ "value": 192113, "period": "Mar 2026" }, { "value": 178703, "period": "Mar 2025" }] },
+      { "particular": "Cash flow from Investing", "history": [{ "value": -101089, "period": "Mar 2026" }, { "value": -137535, "period": "Mar 2025" }] },
+      { "particular": "Cash flow from Financing", "history": [{ "value": -51549, "period": "Mar 2026" }, { "value": -31891, "period": "Mar 2025" }] },
+      { "particular": "Total Cash Flow", "history": [{ "value": 39475, "period": "Mar 2026" }, { "value": 9277, "period": "Mar 2025" }] },
+      { "particular": "Cash (Start of the year)", "history": [{ "value": 8130, "period": "Mar 2026" }, { "value": -1147, "period": "Mar 2025" }] },
+      { "particular": "Cash (End of the year)", "history": [{ "value": 47605, "period": "Mar 2026" }, { "value": 8130, "period": "Mar 2025" }] }
+    ]
+  }
+}

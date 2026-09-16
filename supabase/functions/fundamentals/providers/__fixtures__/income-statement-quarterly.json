@@ -1,0 +1,17 @@
+{
+  "status": "success",
+  "data": {
+    "type": "consolidated",
+    "time_period": "quarterly",
+    "units_in": "crore",
+    "income_statement": [
+      { "category": "revenue", "history": [{ "value": 271545, "period": "Jun 2026", "change": "+2.1%" }, { "value": 265900, "period": "Mar 2026" }] },
+      { "category": "operating_profit", "history": [{ "value": 30790, "period": "Jun 2026", "change": "+1.5%" }, { "value": 30330, "period": "Mar 2026" }] },
+      { "category": "net_profit", "history": [{ "value": 23902, "period": "Jun 2026", "change": "+18.3%" }, { "value": 20205, "period": "Mar 2026" }] }
+    ],
+    "full_statement": [
+      { "particular": "Revenue", "history": [{ "period": "Jun 2026", "value": 271545 }, { "period": "Mar 2026", "value": 265900 }] },
+      { "particular": "Exceptional Items", "history": [{ "period": "Jun 2026", "value": 3200 }, { "period": "Mar 2026", "value": 0 }] }
+    ]
+  }
+}

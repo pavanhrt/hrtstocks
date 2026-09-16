@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getLatestPublishedRun } from "@/lib/data/runs";
 import { overallStatusFor } from "@/lib/data/buy-setup-status";
+import { buildSortSpecs } from "@/lib/data/buy-setup-sort";
 
 export { overallStatusFor } from "@/lib/data/buy-setup-status";
 
@@ -109,6 +110,18 @@ export type BuySetupRow = {
   evidenceTimestamp: string | null;
   dailyChartUrl: string | null;
   fifteenMinChartUrl: string | null;
+  // Fundamental Analysis Score -- a completely independent research overlay
+  // (fundamentals/fundamental-score.yaml). Computed from fundamental
+  // evidence only; never derived from, and never influences, any field
+  // above. See app/src/lib/data/fundamental-score.ts.
+  fundamentalScore: {
+    score: number | null;
+    grade: string | null;
+    coveragePercentage: number | null;
+    dataStatus: "SCORED" | "NO_DATA" | "MANUAL_REVIEW" | "NOT_APPLICABLE";
+    sectorModel: string | null;
+    asOf: string | null;
+  };
 };
 
 export type BuySetupFilters = {
@@ -123,8 +136,13 @@ export type BuySetupFilters = {
   reversal?: "all" | "rsi_pass" | "macd_pass" | "either_pass" | "none";
   overallStatus?: string;
   dataAvailability?: "all" | "has_data" | "no_data";
-  sortBy?: "symbol" | "overall_status" | "gate_result";
+  sortBy?: "symbol" | "overall_status" | "gate_result" | "fundamental_score";
   sortDirection?: "asc" | "desc";
+  // Fundamental Analysis Score filters -- independent of every technical
+  // filter above; never affect which rows count toward the technical
+  // summary cards or the three-timeframe gate.
+  minFundamentalScore?: number;
+  fundamentalDataStatus?: "all" | "SCORED" | "NO_DATA" | "MANUAL_REVIEW" | "NOT_APPLICABLE";
 };
 
 export type BuySetupPageResult = {
@@ -170,6 +188,12 @@ type LedgerRow = {
   has_intraday_indicators: boolean;
   overall_status: string;
   evidence_timestamp: string | null;
+  fundamental_score: number | null;
+  fundamental_grade: string | null;
+  fundamental_coverage_percentage: number | null;
+  fundamental_data_status: string | null;
+  fundamental_sector_model: string | null;
+  fundamental_as_of: string | null;
 };
 
 /** Counts matching `applyFilters`, via a bounded head-only query -- never loads rows just to count them. */
@@ -222,6 +246,11 @@ export async function getBuySetupAnalysisPage(filters: BuySetupFilters = {}): Pr
     if (filters.overallStatus && filters.overallStatus !== "all") q = q.eq("overall_status", filters.overallStatus);
     if (filters.dataAvailability === "has_data") q = q.not("overall_status", "eq", "NO_DATA");
     if (filters.dataAvailability === "no_data") q = q.eq("overall_status", "NO_DATA");
+    // Fundamental filters -- pushed down to the same view, but on its own
+    // independent columns; cannot narrow or widen which rows match on any
+    // technical criterion above.
+    if (filters.minFundamentalScore != null) q = q.gte("fundamental_score", filters.minFundamentalScore);
+    if (filters.fundamentalDataStatus && filters.fundamentalDataStatus !== "all") q = q.eq("fundamental_data_status", filters.fundamentalDataStatus);
     return q as T;
   }
 
@@ -230,16 +259,23 @@ export async function getBuySetupAnalysisPage(filters: BuySetupFilters = {}): Pr
   const pageCount = Math.max(1, Math.ceil(totalCount / pageSize));
   const page = Math.min(Math.max(1, filters.page ?? 1), pageCount);
 
-  const sortColumn = filters.sortBy === "overall_status" ? "overall_status" : filters.sortBy === "gate_result" ? "gate_result" : "symbol";
-  const ascending = (filters.sortDirection ?? "asc") === "asc";
+  // Deterministic sort with a stable tie-breaker (instrument_id) -- two rows
+  // that compare equal on the requested column must still land in a fixed
+  // order across pages, never re-shuffling between requests. Null ordering
+  // is explicit (buy-setup-sort.ts, unit-tested): a numeric fundamental
+  // score always sorts before NO_DATA/null in EITHER direction, rather than
+  // relying on Postgres' own default (NULLS LAST asc / NULLS FIRST desc),
+  // which would otherwise bury every scored stock under NO_DATA rows when
+  // sorting "highest score first."
+  const [primarySort, tieBreakerSort] = buildSortSpecs(filters.sortBy, filters.sortDirection);
 
   let listQuery = supabase.from("buy_setup_analysis_ledger").select("*").eq("run_id", run.id) as unknown as ReturnType<typeof supabase.from>;
   listQuery = applyFilters(listQuery);
-  // Deterministic sort with a stable tie-breaker (instrument_id) -- two rows
-  // that compare equal on the requested column must still land in a fixed
-  // order across pages, never re-shuffling between requests.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  listQuery = (listQuery as any).order(sortColumn, { ascending }).order("instrument_id", { ascending: true }).range((page - 1) * pageSize, page * pageSize - 1);
+  listQuery = (listQuery as any)
+    .order(primarySort.column, { ascending: primarySort.ascending, nullsFirst: primarySort.nullsFirst })
+    .order(tieBreakerSort.column, { ascending: tieBreakerSort.ascending, nullsFirst: tieBreakerSort.nullsFirst })
+    .range((page - 1) * pageSize, page * pageSize - 1);
   const { data: ledgerRows, error: ledgerError } = (await listQuery) as unknown as { data: LedgerRow[] | null; error: { code: string; message: string } | null };
   if (ledgerError && ledgerError.code !== "PGRST205" && ledgerError.code !== "42703") throw ledgerError;
   const pageRows = ledgerRows ?? [];
@@ -328,6 +364,14 @@ export async function getBuySetupAnalysisPage(filters: BuySetupFilters = {}): Pr
       evidenceTimestamp: na ? null : entry.evidence_timestamp,
       dailyChartUrl: dailyChartPath ? signedUrlByPath.get(dailyChartPath) ?? null : null,
       fifteenMinChartUrl: fifteenMinChartPath ? signedUrlByPath.get(fifteenMinChartPath) ?? null : null,
+      fundamentalScore: {
+        score: entry.fundamental_score ?? null,
+        grade: entry.fundamental_grade ?? null,
+        coveragePercentage: entry.fundamental_coverage_percentage ?? null,
+        dataStatus: (entry.fundamental_data_status as "SCORED" | "NO_DATA" | "MANUAL_REVIEW" | "NOT_APPLICABLE" | null) ?? "NO_DATA",
+        sectorModel: entry.fundamental_sector_model ?? null,
+        asOf: entry.fundamental_as_of ?? null,
+      },
     };
   });
 

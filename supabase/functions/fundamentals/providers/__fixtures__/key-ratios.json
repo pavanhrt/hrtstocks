@@ -1,0 +1,11 @@
+{
+  "status": "success",
+  "data": [
+    { "name": "P/E", "company_value": "20.15", "sector_value": "12.46" },
+    { "name": "P/B", "company_value": "2.13", "sector_value": "1.53" },
+    { "name": "ROA", "company_value": "4.39%", "sector_value": "7.54%" },
+    { "name": "ROE", "company_value": "8.94%", "sector_value": "16.46%" },
+    { "name": "ROCE", "company_value": "10.39%", "sector_value": "16.9%" },
+    { "name": "EV/EBITDA", "company_value": "10.25", "sector_value": "6.94" }
+  ]
+}

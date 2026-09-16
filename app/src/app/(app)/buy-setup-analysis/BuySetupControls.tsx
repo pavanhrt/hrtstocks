@@ -20,6 +20,22 @@ const AVAILABILITY = [
   { value: "has_data", label: "Has 15-minute data" },
   { value: "no_data", label: "No data" },
 ];
+// Fundamental Analysis Score controls -- independent of every technical
+// filter above; narrowing/sorting by these never changes which rows count
+// toward the technical summary cards or the three-timeframe gate.
+const FUNDAMENTAL_STATUSES = [
+  { value: "all", label: "All fundamental data" },
+  { value: "SCORED", label: "Scored" },
+  { value: "NO_DATA", label: "No fundamental data" },
+  { value: "MANUAL_REVIEW", label: "Fundamental: manual review" },
+  { value: "NOT_APPLICABLE", label: "Fundamental: not applicable" },
+];
+const SORT_OPTIONS = [
+  { value: "symbol", label: "Sort: symbol" },
+  { value: "gate_result", label: "Sort: 3-TF gate" },
+  { value: "overall_status", label: "Sort: overall status" },
+  { value: "fundamental_score", label: "Sort: fundamental score" },
+];
 
 export type BuySetupFilterState = {
   q: string;
@@ -30,6 +46,10 @@ export type BuySetupFilterState = {
   reversal: string;
   overallStatus: string;
   dataAvailability: string;
+  minFundamentalScore: string;
+  fundamentalDataStatus: string;
+  sortBy: string;
+  sortDirection: string;
 };
 
 export default function BuySetupControls({ initial }: { initial: BuySetupFilterState }) {
@@ -48,6 +68,10 @@ export default function BuySetupControls({ initial }: { initial: BuySetupFilterS
     if (next.reversal !== "all") params.set("reversal", next.reversal);
     if (next.overallStatus !== "all") params.set("status", next.overallStatus);
     if (next.dataAvailability !== "all") params.set("data", next.dataAvailability);
+    if (next.minFundamentalScore.trim()) params.set("minScore", next.minFundamentalScore.trim());
+    if (next.fundamentalDataStatus !== "all") params.set("fdata", next.fundamentalDataStatus);
+    if (next.sortBy !== "symbol") params.set("sort", next.sortBy);
+    if (next.sortDirection !== "asc") params.set("dir", next.sortDirection);
     router.push(params.toString() ? `${pathname}?${params.toString()}` : pathname);
   }
 
@@ -119,6 +143,41 @@ export default function BuySetupControls({ initial }: { initial: BuySetupFilterS
             {a.label}
           </option>
         ))}
+      </select>
+      <span aria-hidden style={{ width: 1, alignSelf: "stretch", background: "var(--panel-border)" }} />
+      <input
+        aria-label="Minimum fundamental score"
+        title="Fundamental-only filter. It does not include or alter technical analysis."
+        placeholder="Min. fundamental score"
+        type="number"
+        min={0}
+        max={100}
+        value={state.minFundamentalScore}
+        onChange={(e) => update({ minFundamentalScore: e.target.value }, true)}
+        style={{ width: 150, padding: "6px 10px" }}
+      />
+      <select
+        aria-label="Filter by fundamental data status"
+        title="Fundamental-only filter. It does not include or alter technical analysis."
+        value={state.fundamentalDataStatus}
+        onChange={(e) => update({ fundamentalDataStatus: e.target.value })}
+      >
+        {FUNDAMENTAL_STATUSES.map((s) => (
+          <option key={s.value} value={s.value}>
+            {s.label}
+          </option>
+        ))}
+      </select>
+      <select aria-label="Sort results by" value={state.sortBy} onChange={(e) => update({ sortBy: e.target.value })}>
+        {SORT_OPTIONS.map((s) => (
+          <option key={s.value} value={s.value}>
+            {s.label}
+          </option>
+        ))}
+      </select>
+      <select aria-label="Sort direction" value={state.sortDirection} onChange={(e) => update({ sortDirection: e.target.value })}>
+        <option value="asc">Ascending</option>
+        <option value="desc">Descending</option>
       </select>
     </div>
   );
