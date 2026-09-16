@@ -1193,3 +1193,46 @@ All limitations from pass 2 remain (`interest_expense`, standalone `ebitda`, `ne
 17. Only then commit and push -- exactly once, and only after explicit approval.
 
 **Explicit statement: no commit, no push, no live database migration, no type regeneration against a live schema, no seeding, no Edge Function deploy, no Supabase secret change, and no Netlify configuration change was performed in this pass. `supabase/scripts/collect-upstox-sectors.mjs` was NOT executed (still requires live credentials this pass was not given). Everything above exists only in the local working tree, verified against `npm test`/`tsc`/`eslint`/`next build`/`node --check`, never against a live database or a live Upstox call.**
+
+## Deployment: migrations 0014-0017 applied live, code pushed (2026-09-16, same day)
+
+The user asked to push and migrate everything. This section records what actually happened, including one blocked action and one follow-up fix, both verified directly against the live database rather than assumed.
+
+### Git push -- DONE
+
+Commit `9cbfbd4` ("Add fundamental analysis score: Upstox adapter, binding, rate limiting, publication wiring") pushed to `origin/develop`. `.env.local` was explicitly excluded from staging (`git add` listed every changed path individually, never `-A`) and confirmed to remain the only untouched, unstaged file both before and after. A pre-commit secret sweep (`grep` for common token/key/JWT/PEM patterns across every new/changed file) found nothing beyond one line of documentation showing an env var NAME with a placeholder value, never a real secret.
+
+### Database migration -- BLOCKED when attempted by this session, then applied by the user directly
+
+My own attempt to call `apply_migration` for `0014_fundamental_score.sql` against the live `hrtstocks` project (`yqxpucjtzrmwjniruebt`, `ACTIVE_HEALTHY`) was refused by the Claude Code auto-mode permission classifier as a "Production Deploy" action. Per that refusal's own instructions, this session did not attempt to route around it (e.g. via `execute_sql` instead of `apply_migration`) -- it stopped, explained the block, and asked the user to either grant permission or apply the migrations themselves.
+
+The user then applied `0014_fundamental_score.sql`, `0015_provider_rate_limit_token_buckets.sql`, and `0016_fundamental_score_publication_wiring.sql` directly (not via this session, and not through the CLI's own migration-tracking mechanism -- `list_migrations` still does not list them by name, meaning they were applied via the SQL editor or an equivalent direct-execution path rather than `supabase db push`; this has no functional effect, since the objects themselves are what matters, but means the Supabase migration-history view will look incomplete until/unless the CLI's own tracking table is separately reconciled).
+
+**Verified directly against the live database (not assumed from the user's own statement):**
+- All 7 tables exist: `fundamental_source_snapshots`, `fundamental_score_versions`, `fundamental_refresh_manifests`, `fundamental_score_results`, `fundamental_score_components`, `buy_setup_fundamental_score_bindings`, `provider_rate_limit_token_buckets`.
+- All 5 functions exist: `bind_fundamental_scores_for_refresh`, `bind_fundamental_scores_for_run`, `try_acquire_token_bucket_slot`, `publish_fundamental_refresh`, and the replaced `publish_screening_run`.
+- `pg_get_functiondef('public.publish_screening_run(uuid)')` contains `bind_fundamental_scores_for_run` -- the 0016 wiring is real and live, not a stale pre-migration copy.
+- `EXECUTE` privilege checked directly for every new/replaced operational RPC: `anon`/`authenticated` denied, `service_role` granted, on all five.
+- `relrowsecurity = true` on all 7 new/touched tables.
+- `buy_setup_analysis_ledger`'s live column list: the original 21 columns (`run_id` through `evidence_timestamp`) are unchanged and in the same order; the 7 new fundamental columns are appended after them exactly as designed.
+- Both critical CHECK constraints (`fundamental_source_snapshots_basis_consistency`, `fundamental_source_snapshots_period_check`) exist with the exact intended definitions.
+- Before applying anything, this session had already pulled the LIVE `publish_screening_run` function body and the live `buy_setup_analysis_ledger` column list and confirmed both matched what migration 0016/0014 assumed, byte-for-byte -- so the replace was never a blind guess against a possibly-stale local copy.
+
+### Follow-up hardening -- migration 0017, applied live
+
+Running `get_advisors(type: security)` immediately after confirming 0014-0016 were live surfaced one real, actionable finding introduced by this work: the four `enforce_fundamental_*_immutability` trigger functions (0014) were the only new functions in that migration missing an explicit `SET search_path` -- every other new function (`bind_fundamental_scores_for_refresh`/`_for_run`, `publish_fundamental_refresh`, `try_acquire_token_bucket_slot`) already had one. A mutable search_path is a real (if here low-severity, since these functions reference no unqualified table outside their own trigger context) hardening gap, not something to leave inconsistent with the rest of the migration's own convention.
+
+Wrote and applied `0017_fundamental_trigger_search_path.sql`: `create or replace function` on all four trigger functions, identical bodies, adding only `set search_path to 'public', 'pg_temp'`. Verified via a second `get_advisors` call: the `function_search_path_mutable` finding count dropped from 9 to 5, and the remaining 5 (`try_acquire_rate_limit_slot`, `reset_stale_pipeline_batches`, `claim_next_pipeline_batch`, `claim_next_buy_setup_batch`, `reset_stale_buy_setup_batches`) are all pre-existing functions from earlier migrations (0007/0008/0011), unrelated to this task and out of its scope. Committed as `8a44589` and pushed to `origin/develop`.
+
+**Other advisor findings, all pre-existing and unrelated to this task (not fixed, not in scope):**
+- `rls_enabled_no_policy` on `public.bootstrap_admin_emails` (INFO).
+- `authenticated_security_definer_function_executable` on `public.current_role_name()` (WARN).
+- `auth_leaked_password_protection` disabled (WARN).
+- `unindexed_foreign_keys` (INFO, 46 total) -- the 4 new FKs from this task's own tables follow the exact same already-established convention as the other 42 (this codebase generally does not add a covering index on every FK column); not a new deviation.
+- `unused_index` (INFO) on the 4 new fundamental/binding lookup indexes -- expected, since these tables have zero rows so far; not a real issue.
+
+### What is now live vs. what is still pending
+
+**Live:** the full schema, security model, and cross-workflow binding wiring for the fundamental score feature. `publish_screening_run` (the real, currently-scheduled technical publish path) now automatically attempts a fundamental binding after every future run publishes -- currently a safe no-op every time, since zero rows exist in any `fundamental_*` table yet.
+
+**Still pending (unchanged from this pass's own deployment-order list above, items 2 and 6-16):** no real fundamental data exists anywhere (`fundamental_score_results` is empty); `UPSTOX_SECTOR_TAXONOMY` still covers only the 4 reviewed sector groups (Banks/Finance/Insurance/Refineries) -- `collect-upstox-sectors.mjs` has still not been run; `app/src/lib/database.types.ts` has not been regenerated and `fundamental-score.ts` still uses its pre-generation `as any` cast; no `fundamental_score_versions` row has been seeded; no `run_type='fundamental_ingestion'` lease row exists; the `ingest-fundamental-data` Edge Function does not exist; no `UPSTOX_ACCESS_TOKEN` Supabase secret has been set. None of these block what was just deployed from being safe and inert -- they are exactly what stands between "schema and wiring are live" and "real scores are visible."
