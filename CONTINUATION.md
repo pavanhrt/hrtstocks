@@ -1253,3 +1253,23 @@ Applied directly to the live `instruments` table via 500 targeted `UPDATE`s (onl
 **New script, committed and pushed:** `supabase/scripts/backfill-instrument-isins.mjs` -- documents this exact matching/exclusion logic, needs only `SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY` (the Upstox master file needs no auth token at all), dry-run by default (`--apply` to write), idempotent (only ever fills null isin values, so safe to re-run as new instruments are added to the universe later).
 
 **Next step, now actually unblocked:** re-run `collect-upstox-sectors.mjs` (same PowerShell invocation as before, with `UPSTOX_ACCESS_TOKEN` set) -- it should now find 500 eligible instruments (`DUMMYHEG` excluded, correctly, since it still has no isin) and produce a real sector distribution to review against `UPSTOX_SECTOR_TAXONOMY`.
+
+## Sector taxonomy fully reviewed against the real universe (2026-09-16, same day)
+
+The user re-ran `collect-upstox-sectors.mjs` (same PowerShell invocation, credentials never pasted into chat) and it worked: 500 eligible instruments, 0 failures, 103 distinct `profile.sector` strings. Reviewed every one and extended `UPSTOX_SECTOR_TAXONOMY` from 7 entries to 107.
+
+**Real, previously-unknown finding: the dominant bank label is `"Bank"` (singular, 25 instruments), not `"Banks"` (1 instrument).** The taxonomy only had the plural form -- without this fix, 25 of 26 real bank stocks in the universe would have silently fallen through to `UNSUPPORTED_FALLBACK`/`MANUAL_REVIEW` the first time real data flowed through, despite being ordinary, cleanly-classifiable banks. Added `"Bank"` -> `BANK`.
+
+**Classification rule applied uniformly across all 97 new entries:**
+- `BANK`: deposit-taking banks (`Bank`, in addition to the existing `Banks`/`Private Sector Bank`/`Public Sector Bank`).
+- `NBFC`: lending-focused financial companies without a deposit franchise -- added `"Housing Finance"` (mortgage lenders, NBFC-regulated post-NHB-transfer).
+- `UNSUPPORTED_FALLBACK` (never guessed): `"Investment"` (a holding company's "revenue" is typically dividend/capital-gains income, not operating sales -- NON_FINANCIAL's growth/margin ratios may not mean what the model assumes) and `"DVR"` (a share-class flag, not an industry -- it discloses nothing about the underlying business at all).
+- `NON_FINANCIAL`: every other observed sector (93 entries) -- ordinary commercial/industrial/services businesses across every named industry (pharma, IT, engineering, power, chemicals, steel, autos, FMCG, construction, healthcare, telecom, hospitality, media, defence, etc.) plus fee-based professional-services businesses whose financial statements are still standard commercial ones, not RBI/IRDAI-format (`Asset Management`, `Stock Broking`, `Stock/ Commodity Brokers`, `Ratings`) -- the balance-sheet/income-statement ratio model this project uses is computable and meaningful for any of them, regardless of specific industry.
+
+**Verified programmatically, not just by inspection:** every one of the 103 observed sector strings now resolves to a real model (zero missing), and the per-model instrument-count breakdown reconciles exactly to the 500 successfully-fetched instruments: `NON_FINANCIAL` 408, `NBFC` 43, `BANK` 26, `UNSUPPORTED_FALLBACK` 23.
+
+**New test coverage:** `upstox-sector-taxonomy.test.js` (new, 8 tests) -- spot checks for each model bucket; a structural test that every taxonomy entry carries a `reviewedAt` date and a non-empty `reason` (no silent/unexplained classification); a **regression test backed by a real fixture** (`__fixtures__/observed-sectors-2026-09-16.json`, the exact sector/count data from this live run) asserting all 103 sectors still resolve and the exact per-model counts (`408/43/26/23`) stay pinned -- a future edit that silently reclassifies an existing entry (e.g. moves `"Bank"` out of `BANK`) will fail this test, not just silently pass a "nothing missing" check. `UPSTOX_SECTOR_TAXONOMY_VERSION` bumped to `1.1.0`.
+
+Root suite: **642/642 pass** (was 634, +8 new). Committed as `069e0f1` and pushed to `origin/develop`. `sector-report.json` (the script's own generated output, written to the repo root) was left untracked, not committed -- it's a point-in-time run artifact, not source.
+
+**Still pending, unchanged:** no real `fundamental_score_results` data exists anywhere yet -- the taxonomy is now ready to classify real Upstox profile responses correctly, but nothing has ingested one yet (no `ingest-fundamental-data` Edge Function, no `UPSTOX_ACCESS_TOKEN` Supabase secret, no `fundamental_score_versions` seed). `DUMMYHEG` (1 instrument, still no isin) remains flagged for the user's own review, untouched.
