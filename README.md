@@ -97,9 +97,10 @@ supabase functions deploy run-screening --no-verify-jwt
 ```
 
 `--no-verify-jwt` is required because this function checks its own `Authorization: Bearer
-<secret-key>` header (see `index.js`) against `SUPABASE_SECRET_KEYS` (the current, non-deprecated
-key system) rather than a user JWT -- it's only ever called server-to-server, from the Next.js API
-route or from `pg_cron`, never from the browser.
+<secret-key>` header (see `index.js`) against `APP_SECRET_KEYS` (a custom secret -- Supabase now
+rejects any secret name starting with the reserved `SUPABASE_` prefix) rather than a user JWT --
+it's only ever called server-to-server, from the Next.js API route or from `pg_cron`, never from
+the browser.
 
 **Smoke-test it once manually before scheduling it:**
 

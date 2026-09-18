@@ -100,7 +100,10 @@ const INDEX_SYMBOL = {
   "nifty-500": "NSE:NIFTY500-INDEX",
 };
 
-function toFyersSymbol(instrumentId, symbol) {
+// Exported (2026, added for fome/) so providers/fyers-derivatives.js can
+// build option-chain/futures-chain underlying symbols without duplicating
+// this map -- every other caller in this file keeps using it unqualified.
+export function toFyersSymbol(instrumentId, symbol) {
   return INDEX_SYMBOL[instrumentId] ?? `NSE:${symbol}-EQ`;
 }
 

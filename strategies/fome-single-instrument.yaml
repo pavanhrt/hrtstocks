@@ -1,0 +1,217 @@
+strategy:
+  id: fome-single-instrument
+  name: FOME single-instrument atomic signal breakdown
+  framework: FOME
+  rule_version: 1.0.0
+  parameter_version: 1.0.0
+  status: project_extension
+  scope: [future, option]
+  applicability: current_derivative_eligibility_required_for_oi_rules
+
+provenance:
+  source_register: ../references/source-register.md
+  source_group: FOME
+  note: >
+    This strategy does NOT replace or edit fome-original (strategies/fome.yaml)
+    -- per AGENTS.md's "Preserve the original strategy and any optimized
+    variant as separate, versioned definitions," fome-original's compound
+    FOME-TREND-001/002/RANGE-001/NP-001 rules are evaluated verbatim,
+    unchanged. This strategy decomposes the SAME documented compound
+    sentences (FOME Guide Sheet V3, "Analysis (after TA + OI check)" table)
+    into individually inspectable atomic rules, so the /fome page's per-rule
+    trace can show which specific clause passed/failed/is unresolved instead
+    of only a single all-or-nothing compound verdict. Each atomic rule's
+    source_status is DOCUMENTED when it is a literal sub-clause of that same
+    table, PROJECT_DEFAULT when this project had to choose an unstated
+    interpretation (disclosed in the rule's own comment), and UNRESOLVED when
+    no validated deterministic definition exists at all (TLBO, TLBD, Ungali,
+    BKP, BKT -- references/source-register.md's own "Known unresolved
+    terminology" list) -- those rules use the same manual_review sentinel
+    expression fome.yaml's own FOME-NP-001 already established.
+
+rules:
+  - id: FOME-SIG-MACD-001
+    name: Tide MACD rising (bullish trend evidence)
+    source_status: DOCUMENTED
+    direction: bullish
+    inputs: [tide_macd_slope]
+    expression: "tide_macd_slope == 'rising'"
+    true_result: PASS
+    false_result: FAIL
+    missing_result: NO_DATA
+
+  - id: FOME-SIG-MACD-002
+    name: Tide MACD falling (bearish trend evidence)
+    source_status: DOCUMENTED
+    direction: bearish
+    inputs: [tide_macd_slope]
+    expression: "tide_macd_slope == 'falling'"
+    true_result: PASS
+    false_result: FAIL
+    missing_result: NO_DATA
+
+  - id: FOME-SIG-RSI-001
+    name: RSI above 60 (bullish trend evidence)
+    source_status: DOCUMENTED
+    direction: bullish
+    inputs: [rsi]
+    expression: "rsi > 60"
+    true_result: PASS
+    false_result: FAIL
+    missing_result: NO_DATA
+
+  - id: FOME-SIG-RSI-002
+    name: RSI below 40 (bearish trend evidence)
+    source_status: DOCUMENTED
+    direction: bearish
+    inputs: [rsi]
+    expression: "rsi < 40"
+    true_result: PASS
+    false_result: FAIL
+    missing_result: NO_DATA
+
+  - id: FOME-SIG-IMPULSE-001
+    name: Start of bullish impulsive move
+    source_status: PROJECT_DEFAULT
+    direction: bullish
+    inputs: [bullish_impulse]
+    # "Start of a bullish impulsive move" is documented as a required
+    # qualification clause but never defined mechanically anywhere in the
+    # FOME source documents -- this project resolves it via the same Elliott
+    # engine every other strategy here uses (a still-forming wave 1 or 3 in
+    # the matching direction; see fome/rule-context.js#isImpulseStart), not
+    # a new approximation.
+    expression: "bullish_impulse == true"
+    true_result: PASS
+    false_result: FAIL
+    missing_result: NO_DATA
+
+  - id: FOME-SIG-IMPULSE-002
+    name: Start of bearish impulsive move
+    source_status: PROJECT_DEFAULT
+    direction: bearish
+    inputs: [bearish_impulse]
+    expression: "bearish_impulse == true"
+    true_result: PASS
+    false_result: FAIL
+    missing_result: NO_DATA
+
+  - id: FOME-SIG-TLBO-001
+    name: Trend-line breakout (TLBO)
+    source_status: UNRESOLVED
+    direction: bullish
+    expression: manual_review
+    true_result: MANUAL_REVIEW
+    false_result: MANUAL_REVIEW
+    missing_result: MANUAL_REVIEW
+    automation_enabled: false
+
+  - id: FOME-SIG-TLBD-001
+    name: Trend-line breakdown (TLBD)
+    source_status: UNRESOLVED
+    direction: bearish
+    expression: manual_review
+    true_result: MANUAL_REVIEW
+    false_result: MANUAL_REVIEW
+    missing_result: MANUAL_REVIEW
+    automation_enabled: false
+
+  - id: FOME-SIG-UNGALI-BULL-001
+    name: Bullish Ungali setup
+    source_status: UNRESOLVED
+    direction: bullish
+    expression: manual_review
+    true_result: MANUAL_REVIEW
+    false_result: MANUAL_REVIEW
+    missing_result: MANUAL_REVIEW
+    automation_enabled: false
+
+  - id: FOME-SIG-UNGALI-BEAR-001
+    name: Bearish Ungali setup
+    source_status: UNRESOLVED
+    direction: bearish
+    expression: manual_review
+    true_result: MANUAL_REVIEW
+    false_result: MANUAL_REVIEW
+    missing_result: MANUAL_REVIEW
+    automation_enabled: false
+
+  - id: FOME-SIG-ADX-MOMENTUM-001
+    name: Momentum mode -- ADX rising (momentum confirmation)
+    source_status: DOCUMENTED
+    direction: both
+    inputs: [wave_adx_slope]
+    expression: "wave_adx_slope == 'rising'"
+    true_result: PASS
+    false_result: FAIL
+    missing_result: NO_DATA
+
+  - id: FOME-SIG-BOLLINGER-FLAT-001
+    name: Bollinger bands flat (sideways/range evidence)
+    source_status: DOCUMENTED
+    direction: both
+    inputs: [bollinger_state]
+    expression: "bollinger_state == 'flat'"
+    true_result: PASS
+    false_result: FAIL
+    missing_result: NO_DATA
+
+  - id: FOME-SIG-BOLLINGER-BKP-001
+    name: Bollinger breakout-price-side (BKP)
+    source_status: UNRESOLVED
+    direction: bullish
+    expression: manual_review
+    true_result: MANUAL_REVIEW
+    false_result: MANUAL_REVIEW
+    missing_result: MANUAL_REVIEW
+    automation_enabled: false
+
+  - id: FOME-SIG-BOLLINGER-BKT-001
+    name: Bollinger breakout-trend-side (BKT)
+    source_status: UNRESOLVED
+    direction: bearish
+    expression: manual_review
+    true_result: MANUAL_REVIEW
+    false_result: MANUAL_REVIEW
+    missing_result: MANUAL_REVIEW
+    automation_enabled: false
+
+  - id: FOME-SIG-FUT-OI-001
+    name: Futures long buildup (price up, OI up)
+    source_status: DOCUMENTED
+    direction: bullish
+    inputs: [futures_long_buildup]
+    expression: "futures_long_buildup == true"
+    true_result: PASS
+    false_result: FAIL
+    missing_result: NO_DATA
+
+  - id: FOME-SIG-FUT-OI-002
+    name: Futures short buildup (price down, OI up)
+    source_status: DOCUMENTED
+    direction: bearish
+    inputs: [futures_short_buildup]
+    expression: "futures_short_buildup == true"
+    true_result: PASS
+    false_result: FAIL
+    missing_result: NO_DATA
+
+  - id: FOME-SIG-OPT-OI-BULL-001
+    name: Supportive option OI (ATM PE building, ATM/ITM CE shedding)
+    source_status: DOCUMENTED
+    direction: bullish
+    inputs: [option_oi_supportive]
+    expression: "option_oi_supportive == true"
+    true_result: PASS
+    false_result: FAIL
+    missing_result: NO_DATA
+
+  - id: FOME-SIG-OPT-OI-BEAR-001
+    name: Supportive option OI (ATM/ITM PE shedding, ATM CE building)
+    source_status: DOCUMENTED
+    direction: bearish
+    inputs: [option_oi_supportive_bearish]
+    expression: "option_oi_supportive_bearish == true"
+    true_result: PASS
+    false_result: FAIL
+    missing_result: NO_DATA

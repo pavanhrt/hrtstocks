@@ -165,7 +165,7 @@ create index if not exists data_quality_results_run_instrument_idx
 -- One-time manual step (NOT done by this migration -- never put a real
 -- secret in a migration file): before this job can actually fire a request,
 -- run once via the SQL editor:
---   select vault.create_secret('<the same value as SUPABASE_SECRET_KEYS''s
+--   select vault.create_secret('<the same value as APP_SECRET_KEYS''s
 --     "default" entry, used as the Edge Function''s own bearer auth>',
 --     'run_screening_bearer_secret');
 -- The job below reads it by name at call time via vault.decrypted_secrets,

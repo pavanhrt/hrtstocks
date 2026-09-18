@@ -9,7 +9,7 @@
 // 0008 -- resumes a stuck/interrupted run, never starts a new one), and this
 // function's own self-chain continuation request (see the batch-claim loop
 // below). All three call this URL with the project's secret key
-// (SUPABASE_SECRET_KEYS' "default" entry) as a Bearer token, which is also
+// (APP_SECRET_KEYS' "default" entry) as a Bearer token, which is also
 // this function's own auth check below.
 //
 // Durable pipeline (2026-09-11 rewrite): a run's ~501-instrument universe no
@@ -110,10 +110,13 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 // SUPABASE_SERVICE_ROLE_KEY is deprecated on this project (it migrated to
 // Supabase's JWT-signing-key system, confirmed via the project's own
 // Edge Functions > Secrets page) -- the reserved legacy env var no longer
-// carries a usable key there. SUPABASE_SECRET_KEYS is the current
-// equivalent: a JSON dict of named secret keys, same bypass-RLS privileges,
-// see https://supabase.com/docs/guides/functions/secrets.
-const SECRET_KEY = JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS") ?? "{}").default;
+// carries a usable key there. APP_SECRET_KEYS is this project's own custom
+// equivalent (a JSON dict of named secret keys, same bypass-RLS privileges) --
+// named without the SUPABASE_ prefix because Supabase now rejects any custom
+// secret name starting with it (confirmed live 2026-09-16, both via the
+// dashboard's "Name must not start with the SUPABASE_ prefix" and the CLI's
+// "Env name cannot start with SUPABASE_" errors).
+const SECRET_KEY = JSON.parse(Deno.env.get("APP_SECRET_KEYS") ?? "{}").default;
 const INDEX_IDS = ["nifty-50", "nifty-bank", "nifty-100", "nifty-500"];
 const UNIVERSE_VERSION = "1.0.0";
 // Fyers caps a single daily-resolution history request at 366 days

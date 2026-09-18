@@ -1,3 +1,6 @@
+// Generated from the live hrtstocks schema via the Supabase MCP
+// generate_typescript_types tool (project miruhnvfkmwffuchqiku). Regenerate
+// after any migration change rather than hand-editing this file.
 export type Json =
   | string
   | number
@@ -622,6 +625,49 @@ export type Database = {
           },
           {
             foreignKeyName: "buy_setup_fifteen_minute_wave_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "screening_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      buy_setup_fundamental_score_bindings: {
+        Row: {
+          bound_at: string
+          fundamental_score_result_id: number
+          instrument_id: string
+          run_id: string
+        }
+        Insert: {
+          bound_at?: string
+          fundamental_score_result_id: number
+          instrument_id: string
+          run_id: string
+        }
+        Update: {
+          bound_at?: string
+          fundamental_score_result_id?: number
+          instrument_id?: string
+          run_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "buy_setup_fundamental_score_bi_fundamental_score_result_id_fkey"
+            columns: ["fundamental_score_result_id"]
+            isOneToOne: false
+            referencedRelation: "fundamental_score_results"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "buy_setup_fundamental_score_bindings_instrument_id_fkey"
+            columns: ["instrument_id"]
+            isOneToOne: false
+            referencedRelation: "instruments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "buy_setup_fundamental_score_bindings_run_id_fkey"
             columns: ["run_id"]
             isOneToOne: false
             referencedRelation: "screening_runs"
@@ -1316,6 +1362,787 @@ export type Database = {
             columns: ["run_id"]
             isOneToOne: false
             referencedRelation: "screening_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fome_analysis_runs: {
+        Row: {
+          algorithm_version: string | null
+          alignment_reason: string | null
+          as_of_timestamp: string
+          chart_render_version: string | null
+          completed_at: string | null
+          created_at: string
+          current_stage: string | null
+          data_quality: Database["public"]["Enums"]["data_quality_state"] | null
+          derivative_eligible: boolean | null
+          derivative_source: string | null
+          error_message: string | null
+          final_alignment: string | null
+          id: string
+          instrument_id: string
+          news_relevance: string | null
+          parameter_version: string | null
+          providers: Json
+          rule_version: string | null
+          selected_expiry: string | null
+          selected_expiry_epoch: string | null
+          spot_derivative_aligned: boolean | null
+          spot_derivative_skew_reason: string | null
+          stage_history: Json
+          started_at: string | null
+          status: Database["public"]["Enums"]["run_status"]
+          strategy_engine_version: string | null
+          triggered_by: string | null
+          underlying_alignment: string | null
+        }
+        Insert: {
+          algorithm_version?: string | null
+          alignment_reason?: string | null
+          as_of_timestamp: string
+          chart_render_version?: string | null
+          completed_at?: string | null
+          created_at?: string
+          current_stage?: string | null
+          data_quality?:
+            | Database["public"]["Enums"]["data_quality_state"]
+            | null
+          derivative_eligible?: boolean | null
+          derivative_source?: string | null
+          error_message?: string | null
+          final_alignment?: string | null
+          id?: string
+          instrument_id: string
+          news_relevance?: string | null
+          parameter_version?: string | null
+          providers?: Json
+          rule_version?: string | null
+          selected_expiry?: string | null
+          selected_expiry_epoch?: string | null
+          spot_derivative_aligned?: boolean | null
+          spot_derivative_skew_reason?: string | null
+          stage_history?: Json
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["run_status"]
+          strategy_engine_version?: string | null
+          triggered_by?: string | null
+          underlying_alignment?: string | null
+        }
+        Update: {
+          algorithm_version?: string | null
+          alignment_reason?: string | null
+          as_of_timestamp?: string
+          chart_render_version?: string | null
+          completed_at?: string | null
+          created_at?: string
+          current_stage?: string | null
+          data_quality?:
+            | Database["public"]["Enums"]["data_quality_state"]
+            | null
+          derivative_eligible?: boolean | null
+          derivative_source?: string | null
+          error_message?: string | null
+          final_alignment?: string | null
+          id?: string
+          instrument_id?: string
+          news_relevance?: string | null
+          parameter_version?: string | null
+          providers?: Json
+          rule_version?: string | null
+          selected_expiry?: string | null
+          selected_expiry_epoch?: string | null
+          spot_derivative_aligned?: boolean | null
+          spot_derivative_skew_reason?: string | null
+          stage_history?: Json
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["run_status"]
+          strategy_engine_version?: string | null
+          triggered_by?: string | null
+          underlying_alignment?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fome_analysis_runs_instrument_id_fkey"
+            columns: ["instrument_id"]
+            isOneToOne: false
+            referencedRelation: "instruments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fome_fifteen_minute_bars: {
+        Row: {
+          analysis_run_id: string
+          close: number | null
+          created_at: string
+          high: number | null
+          instrument_id: string
+          is_complete: boolean
+          low: number | null
+          open: number | null
+          provider: string
+          session_date: string
+          ts: string
+          volume: number | null
+        }
+        Insert: {
+          analysis_run_id: string
+          close?: number | null
+          created_at?: string
+          high?: number | null
+          instrument_id: string
+          is_complete?: boolean
+          low?: number | null
+          open?: number | null
+          provider: string
+          session_date: string
+          ts: string
+          volume?: number | null
+        }
+        Update: {
+          analysis_run_id?: string
+          close?: number | null
+          created_at?: string
+          high?: number | null
+          instrument_id?: string
+          is_complete?: boolean
+          low?: number | null
+          open?: number | null
+          provider?: string
+          session_date?: string
+          ts?: string
+          volume?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fome_fifteen_minute_bars_analysis_run_id_fkey"
+            columns: ["analysis_run_id"]
+            isOneToOne: false
+            referencedRelation: "fome_analysis_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fome_fifteen_minute_bars_instrument_id_fkey"
+            columns: ["instrument_id"]
+            isOneToOne: false
+            referencedRelation: "instruments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fome_news_items: {
+        Row: {
+          analysis_run_id: string
+          confidence: string | null
+          created_at: string
+          event_category: string | null
+          explanation: string | null
+          headline: string
+          id: number
+          published_at: string | null
+          relevance: string | null
+          source: string | null
+          url: string | null
+        }
+        Insert: {
+          analysis_run_id: string
+          confidence?: string | null
+          created_at?: string
+          event_category?: string | null
+          explanation?: string | null
+          headline: string
+          id?: never
+          published_at?: string | null
+          relevance?: string | null
+          source?: string | null
+          url?: string | null
+        }
+        Update: {
+          analysis_run_id?: string
+          confidence?: string | null
+          created_at?: string
+          event_category?: string | null
+          explanation?: string | null
+          headline?: string
+          id?: never
+          published_at?: string | null
+          relevance?: string | null
+          source?: string | null
+          url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fome_news_items_analysis_run_id_fkey"
+            columns: ["analysis_run_id"]
+            isOneToOne: false
+            referencedRelation: "fome_analysis_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fome_rule_traces: {
+        Row: {
+          analysis_run_id: string
+          data_source: string | null
+          evaluation_timestamp: string
+          explanation: string | null
+          id: number
+          observed_values: Json | null
+          parameter_version: string | null
+          result: Database["public"]["Enums"]["rule_result"]
+          rule_id: string
+          rule_version: string | null
+          source_document: string | null
+          source_locator: string | null
+          source_status:
+            | Database["public"]["Enums"]["rule_source_status"]
+            | null
+          thresholds: Json | null
+          timeframe: string | null
+        }
+        Insert: {
+          analysis_run_id: string
+          data_source?: string | null
+          evaluation_timestamp?: string
+          explanation?: string | null
+          id?: never
+          observed_values?: Json | null
+          parameter_version?: string | null
+          result: Database["public"]["Enums"]["rule_result"]
+          rule_id: string
+          rule_version?: string | null
+          source_document?: string | null
+          source_locator?: string | null
+          source_status?:
+            | Database["public"]["Enums"]["rule_source_status"]
+            | null
+          thresholds?: Json | null
+          timeframe?: string | null
+        }
+        Update: {
+          analysis_run_id?: string
+          data_source?: string | null
+          evaluation_timestamp?: string
+          explanation?: string | null
+          id?: never
+          observed_values?: Json | null
+          parameter_version?: string | null
+          result?: Database["public"]["Enums"]["rule_result"]
+          rule_id?: string
+          rule_version?: string | null
+          source_document?: string | null
+          source_locator?: string | null
+          source_status?:
+            | Database["public"]["Enums"]["rule_source_status"]
+            | null
+          thresholds?: Json | null
+          timeframe?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fome_rule_traces_analysis_run_id_fkey"
+            columns: ["analysis_run_id"]
+            isOneToOne: false
+            referencedRelation: "fome_analysis_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fome_strategy_candidates: {
+        Row: {
+          analysis_run_id: string
+          break_evens: number[] | null
+          data_quality: Database["public"]["Enums"]["data_quality_state"] | null
+          expiry_suitability: string | null
+          final_classification: string | null
+          id: number
+          iv_exposure: string | null
+          legs: Json
+          liquidity_state: string | null
+          lot_size: number | null
+          margin: number | null
+          margin_state: string
+          max_loss: number | null
+          max_profit: number | null
+          net_debit_or_credit: number | null
+          position_size: Json | null
+          qualification_status: string
+          rank: number
+          reward_risk: number | null
+          roi_pct: number | null
+          strategy_id: string
+          time_decay_exposure: string | null
+          unlimited_risk: boolean
+          why_fails: string | null
+          why_fits: string | null
+        }
+        Insert: {
+          analysis_run_id: string
+          break_evens?: number[] | null
+          data_quality?:
+            | Database["public"]["Enums"]["data_quality_state"]
+            | null
+          expiry_suitability?: string | null
+          final_classification?: string | null
+          id?: never
+          iv_exposure?: string | null
+          legs?: Json
+          liquidity_state?: string | null
+          lot_size?: number | null
+          margin?: number | null
+          margin_state?: string
+          max_loss?: number | null
+          max_profit?: number | null
+          net_debit_or_credit?: number | null
+          position_size?: Json | null
+          qualification_status: string
+          rank: number
+          reward_risk?: number | null
+          roi_pct?: number | null
+          strategy_id: string
+          time_decay_exposure?: string | null
+          unlimited_risk?: boolean
+          why_fails?: string | null
+          why_fits?: string | null
+        }
+        Update: {
+          analysis_run_id?: string
+          break_evens?: number[] | null
+          data_quality?:
+            | Database["public"]["Enums"]["data_quality_state"]
+            | null
+          expiry_suitability?: string | null
+          final_classification?: string | null
+          id?: never
+          iv_exposure?: string | null
+          legs?: Json
+          liquidity_state?: string | null
+          lot_size?: number | null
+          margin?: number | null
+          margin_state?: string
+          max_loss?: number | null
+          max_profit?: number | null
+          net_debit_or_credit?: number | null
+          position_size?: Json | null
+          qualification_status?: string
+          rank?: number
+          reward_risk?: number | null
+          roi_pct?: number | null
+          strategy_id?: string
+          time_decay_exposure?: string | null
+          unlimited_risk?: boolean
+          why_fails?: string | null
+          why_fits?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fome_strategy_candidates_analysis_run_id_fkey"
+            columns: ["analysis_run_id"]
+            isOneToOne: false
+            referencedRelation: "fome_analysis_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fome_timeframe_results: {
+        Row: {
+          adx: number | null
+          adx_slope: string | null
+          analysis_run_id: string
+          bollinger_price_location: string | null
+          bollinger_state: string | null
+          breakout_state: string | null
+          chart_alt_text: string | null
+          chart_content_hash: string | null
+          chart_object_path: string | null
+          computed_at: string
+          confidence: string
+          direction: string | null
+          dow_state: string | null
+          explanation: string | null
+          freshness: Database["public"]["Enums"]["freshness_label"] | null
+          id: number
+          input_hash: string | null
+          is_provisional: boolean
+          latest_completed_candle_at: string | null
+          macd_state: string | null
+          pivot_sequence: string[] | null
+          resistance: number | null
+          reused_from_run_id: string | null
+          rsi: number | null
+          support: number | null
+          timeframe: string
+        }
+        Insert: {
+          adx?: number | null
+          adx_slope?: string | null
+          analysis_run_id: string
+          bollinger_price_location?: string | null
+          bollinger_state?: string | null
+          breakout_state?: string | null
+          chart_alt_text?: string | null
+          chart_content_hash?: string | null
+          chart_object_path?: string | null
+          computed_at?: string
+          confidence: string
+          direction?: string | null
+          dow_state?: string | null
+          explanation?: string | null
+          freshness?: Database["public"]["Enums"]["freshness_label"] | null
+          id?: never
+          input_hash?: string | null
+          is_provisional?: boolean
+          latest_completed_candle_at?: string | null
+          macd_state?: string | null
+          pivot_sequence?: string[] | null
+          resistance?: number | null
+          reused_from_run_id?: string | null
+          rsi?: number | null
+          support?: number | null
+          timeframe: string
+        }
+        Update: {
+          adx?: number | null
+          adx_slope?: string | null
+          analysis_run_id?: string
+          bollinger_price_location?: string | null
+          bollinger_state?: string | null
+          breakout_state?: string | null
+          chart_alt_text?: string | null
+          chart_content_hash?: string | null
+          chart_object_path?: string | null
+          computed_at?: string
+          confidence?: string
+          direction?: string | null
+          dow_state?: string | null
+          explanation?: string | null
+          freshness?: Database["public"]["Enums"]["freshness_label"] | null
+          id?: never
+          input_hash?: string | null
+          is_provisional?: boolean
+          latest_completed_candle_at?: string | null
+          macd_state?: string | null
+          pivot_sequence?: string[] | null
+          resistance?: number | null
+          reused_from_run_id?: string | null
+          rsi?: number | null
+          support?: number | null
+          timeframe?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fome_timeframe_results_analysis_run_id_fkey"
+            columns: ["analysis_run_id"]
+            isOneToOne: false
+            referencedRelation: "fome_analysis_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fome_timeframe_results_reused_from_run_id_fkey"
+            columns: ["reused_from_run_id"]
+            isOneToOne: false
+            referencedRelation: "fome_analysis_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fundamental_refresh_manifests: {
+        Row: {
+          computed_at: string
+          cutoff_at: string
+          expected_instrument_count: number
+          id: number
+          manual_review_count: number
+          no_data_count: number
+          published_at: string | null
+          refresh_state: string
+          score_version_id: number
+          scored_count: number
+          triggered_by: string | null
+          validated_at: string | null
+          validation_errors: Json
+        }
+        Insert: {
+          computed_at?: string
+          cutoff_at: string
+          expected_instrument_count?: number
+          id?: never
+          manual_review_count?: number
+          no_data_count?: number
+          published_at?: string | null
+          refresh_state: string
+          score_version_id: number
+          scored_count?: number
+          triggered_by?: string | null
+          validated_at?: string | null
+          validation_errors?: Json
+        }
+        Update: {
+          computed_at?: string
+          cutoff_at?: string
+          expected_instrument_count?: number
+          id?: never
+          manual_review_count?: number
+          no_data_count?: number
+          published_at?: string | null
+          refresh_state?: string
+          score_version_id?: number
+          scored_count?: number
+          triggered_by?: string | null
+          validated_at?: string | null
+          validation_errors?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fundamental_refresh_manifests_score_version_id_fkey"
+            columns: ["score_version_id"]
+            isOneToOne: false
+            referencedRelation: "fundamental_score_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fundamental_refresh_manifests_triggered_by_fkey"
+            columns: ["triggered_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fundamental_score_components: {
+        Row: {
+          component_key: string
+          component_name: string
+          earned: number
+          id: number
+          score_result_id: number
+          status: string
+          sub_metrics: Json
+          total_applicable_weight: number
+          weight: number
+        }
+        Insert: {
+          component_key: string
+          component_name: string
+          earned: number
+          id?: never
+          score_result_id: number
+          status: string
+          sub_metrics?: Json
+          total_applicable_weight: number
+          weight: number
+        }
+        Update: {
+          component_key?: string
+          component_name?: string
+          earned?: number
+          id?: never
+          score_result_id?: number
+          status?: string
+          sub_metrics?: Json
+          total_applicable_weight?: number
+          weight?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fundamental_score_components_score_result_id_fkey"
+            columns: ["score_result_id"]
+            isOneToOne: false
+            referencedRelation: "fundamental_score_results"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fundamental_score_results: {
+        Row: {
+          computed_at: string
+          coverage_percentage: number
+          cutoff_at: string
+          grade: string | null
+          id: number
+          instrument_id: string
+          refresh_manifest_id: number | null
+          score_version: string
+          score_version_id: number
+          sector_model: string
+          source_snapshot_ids: number[]
+          terminal_status: string
+          total_score: number | null
+        }
+        Insert: {
+          computed_at?: string
+          coverage_percentage: number
+          cutoff_at: string
+          grade?: string | null
+          id?: never
+          instrument_id: string
+          refresh_manifest_id?: number | null
+          score_version: string
+          score_version_id: number
+          sector_model: string
+          source_snapshot_ids?: number[]
+          terminal_status: string
+          total_score?: number | null
+        }
+        Update: {
+          computed_at?: string
+          coverage_percentage?: number
+          cutoff_at?: string
+          grade?: string | null
+          id?: never
+          instrument_id?: string
+          refresh_manifest_id?: number | null
+          score_version?: string
+          score_version_id?: number
+          sector_model?: string
+          source_snapshot_ids?: number[]
+          terminal_status?: string
+          total_score?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fundamental_score_results_instrument_id_fkey"
+            columns: ["instrument_id"]
+            isOneToOne: false
+            referencedRelation: "instruments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fundamental_score_results_refresh_manifest_id_fkey"
+            columns: ["refresh_manifest_id"]
+            isOneToOne: false
+            referencedRelation: "fundamental_refresh_manifests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fundamental_score_results_score_version_id_fkey"
+            columns: ["score_version_id"]
+            isOneToOne: false
+            referencedRelation: "fundamental_score_versions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fundamental_score_versions: {
+        Row: {
+          created_at: string
+          id: number
+          spec: Json
+          status: string
+          version: string
+        }
+        Insert: {
+          created_at?: string
+          id?: never
+          spec: Json
+          status: string
+          version: string
+        }
+        Update: {
+          created_at?: string
+          id?: never
+          spec?: Json
+          status?: string
+          version?: string
+        }
+        Relationships: []
+      }
+      fundamental_source_snapshots: {
+        Row: {
+          audit_status: string | null
+          available_from: string
+          checksum: string
+          consolidation: string
+          created_at: string
+          currency: string
+          derived_values: Json
+          exceptional_item_amount: number | null
+          exchange_symbol: string
+          id: number
+          instrument_id: string
+          is_exceptional_item: boolean | null
+          ownership_structure: string | null
+          period_end: string
+          period_type: string
+          publication_timestamp: string | null
+          raw_values: Json
+          retrieved_at: string
+          sector_model: string | null
+          source: string
+          source_locator: string
+          supersedes_id: number | null
+          timestamp_basis: string
+          validation_errors: Json
+          validation_status: string
+        }
+        Insert: {
+          audit_status?: string | null
+          available_from: string
+          checksum: string
+          consolidation: string
+          created_at?: string
+          currency: string
+          derived_values?: Json
+          exceptional_item_amount?: number | null
+          exchange_symbol: string
+          id?: never
+          instrument_id: string
+          is_exceptional_item?: boolean | null
+          ownership_structure?: string | null
+          period_end: string
+          period_type: string
+          publication_timestamp?: string | null
+          raw_values: Json
+          retrieved_at: string
+          sector_model?: string | null
+          source: string
+          source_locator: string
+          supersedes_id?: number | null
+          timestamp_basis: string
+          validation_errors?: Json
+          validation_status?: string
+        }
+        Update: {
+          audit_status?: string | null
+          available_from?: string
+          checksum?: string
+          consolidation?: string
+          created_at?: string
+          currency?: string
+          derived_values?: Json
+          exceptional_item_amount?: number | null
+          exchange_symbol?: string
+          id?: never
+          instrument_id?: string
+          is_exceptional_item?: boolean | null
+          ownership_structure?: string | null
+          period_end?: string
+          period_type?: string
+          publication_timestamp?: string | null
+          raw_values?: Json
+          retrieved_at?: string
+          sector_model?: string | null
+          source?: string
+          source_locator?: string
+          supersedes_id?: number | null
+          timestamp_basis?: string
+          validation_errors?: Json
+          validation_status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fundamental_source_snapshots_instrument_id_fkey"
+            columns: ["instrument_id"]
+            isOneToOne: false
+            referencedRelation: "instruments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fundamental_source_snapshots_supersedes_id_fkey"
+            columns: ["supersedes_id"]
+            isOneToOne: false
+            referencedRelation: "fundamental_source_snapshots"
             referencedColumns: ["id"]
           },
         ]
@@ -2062,6 +2889,30 @@ export type Database = {
         }
         Relationships: []
       }
+      provider_rate_limit_token_buckets: {
+        Row: {
+          bucket_key: string
+          capacity: number
+          refill_per_second: number
+          tokens: number
+          updated_at: string
+        }
+        Insert: {
+          bucket_key: string
+          capacity: number
+          refill_per_second: number
+          tokens: number
+          updated_at?: string
+        }
+        Update: {
+          bucket_key?: string
+          capacity?: number
+          refill_per_second?: number
+          tokens?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       rankings: {
         Row: {
           component_scores: Json | null
@@ -2735,6 +3586,13 @@ export type Database = {
           daily_result: Database["public"]["Enums"]["rule_result"] | null
           evidence_timestamp: string | null
           fifteen_min_wave: string | null
+          fundamental_as_of: string | null
+          fundamental_coverage_percentage: number | null
+          fundamental_data_status: string | null
+          fundamental_grade: string | null
+          fundamental_score: number | null
+          fundamental_score_version: string | null
+          fundamental_sector_model: string | null
           gate_result: Database["public"]["Enums"]["rule_result"] | null
           has_intraday_indicators: boolean | null
           instrument_id: string | null
@@ -2771,6 +3629,14 @@ export type Database = {
       }
     }
     Functions: {
+      bind_fundamental_scores_for_refresh: {
+        Args: { p_refresh_manifest_id: number }
+        Returns: number
+      }
+      bind_fundamental_scores_for_run: {
+        Args: { p_run_id: string }
+        Returns: number
+      }
       claim_next_buy_setup_batch: {
         Args: { p_run_id: string }
         Returns: {
@@ -2819,6 +3685,10 @@ export type Database = {
       }
       publish_buy_setup_enrichment: {
         Args: { p_run_id: string }
+        Returns: Json
+      }
+      publish_fundamental_refresh: {
+        Args: { p_refresh_manifest_id: number }
         Returns: Json
       }
       publish_screening_run: { Args: { p_run_id: string }; Returns: Json }
@@ -2873,6 +3743,15 @@ export type Database = {
         Returns: {
           request_count: number
         }[]
+      }
+      try_acquire_token_bucket_slot: {
+        Args: {
+          p_bucket_key: string
+          p_capacity: number
+          p_now?: string
+          p_refill_per_second: number
+        }
+        Returns: boolean
       }
     }
     Enums: {

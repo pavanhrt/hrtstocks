@@ -79,7 +79,7 @@ const GATE_CHUNK_SIZE = 100; // no network I/O per instrument in this stage -- l
 const FIFTEEN_MINUTE_CHUNK_SIZE = 20; // one Fyers fetch + several DB writes + two chart renders per instrument
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
-const SECRET_KEY = JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS") ?? "{}").default;
+const SECRET_KEY = JSON.parse(Deno.env.get("APP_SECRET_KEYS") ?? "{}").default;
 const CHART_BUCKET = "direction-charts"; // reuses the existing immutable chart bucket -- same storage policy, same content-addressed convention
 
 function json(body, status = 200) {

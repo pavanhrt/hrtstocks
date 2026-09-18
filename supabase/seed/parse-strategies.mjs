@@ -20,6 +20,7 @@ const STRATEGY_FILES = [
   "papa.yaml",
   "gue.yaml",
   "fome.yaml",
+  "fome-single-instrument.yaml",
   "buy-signal-playbook.yaml",
   "sell-signal-playbook.yaml",
   "buy-swing.yaml",
