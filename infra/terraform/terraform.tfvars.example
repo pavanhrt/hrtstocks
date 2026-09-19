@@ -1,0 +1,15 @@
+# Copy to terraform.tfvars (git-ignored) and replace the placeholders. Nothing here is a credential.
+environment            = "qa"
+gcp_operator_email     = "developer@example.com"
+gcp_project_id         = "your-project-id"
+gcp_project_number     = "000000000000"
+gcp_organization_name  = "your-organization"
+gcp_organization_id    = null # organization resources are not managed while this is null
+gcp_billing_account_id = null # only used for the optional budget; billing is never linked or changed here
+gcp_region             = "asia-south1"
+custom_domain          = "qa.example.com"
+bootstrap_admin_email  = null # no user is created or invited until an administrator address is supplied
+github_repository     = null # owner/name; enables the Workload Identity pool for CI deploys
+monthly_budget_amount_usd = null # e.g. 30; null creates no budget
+# budget_currency = "USD"       # must match the billing account currency
+# budget_fx_rate_per_usd = null # required when budget_currency is not USD

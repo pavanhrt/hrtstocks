@@ -1,7 +1,7 @@
 "use client";
 
 // Next.js App Router convention: catches a thrown error from any page under
-// (app)/ (e.g. a failed Supabase query) at the same level loading.tsx sits,
+// (app)/ (e.g. a failed database query) at the same level loading.tsx sits,
 // so the nav/header stays stable and only the <main> content area shows this
 // instead of Next's default unstyled error screen -- previously there was no
 // error.tsx anywhere in the app, so any thrown error fell through to that

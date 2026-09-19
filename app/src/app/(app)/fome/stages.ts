@@ -1,4 +1,4 @@
-// Shared with supabase/functions/fome-analysis/index.ts's STAGES constant
+// Shared with services/pipeline/src/fome-analysis/index.js's STAGES constant
 // (kept in sync by hand -- the Edge Function is Deno-only and cannot import
 // from this Next.js app, so this is a deliberate, disclosed duplication of
 // the stage *labels* only, not of any authoritative logic). Stage 7

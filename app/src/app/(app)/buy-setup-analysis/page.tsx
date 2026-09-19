@@ -84,8 +84,7 @@ export default async function BuySetupAnalysisPage({
           (strategies/buy-setup-analysis.yaml -- <strong>user-requested, project-default logic reusing the Buy Signal
           Playbook&apos;s own documented Dow predicate; not itself extracted from the GUE or Buy Signal Playbook
           documents</strong>) before proceeding to a genuine 15-minute Fyers data pull, indicators, GUE wave read, and
-          bullish-reversal (RSI/MACD divergence) evidence. See <Link href="/buy-signals">Buy signals</Link> for the
-          separate, playbook-derived positional screen.
+          bullish-reversal (RSI/MACD divergence) evidence.
         </p>
         {run && (
           <p style={{ fontSize: 12, color: "var(--text-dim)" }}>

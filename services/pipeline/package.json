@@ -1,0 +1,24 @@
+{
+  "name": "hrtstocks-pipeline",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Cloud Run Jobs: EOD screening, buy-setup enrichment and single-instrument FOME analysis.",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "test": "node --test \"src/**/*.test.js\"",
+    "job:screening": "node src/jobs/screening.mjs",
+    "job:buy-setup": "node src/jobs/buy-setup.mjs",
+    "job:fome": "node src/jobs/fome.mjs",
+    "seed:strategies": "node src/seed/seed-strategies.mjs",
+    "seed:system": "node src/seed/seed-system.mjs"
+  },
+  "dependencies": {
+    "@google-cloud/cloud-sql-connector": "^1.8.0",
+    "@google-cloud/storage": "^7.17.0",
+    "pg": "^8.16.0",
+    "js-yaml": "^4.1.0"
+  }
+}

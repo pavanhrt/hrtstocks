@@ -1,6 +1,6 @@
 // Pure sort-spec resolution for /buy-setup-analysis's main table -- kept
-// separate from buy-setup-analysis.ts (which imports @/lib/supabase/server
-// and therefore can't run under plain `node --test`) so this is directly
+// separate from buy-setup-analysis.ts (which imports the request-scoped database
+// layer and therefore needs a database under `node --test`) so this is directly
 // unit-testable, the same reason buy-setup-status.ts exists on its own.
 //
 // Correction (2026-09-16): sorting by fundamental_score must always put a

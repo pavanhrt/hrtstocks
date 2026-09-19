@@ -13,7 +13,7 @@ export default async function StrategiesPage() {
         <h1 style={{ marginTop: 0, fontSize: 20 }}>Strategy manager</h1>
         <p style={{ color: "var(--text-dim)", fontSize: 13 }}>
           Read-only in Phase 1: rules are versioned from{" "}
-          <code>strategies/*.yaml</code> via <code>supabase/seed/seed-strategies.mjs</code>.
+          <code>strategies/*.yaml</code> via <code>services/pipeline/src/seed/seed-strategies.mjs</code>.
           Approval workflows, conflict resolution, and editing land in Phase 2.
         </p>
       </div>

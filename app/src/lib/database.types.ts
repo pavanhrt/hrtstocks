@@ -1,6 +1,8 @@
-// Generated from the live hrtstocks schema via the Supabase MCP
-// generate_typescript_types tool (project miruhnvfkmwffuchqiku). Regenerate
-// after any migration change rather than hand-editing this file.
+// Row types for the application's tables. Originally generated from the live
+// schema; kept in sync by hand with db/migrations (the pg helper in
+// ./db/pool.ts is untyped SQL, so these are the app-side row contracts). The
+// Cloud SQL port added profiles.auth_uid, stored_objects and the
+// fundamental_result_published ledger column; keep them aligned.
 export type Json =
   | string
   | number
@@ -10,11 +12,6 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
-  __InternalSupabase: {
-    PostgrestVersion: "14.5"
-  }
   public: {
     Tables: {
       analysis_bars: {
@@ -2849,6 +2846,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          auth_uid: string | null
           created_at: string
           display_name: string | null
           email: string
@@ -2856,13 +2854,15 @@ export type Database = {
           role: Database["public"]["Enums"]["user_role"]
         }
         Insert: {
+          auth_uid?: string | null
           created_at?: string
           display_name?: string | null
           email: string
-          id: string
+          id?: string
           role?: Database["public"]["Enums"]["user_role"]
         }
         Update: {
+          auth_uid?: string | null
           created_at?: string
           display_name?: string | null
           email?: string
@@ -3794,7 +3794,7 @@ export type Database = {
   }
 }
 
-type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
+type DatabaseWithoutInternals = Database
 
 type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
 

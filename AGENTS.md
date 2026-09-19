@@ -176,6 +176,15 @@ The run is incomplete unless:
 
 Follow [references/technical-architecture.md](references/technical-architecture.md). Keep market data ingestion, feature calculation, rule evaluation, ranking, backtesting, and presentation independently testable. The browser or UI must not calculate authoritative indicators or pass/fail outcomes.
 
+## Platform and Deployment
+
+The application runs on Google Cloud (Cloud Run web app and Cloud Run Jobs, Cloud SQL for PostgreSQL, Cloud Storage, Identity Platform, Secret Manager). It no longer depends on Supabase or Netlify. Architecture, runbooks and the migration decisions are in [docs/gcp/README.md](docs/gcp/README.md).
+
+- The Buy Signals, Sell Signals and Backtests pages were removed from the application. The `BSP-*` / `SSP-*` rules and the playbook files are **retained**: Buy Setup Analysis depends on `BSP-M1`/`BSP-M3`, and every evaluated rule feeds tier classification, so removing them is a strategy change (`rule_version` bump), not a UI change. Details: [docs/gcp/README.md](docs/gcp/README.md#removed-features).
+- The rules in this file about validating strategies by backtesting are research-methodology rules and are unchanged; they are not tied to any application page.
+- The UI must still not calculate authoritative signals (Architecture Rules). Authorization is enforced on the server ([docs/gcp/authorization.md](docs/gcp/authorization.md)).
+- Never commit secrets (including the FYERS access token). The FYERS token is refreshed manually each trading day: [runbook](docs/gcp/runbooks/fyers-token.md).
+
 ## Change Control
 
 - Never overwrite a documented strategy when experimenting.

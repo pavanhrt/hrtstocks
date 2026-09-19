@@ -1,25 +1,28 @@
-import { createClient } from "@/lib/supabase/server";
-import { getLatestPublishedRun } from "@/lib/data/runs";
-import { overallStatusFor } from "@/lib/data/buy-setup-status";
-import { buildSortSpecs } from "@/lib/data/buy-setup-sort";
+import { currentViewer } from "../access.ts";
+import { chartUrl } from "../charts.ts";
+import { getDb } from "../db/pool.ts";
+import { buySetupVisibleSql, isStaff } from "../db/visibility.ts";
+import { getLatestPublishedRun } from "./runs.ts";
+import { overallStatusFor } from "./buy-setup-status.ts";
+import { buildSortSpecs } from "./buy-setup-sort.ts";
+import { buildLedgerOrderBy, buildLedgerWhere } from "./buy-setup-ledger-sql.ts";
 
-export { overallStatusFor } from "@/lib/data/buy-setup-status";
+export { overallStatusFor } from "./buy-setup-status.ts";
 
 // All authoritative computation (the three-timeframe gate, daily/15-minute
 // indicators, chart-structure detection, GUE wave, divergence) happens in
-// supabase/functions/analyze-buy-setup/ and supabase/functions/run-screening/
+// services/pipeline/src/analyze-buy-setup/ and services/pipeline/src/run-screening/
 // -- this file only reads already-persisted evidence and never calculates a
 // pass/fail/technical condition itself (AGENTS.md: "the UI must not
 // calculate authoritative signals").
 //
 // Real server-side pagination: the main table reads from
-// buy_setup_analysis_ledger (migration 0011, a `security_invoker` view
+// buy_setup_analysis_ledger (migration 0011, a view
 // joining the run ledger with BSP-M1/BSP-M3/BSA-D1/BSA-G1 gate results, the
-// 15-minute wave, and divergence results) via ordinary PostgREST
-// .eq()/.order()/.range() -- filtering, sorting, and pagination all happen
-// in Postgres. Only the CURRENT PAGE's instrument ids are then used to fetch
+// 15-minute wave, and divergence results) via explicit parameterized SQL --
+// filtering, sorting, and pagination all happen in Postgres. Only the CURRENT PAGE's instrument ids are then used to fetch
 // the richer per-instrument detail tables (patterns, EMA crossover, chart
-// levels, charts) and to sign chart URLs -- never the whole universe's.
+// levels, charts) and to build chart URLs -- never the whole universe's.
 
 export const BUY_SETUP_PAGE_SIZE = 25;
 
@@ -39,16 +42,12 @@ export type BuySetupManifest = {
 };
 
 export async function getBuySetupManifest(runId: string): Promise<BuySetupManifest | null> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("buy_setup_manifests")
-    .select("*")
-    .eq("run_id", runId)
-    .maybeSingle();
-  if (error) {
-    if (error.code === "PGRST205" || error.code === "42703") return null;
-    throw error;
-  }
+  const viewer = await currentViewer();
+  const data = await getDb().one<Record<string, unknown>>(
+    `select m.* from buy_setup_manifests m
+      where m.run_id = $1 and (m.enrichment_state = 'published' or $2::boolean)`,
+    [runId, isStaff(viewer)],
+  );
   if (!data) return null;
   const row = data as unknown as {
     run_id: string;
@@ -196,136 +195,108 @@ type LedgerRow = {
   fundamental_as_of: string | null;
 };
 
-/** Counts matching `applyFilters`, via a bounded head-only query -- never loads rows just to count them. */
-async function countLedger(supabase: Awaited<ReturnType<typeof createClient>>, runId: string, apply: (q: ReturnType<typeof supabase.from>) => ReturnType<typeof supabase.from>) {
-  let query = supabase.from("buy_setup_analysis_ledger").select("run_id", { count: "exact", head: true }).eq("run_id", runId) as unknown as ReturnType<typeof supabase.from>;
-  query = apply(query);
-  const { count, error } = (await query) as unknown as { count: number | null; error: { code: string } | null };
-  if (error) {
-    if (error.code === "PGRST205" || error.code === "42703") return 0;
-    throw error;
-  }
-  return count ?? 0;
+async function countLedger(runId: string, staff: boolean, filters: Parameters<typeof buildLedgerWhere>[0] = {}) {
+  const { where, params } = buildLedgerWhere(filters);
+  const row = await getDb().one<{ n: number }>(`select count(*) as n from buy_setup_analysis_ledger where ${where}`, [runId, staff, ...params]);
+  return row?.n ?? 0;
 }
+
+/** Counts with a fixed (never user-supplied) extra predicate. */
+async function countLedgerWhere(runId: string, predicate: string) {
+  const row = await getDb().one<{ n: number }>(`select count(*) as n from buy_setup_analysis_ledger where run_id = $1 and ${predicate}`, [runId]);
+  return row?.n ?? 0;
+}
+
+type LedgerRowWithVisibility = LedgerRow & { fundamental_result_published: boolean };
+
+const EMPTY_SUMMARY = { totalEquities: 0, monthlyBullish: 0, weeklyBullish: 0, dailyBullish: 0, threeTimeframeQualified: 0, fifteenMinCompleted: 0, manualReview: 0, noData: 0 };
 
 export async function getBuySetupAnalysisPage(filters: BuySetupFilters = {}): Promise<BuySetupPageResult | null> {
   const run = await getLatestPublishedRun();
   if (!run) return null;
-  const supabase = await createClient();
+  const viewer = await currentViewer();
+  const staff = isStaff(viewer);
+  const db = getDb();
   const manifest = await getBuySetupManifest(run.id);
 
-  const { data: coverageRow } = await supabase
-    .from("buy_setup_pattern_detector_coverage")
-    .select("*")
-    .eq("run_id", run.id)
-    .maybeSingle();
+  // Former RLS rule: enrichment evidence is visible to non-staff only once the
+  // run's enrichment manifest is published. Fail closed -- show nothing rather
+  // than partially-published evidence.
+  const pageSize = Math.max(1, Math.min(100, Math.trunc(filters.pageSize ?? BUY_SETUP_PAGE_SIZE)));
+  if (!staff && manifest?.enrichmentState !== "published") {
+    return { runId: run.id, runDate: run.run_date, manifest: null, patternCoverage: null, rows: [], totalCount: 0, page: 1, pageCount: 1, pageSize, summary: EMPTY_SUMMARY };
+  }
+
+  const coverageRow = await db.one<Record<string, unknown>>(
+    `select c.* from buy_setup_pattern_detector_coverage c where c.run_id = $1 and ${buySetupVisibleSql("c", "$2")}`,
+    [run.id, staff],
+  );
   const patternCoverage = coverageRow
     ? {
-        candlestickImplemented: (coverageRow as unknown as { candlestick_implemented: string[] }).candlestick_implemented ?? [],
-        candlestickNotEvaluated: (coverageRow as unknown as { candlestick_not_evaluated: string[] }).candlestick_not_evaluated ?? [],
-        chartPatternImplemented: (coverageRow as unknown as { chart_pattern_implemented: string[] }).chart_pattern_implemented ?? [],
-        chartPatternNotEvaluated: (coverageRow as unknown as { chart_pattern_not_evaluated: string[] }).chart_pattern_not_evaluated ?? [],
+        candlestickImplemented: (coverageRow.candlestick_implemented as string[] | null) ?? [],
+        candlestickNotEvaluated: (coverageRow.candlestick_not_evaluated as string[] | null) ?? [],
+        chartPatternImplemented: (coverageRow.chart_pattern_implemented as string[] | null) ?? [],
+        chartPatternNotEvaluated: (coverageRow.chart_pattern_not_evaluated as string[] | null) ?? [],
       }
     : null;
 
-  const normalizedQuery = (filters.query ?? "").trim();
-
-  function applyFilters<T>(query: T): T {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let q = query as any;
-    if (normalizedQuery) q = q.or(`symbol.ilike.%${normalizedQuery}%,name.ilike.%${normalizedQuery}%,instrument_id.ilike.%${normalizedQuery}%`);
-    if (filters.monthlyState && filters.monthlyState !== "all") q = q.eq("monthly_dow_state", filters.monthlyState);
-    if (filters.weeklyState && filters.weeklyState !== "all") q = q.eq("weekly_dow_state", filters.weeklyState);
-    if (filters.dailyState && filters.dailyState !== "all") q = q.eq("daily_dow_state", filters.dailyState);
-    if (filters.gate && filters.gate !== "all") q = q.eq("gate_result", filters.gate);
-    if (filters.wave && filters.wave !== "all") q = q.eq("fifteen_min_wave", filters.wave);
-    if (filters.reversal === "rsi_pass") q = q.eq("rsi_reversal_result", "PASS");
-    if (filters.reversal === "macd_pass") q = q.eq("macd_reversal_result", "PASS");
-    if (filters.reversal === "either_pass") q = q.or("rsi_reversal_result.eq.PASS,macd_reversal_result.eq.PASS");
-    if (filters.reversal === "none") q = q.not("rsi_reversal_result", "eq", "PASS").not("macd_reversal_result", "eq", "PASS");
-    if (filters.overallStatus && filters.overallStatus !== "all") q = q.eq("overall_status", filters.overallStatus);
-    if (filters.dataAvailability === "has_data") q = q.not("overall_status", "eq", "NO_DATA");
-    if (filters.dataAvailability === "no_data") q = q.eq("overall_status", "NO_DATA");
-    // Fundamental filters -- pushed down to the same view, but on its own
-    // independent columns; cannot narrow or widen which rows match on any
-    // technical criterion above.
-    if (filters.minFundamentalScore != null) q = q.gte("fundamental_score", filters.minFundamentalScore);
-    if (filters.fundamentalDataStatus && filters.fundamentalDataStatus !== "all") q = q.eq("fundamental_data_status", filters.fundamentalDataStatus);
-    return q as T;
-  }
-
-  const totalCount = await countLedger(supabase, run.id, (q) => applyFilters(q));
-  const pageSize = Math.max(1, Math.min(100, filters.pageSize ?? BUY_SETUP_PAGE_SIZE));
+  const totalCount = await countLedger(run.id, staff, filters);
   const pageCount = Math.max(1, Math.ceil(totalCount / pageSize));
-  const page = Math.min(Math.max(1, filters.page ?? 1), pageCount);
+  const page = Math.min(Math.max(1, Math.trunc(filters.page ?? 1)), pageCount);
 
   // Deterministic sort with a stable tie-breaker (instrument_id) -- two rows
   // that compare equal on the requested column must still land in a fixed
   // order across pages, never re-shuffling between requests. Null ordering
   // is explicit (buy-setup-sort.ts, unit-tested): a numeric fundamental
-  // score always sorts before NO_DATA/null in EITHER direction, rather than
-  // relying on Postgres' own default (NULLS LAST asc / NULLS FIRST desc),
-  // which would otherwise bury every scored stock under NO_DATA rows when
-  // sorting "highest score first."
-  const [primarySort, tieBreakerSort] = buildSortSpecs(filters.sortBy, filters.sortDirection);
-
-  let listQuery = supabase.from("buy_setup_analysis_ledger").select("*").eq("run_id", run.id) as unknown as ReturnType<typeof supabase.from>;
-  listQuery = applyFilters(listQuery);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  listQuery = (listQuery as any)
-    .order(primarySort.column, { ascending: primarySort.ascending, nullsFirst: primarySort.nullsFirst })
-    .order(tieBreakerSort.column, { ascending: tieBreakerSort.ascending, nullsFirst: tieBreakerSort.nullsFirst })
-    .range((page - 1) * pageSize, page * pageSize - 1);
-  const { data: ledgerRows, error: ledgerError } = (await listQuery) as unknown as { data: LedgerRow[] | null; error: { code: string; message: string } | null };
-  if (ledgerError && ledgerError.code !== "PGRST205" && ledgerError.code !== "42703") throw ledgerError;
-  const pageRows = ledgerRows ?? [];
+  // score always sorts before NO_DATA/null in EITHER direction.
+  const { where, params } = buildLedgerWhere(filters);
+  const orderBy = buildLedgerOrderBy(buildSortSpecs(filters.sortBy, filters.sortDirection));
+  const limitParam = `$${params.length + 3}`;
+  const offsetParam = `$${params.length + 4}`;
+  const pageRows = await db.query<LedgerRowWithVisibility>(
+    `select * from buy_setup_analysis_ledger where ${where} order by ${orderBy} limit ${limitParam} offset ${offsetParam}`,
+    [run.id, staff, ...params, pageSize, (page - 1) * pageSize],
+  );
   const qualifiedIds = pageRows.filter((r) => r.qualified).map((r) => r.instrument_id);
 
-  const [
-    { data: candlestickDetections },
-    { data: chartPatternDetections },
-    { data: dailyEma },
-    { data: chartLevels },
-    { data: intradayIndicators },
-    { data: charts },
-  ] = qualifiedIds.length > 0
-    ? await Promise.all([
-        supabase.from("buy_setup_candlestick_detections").select("*").eq("run_id", run.id).in("instrument_id", qualifiedIds),
-        supabase.from("buy_setup_chart_pattern_detections").select("*").eq("run_id", run.id).in("instrument_id", qualifiedIds),
-        supabase.from("buy_setup_ema_crossover").select("*").eq("run_id", run.id).eq("timeframe", "daily").in("instrument_id", qualifiedIds),
-        supabase.from("buy_setup_chart_levels").select("*").eq("run_id", run.id).in("instrument_id", qualifiedIds),
-        supabase.from("buy_setup_intraday_indicators").select("*").eq("run_id", run.id).in("instrument_id", qualifiedIds),
-        supabase.from("buy_setup_charts").select("*").eq("run_id", run.id).in("instrument_id", qualifiedIds),
-      ])
-    : [{ data: [] }, { data: [] }, { data: [] }, { data: [] }, { data: [] }, { data: [] }];
-
   type AnyRow = Record<string, unknown> & { instrument_id: string };
-  const groupBy = (rows: AnyRow[] | null | undefined) => {
+  const detail = (table: string, extra = "") =>
+    qualifiedIds.length === 0
+      ? Promise.resolve([] as AnyRow[])
+      : db.query<AnyRow>(`select t.* from ${table} t where t.run_id = $1 and t.instrument_id = any($2::text[]) ${extra}`, [run.id, qualifiedIds]);
+  const [candlestickDetections, chartPatternDetections, dailyEma, chartLevels, intradayIndicators, charts, fifteenMinEma] = await Promise.all([
+    detail("buy_setup_candlestick_detections"),
+    detail("buy_setup_chart_pattern_detections"),
+    detail("buy_setup_ema_crossover", "and t.timeframe = 'daily'"),
+    detail("buy_setup_chart_levels"),
+    detail("buy_setup_intraday_indicators"),
+    detail("buy_setup_charts"),
+    detail("buy_setup_ema_crossover", "and t.timeframe = '15m'"),
+  ]);
+
+  const groupBy = (rows: AnyRow[]) => {
     const map = new Map<string, AnyRow[]>();
-    for (const row of rows ?? []) {
+    for (const row of rows) {
       const list = map.get(row.instrument_id) ?? [];
       list.push(row);
       map.set(row.instrument_id, list);
     }
     return map;
   };
-  const candlestickByInstrument = groupBy(candlestickDetections as unknown as AnyRow[] | null);
-  const chartPatternByInstrument = groupBy(chartPatternDetections as unknown as AnyRow[] | null);
-  const dailyEmaByInstrument = groupBy(dailyEma as unknown as AnyRow[] | null);
-  const chartLevelsByInstrument = new Map((chartLevels as unknown as AnyRow[] | null ?? []).map((r) => [r.instrument_id, r]));
-  const intradayByInstrument = new Map((intradayIndicators as unknown as AnyRow[] | null ?? []).map((r) => [r.instrument_id, r]));
+  const candlestickByInstrument = groupBy(candlestickDetections);
+  const chartPatternByInstrument = groupBy(chartPatternDetections);
+  const dailyEmaByInstrument = groupBy(dailyEma);
+  const chartLevelsByInstrument = new Map(chartLevels.map((r) => [r.instrument_id, r]));
+  const intradayByInstrument = new Map(intradayIndicators.map((r) => [r.instrument_id, r]));
   const chartByInstrumentTimeframe = new Map<string, string>();
-  for (const row of (charts as unknown as AnyRow[] | null) ?? []) chartByInstrumentTimeframe.set(`${row.instrument_id}:${row.timeframe}`, row.chart_object_path as string);
+  for (const row of charts) chartByInstrumentTimeframe.set(`${row.instrument_id}:${row.timeframe}`, row.chart_object_path as string);
 
-  // Sign chart URLs ONLY for this page's rows.
-  const chartPaths = [...chartByInstrumentTimeframe.values()];
-  const signedUrlByPath = new Map<string, string>();
-  if (chartPaths.length > 0) {
-    const { data: signed } = await supabase.storage.from("direction-charts").createSignedUrls(chartPaths, 60 * 60);
-    for (const s of signed ?? []) if (s.path && s.signedUrl) signedUrlByPath.set(s.path, s.signedUrl);
-  }
-
-  const rows: BuySetupRow[] = pageRows.map((entry) => {
+  const rows: BuySetupRow[] = pageRows.map((raw) => {
+    // Fundamentals from an unpublished refresh manifest are staff-only.
+    const fundamentalsVisible = staff || raw.fundamental_result_published;
+    const entry: LedgerRow = fundamentalsVisible
+      ? raw
+      : { ...raw, fundamental_score: null, fundamental_grade: null, fundamental_coverage_percentage: null, fundamental_data_status: null, fundamental_sector_model: null, fundamental_as_of: null };
     const na = !entry.qualified;
     const levels = chartLevelsByInstrument.get(entry.instrument_id);
     const intraday = intradayByInstrument.get(entry.instrument_id);
@@ -362,8 +333,8 @@ export async function getBuySetupAnalysisPage(filters: BuySetupFilters = {}): Pr
       macdBullishReversal: na ? "NOT_APPLICABLE" : entry.macd_reversal_result ?? "NO_DATA",
       overallStatus: entry.overall_status ?? overallStatusFor(entry.gate_result ?? "NO_DATA", entry.qualified, entry.has_intraday_indicators ? "PASS" : "NO_DATA"),
       evidenceTimestamp: na ? null : entry.evidence_timestamp,
-      dailyChartUrl: dailyChartPath ? signedUrlByPath.get(dailyChartPath) ?? null : null,
-      fifteenMinChartUrl: fifteenMinChartPath ? signedUrlByPath.get(fifteenMinChartPath) ?? null : null,
+      dailyChartUrl: dailyChartPath ? chartUrl(dailyChartPath) : null,
+      fifteenMinChartUrl: fifteenMinChartPath ? chartUrl(fifteenMinChartPath) : null,
       fundamentalScore: {
         score: entry.fundamental_score ?? null,
         grade: entry.fundamental_grade ?? null,
@@ -375,17 +346,13 @@ export async function getBuySetupAnalysisPage(filters: BuySetupFilters = {}): Pr
     };
   });
 
-  // Fill in the 15-minute EMA crossover column (needs its own per-instrument
-  // fetch, same page-scoped id set).
-  if (qualifiedIds.length > 0) {
-    const { data: fifteenMinEma } = await supabase.from("buy_setup_ema_crossover").select("*").eq("run_id", run.id).eq("timeframe", "15m").in("instrument_id", qualifiedIds);
-    const byInstrument = groupBy(fifteenMinEma as unknown as AnyRow[] | null);
-    for (const row of rows) {
-      if (!row.qualified) continue;
-      const list = byInstrument.get(row.instrumentId) ?? [];
-      const triggered = list.find((r) => r.status === "TRIGGERED") ?? list[0];
-      row.fifteenMinEmaCrossover = triggered ? (triggered.status as string) : "NO_DATA";
-    }
+  // Fill in the 15-minute EMA crossover column (same page-scoped id set).
+  const fifteenMinEmaByInstrument = groupBy(fifteenMinEma);
+  for (const row of rows) {
+    if (!row.qualified) continue;
+    const list = fifteenMinEmaByInstrument.get(row.instrumentId) ?? [];
+    const triggered = list.find((r) => r.status === "TRIGGERED") ?? list[0];
+    row.fifteenMinEmaCrossover = triggered ? (triggered.status as string) : "NO_DATA";
   }
 
   // Summary cards: prefer the RECONCILED, validated counts from
@@ -395,21 +362,20 @@ export async function getBuySetupAnalysisPage(filters: BuySetupFilters = {}): Pr
   // has no manifest yet, so every card on the page is always drawn from ONE
   // consistent snapshot rather than mixing a published gate count with a
   // live-recomputed 15-minute count.
-  const [totalEquities, monthlyBullish, weeklyBullish, dailyBullish] = await Promise.all([
-    countLedger(supabase, run.id, (q) => q),
-    countLedger(supabase, run.id, (q) => (q as unknown as { eq: (c: string, v: string) => unknown }).eq("monthly_result", "PASS") as unknown as ReturnType<typeof supabase.from>),
-    countLedger(supabase, run.id, (q) => (q as unknown as { eq: (c: string, v: string) => unknown }).eq("weekly_result", "PASS") as unknown as ReturnType<typeof supabase.from>),
-    countLedger(supabase, run.id, (q) => (q as unknown as { eq: (c: string, v: string) => unknown }).eq("daily_result", "PASS") as unknown as ReturnType<typeof supabase.from>),
-  ]);
-
   const usePublishedManifestCounts = manifest?.enrichmentState === "published";
+  const [totalEquities, monthlyBullish, weeklyBullish, dailyBullish] = await Promise.all([
+    countLedger(run.id, staff),
+    countLedgerWhere(run.id, "monthly_result = 'PASS'"),
+    countLedgerWhere(run.id, "weekly_result = 'PASS'"),
+    countLedgerWhere(run.id, "daily_result = 'PASS'"),
+  ]);
   const [threeTimeframeQualified, fifteenMinCompleted, manualReview, noData] = usePublishedManifestCounts
     ? [manifest.qualifiedCount, manifest.fifteenMinuteCompletedCount, manifest.manualReviewCount, manifest.noDataCount]
     : await Promise.all([
-        countLedger(supabase, run.id, (q) => (q as unknown as { eq: (c: string, v: string) => unknown }).eq("gate_result", "PASS") as unknown as ReturnType<typeof supabase.from>),
-        countLedger(supabase, run.id, (q) => (q as unknown as { eq: (c: string, v: string) => unknown }).eq("overall_status", "TECHNICAL_EVIDENCE_PRESENT") as unknown as ReturnType<typeof supabase.from>),
-        countLedger(supabase, run.id, (q) => (q as unknown as { eq: (c: string, v: string) => unknown }).eq("overall_status", "MANUAL_REVIEW") as unknown as ReturnType<typeof supabase.from>),
-        countLedger(supabase, run.id, (q) => (q as unknown as { eq: (c: string, v: string) => unknown }).eq("overall_status", "NO_DATA") as unknown as ReturnType<typeof supabase.from>),
+        countLedgerWhere(run.id, "gate_result = 'PASS'"),
+        countLedgerWhere(run.id, "overall_status = 'TECHNICAL_EVIDENCE_PRESENT'"),
+        countLedgerWhere(run.id, "overall_status = 'MANUAL_REVIEW'"),
+        countLedgerWhere(run.id, "overall_status = 'NO_DATA'"),
       ]);
 
   return {
@@ -450,25 +416,37 @@ const REQUIRED_CONDITIONS: Record<string, string> = {
 };
 
 /** Full condition table for one instrument's detail view/route -- every requested condition, not just the three-timeframe gate. */
+type AnyRow = Record<string, unknown>;
+
 export async function getBuySetupInstrumentDetail(instrumentId: string): Promise<{ conditions: BuySetupConditionRow[]; row: BuySetupRow | null; dailyChartUrl: string | null; fifteenMinChartUrl: string | null; patternCoverage: BuySetupPageResult["patternCoverage"] } | null> {
   const page = await getBuySetupAnalysisPage({ query: instrumentId, pageSize: 100 });
   if (!page) return null;
   const row = page.rows.find((r) => r.instrumentId === instrumentId) ?? null;
-  const supabase = await createClient();
+  const viewer = await currentViewer();
+  const staff = isStaff(viewer);
+  const db = getDb();
+  const one = (table: string) =>
+    db.one<AnyRow>(`select t.* from ${table} t where t.run_id = $1 and t.instrument_id = $2 and ${buySetupVisibleSql("t", "$3")}`, [page.runId, instrumentId, staff]);
+  const many = (table: string) =>
+    db.query<AnyRow>(`select t.* from ${table} t where t.run_id = $1 and t.instrument_id = $2 and ${buySetupVisibleSql("t", "$3")}`, [page.runId, instrumentId, staff]);
 
-  const [{ data: gateTraces }, chartLevelsRes, intradayRes, waveRes, divergenceRes] = await Promise.all([
-    supabase.from("rule_traces").select("*").eq("run_id", page.runId).eq("instrument_id", instrumentId).in("rule_id", ["BSP-M1", "BSP-M3"]),
-    supabase.from("buy_setup_chart_levels").select("*").eq("run_id", page.runId).eq("instrument_id", instrumentId).maybeSingle(),
-    supabase.from("buy_setup_intraday_indicators").select("*").eq("run_id", page.runId).eq("instrument_id", instrumentId).maybeSingle(),
-    supabase.from("buy_setup_fifteen_minute_wave").select("*").eq("run_id", page.runId).eq("instrument_id", instrumentId).maybeSingle(),
-    supabase.from("buy_setup_divergence_evidence").select("*").eq("run_id", page.runId).eq("instrument_id", instrumentId),
+  const [gateTraces, chartLevelsRow, intradayRow, waveRow, divergenceRows, bsaTraces] = await Promise.all([
+    db.query<AnyRow>(
+      `select t.* from rule_traces t
+        where t.run_id = $1 and t.instrument_id = $2 and t.rule_id in ('BSP-M1', 'BSP-M3')
+          and ($3::boolean or exists (select 1 from screening_runs r where r.id = t.run_id and r.publication_state = 'published'))`,
+      [page.runId, instrumentId, staff],
+    ),
+    one("buy_setup_chart_levels"),
+    one("buy_setup_intraday_indicators"),
+    one("buy_setup_fifteen_minute_wave"),
+    many("buy_setup_divergence_evidence"),
+    many("buy_setup_gate_traces"),
   ]);
-  const { data: bsaTraces } = await supabase.from("buy_setup_gate_traces").select("*").eq("run_id", page.runId).eq("instrument_id", instrumentId);
 
-  type AnyRow = Record<string, unknown>;
   const conditions: BuySetupConditionRow[] = [];
 
-  for (const t of (gateTraces ?? []) as unknown as AnyRow[]) {
+  for (const t of gateTraces) {
     conditions.push({
       ruleId: t.rule_id as string,
       stage: "timeframe_dow_check",
@@ -485,7 +463,7 @@ export async function getBuySetupInstrumentDetail(instrumentId: string): Promise
       sourceLocator: (t.source_locator as string) ?? "strategies/buy-signal-playbook.yaml",
     });
   }
-  for (const t of (bsaTraces ?? []) as unknown as AnyRow[]) {
+  for (const t of bsaTraces) {
     conditions.push({
       ruleId: t.rule_id as string,
       stage: t.rule_id === "BSA-G1" ? "three_timeframe_gate" : "timeframe_dow_check",
@@ -504,10 +482,10 @@ export async function getBuySetupInstrumentDetail(instrumentId: string): Promise
   }
 
   if (row?.qualified) {
-    const levels = chartLevelsRes.data as unknown as AnyRow | null;
-    const intraday = intradayRes.data as unknown as AnyRow | null;
-    const wave = waveRes.data as unknown as AnyRow | null;
-    const divergences = (divergenceRes.data ?? []) as unknown as AnyRow[];
+    const levels = chartLevelsRow;
+    const intraday = intradayRow;
+    const wave = waveRow;
+    const divergences = divergenceRows;
 
     const pushIndicator = (id: string, timeframe: string, label: string, observed: unknown, result: string | null, paramVersion: string | null, evidenceTs: string | null) => {
       conditions.push({
@@ -523,7 +501,7 @@ export async function getBuySetupInstrumentDetail(instrumentId: string): Promise
         ruleVersion: null,
         parameterVersion: paramVersion,
         sourceStatus: "PROJECT_DEFAULT",
-        sourceLocator: "supabase/functions/run-screening/buy-setup/",
+        sourceLocator: "services/pipeline/src/run-screening/buy-setup/",
       });
     };
 

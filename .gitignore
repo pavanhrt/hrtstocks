@@ -1,2 +1,39 @@
 node_modules
 .temp/
+
+# ---- Secrets and local configuration: never commit ----
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.pem
+*.key
+# Cloud credentials. This repo uses Application Default Credentials and Workload
+# Identity Federation: no service-account key files should ever exist here.
+*-credentials.json
+service-account*.json
+application_default_credentials.json
+gcloud-*.json
+
+# ---- Terraform ----
+**/.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+# Private variable files (environment-specific / personal values). Only the
+# *.tfvars.example templates are committed.
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+!*.tfvars.json.example
+*.tfplan
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+# The provider lock file IS committed (reproducible provider versions):
+!.terraform.lock.hcl
+
+# ---- Local database / emulator data ----
+.local/

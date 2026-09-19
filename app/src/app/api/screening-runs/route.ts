@@ -1,59 +1,30 @@
 import { NextResponse } from "next/server";
-import { requireRole } from "@/lib/auth";
+import { authorizeApi } from "@/lib/auth";
+import { startJob } from "@/lib/jobs";
+import { csrfOk } from "@/lib/csrf";
 
 // POST /api/screening-runs -- manual "Run now" (Researcher and above).
-// Deliberately thin: this route only authenticates/authorizes the request and
-// forwards it to the run-screening Edge Function using the project's secret
-// key, which never reaches the browser. The Edge Function itself creates the
-// screening_runs row and does all the ingestion/rule-evaluation work -- see
-// supabase/functions/run-screening/index.js.
-//
-// SUPABASE_SECRET_KEY here is the new-style `sb_secret_...` key (Settings ->
-// API Keys -> "Publishable and secret API keys" tab), not the deprecated
-// legacy service_role JWT -- this project has migrated to Supabase's
-// JWT-signing-key system, where the legacy key no longer resolves to a
-// usable value on the Edge Function side (confirmed directly against the
-// project's Edge Functions > Secrets page, which marks it "Deprecated").
-export async function POST() {
-  let user;
+// Deliberately thin: authenticates/authorizes, then starts the screening Cloud
+// Run Job. The job itself acquires the run lease (so a second click while a run
+// is active is a safe no-op), creates the screening_runs row and does all the
+// ingestion / rule-evaluation work -- see services/pipeline/src/jobs/screening.mjs.
+export async function POST(request: Request) {
+  if (!csrfOk(request)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const auth = await authorizeApi("researcher");
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+  const user = auth.user;
+
   try {
-    user = await requireRole("researcher");
+    const started = await startJob("screening", { TRIGGER_TYPE: "manual", TRIGGERED_BY: user.id });
+    return NextResponse.json({ status: "started", execution: started.execution });
   } catch (err) {
-    return NextResponse.json({ error: err instanceof Error ? err.message : "Forbidden" }, { status: 403 });
-  }
-
-  const functionUrl = process.env.RUN_SCREENING_FUNCTION_URL;
-  const secretKey = process.env.SUPABASE_SECRET_KEY;
-  if (!functionUrl || !secretKey) {
-    return NextResponse.json(
-      { error: "RUN_SCREENING_FUNCTION_URL / SUPABASE_SECRET_KEY not configured" },
-      { status: 500 }
-    );
-  }
-
-  const res = await fetch(functionUrl, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${secretKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ trigger_type: "manual", triggered_by: user.id }),
-  });
-
-  if (!res.ok) {
-    // The Edge Function's raw response body is an internal implementation
-    // detail (stack traces, Fyers/Supabase error payloads) and must not reach
-    // the browser -- log it server-side with a correlation ID and return only
-    // that ID, so a user can report it without us leaking upstream internals.
+    // Internals (project ids, API error payloads) never reach the browser: log
+    // with a correlation id and return only the id.
     const correlationId = crypto.randomUUID();
-    const text = await res.text().catch(() => "");
-    console.error(`[screening-runs] correlationId=${correlationId} upstream_status=${res.status} body=${text}`);
+    console.error(`[screening-runs] correlationId=${correlationId} job start failed:`, err);
     return NextResponse.json(
       { error: "The screening run could not be started. Please try again or contact support with this ID.", correlationId },
-      { status: 502 }
+      { status: 502 },
     );
   }
-
-  const body = await res.json().catch(() => ({}));
-  return NextResponse.json(body);
 }

@@ -1,4 +1,14 @@
-import { createClient } from "@/lib/supabase/server";
+import { currentViewer } from "../access.ts";
+import { chartUrl } from "../charts.ts";
+import { getDb } from "../db/pool.ts";
+import type { Tables } from "../database.types.ts";
+
+const LIKE_ESCAPE = "\\";
+
+/** Escapes LIKE/ILIKE wildcards so user input is matched literally (paired with `escape $2` in the SQL). */
+export function escapeLike(input: string): string {
+  return input.replace(/[\\%_]/g, (c) => LIKE_ESCAPE + c);
+}
 
 export type InstrumentSearchResult = {
   id: string;
@@ -10,23 +20,24 @@ export type InstrumentSearchResult = {
 
 /**
  * Symbol/name/id search over the `instruments` table for the /fome page's
- * autocomplete -- a plain server-side ilike query (never a live provider
- * call), so "don't call a provider on every keystroke" is satisfied
- * structurally (this only ever touches Supabase, never Fyers).
+ * autocomplete -- a plain server-side, parameterized ilike query (never a live
+ * provider call), so "don't call a provider on every keystroke" is satisfied
+ * structurally (this only ever touches our own database, never Fyers).
  */
 export async function searchInstruments(query: string, limit = 20): Promise<InstrumentSearchResult[]> {
   const trimmed = query.trim();
   if (trimmed.length === 0) return [];
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("instruments")
-    .select("id, symbol, name, exchange, is_index")
-    .or(`symbol.ilike.%${trimmed}%,name.ilike.%${trimmed}%,id.ilike.%${trimmed}%`)
-    .order("is_index", { ascending: false })
-    .order("symbol", { ascending: true })
-    .limit(limit);
-  if (error) throw error;
-  return (data ?? []).map((r) => ({ id: r.id, symbol: r.symbol, name: r.name, exchange: r.exchange, isIndex: r.is_index }));
+  await currentViewer();
+  const pattern = `%${escapeLike(trimmed.slice(0, 64))}%`;
+  const rows = await getDb().query<{ id: string; symbol: string; name: string | null; exchange: string; is_index: boolean }>(
+    `select id, symbol, name, exchange, is_index
+       from instruments
+      where symbol ilike $1 escape $2 or name ilike $1 escape $2 or id ilike $1 escape $2
+      order by is_index desc, symbol asc
+      limit $3`,
+    [pattern, LIKE_ESCAPE, Math.max(1, Math.min(50, Math.trunc(limit)))],
+  );
+  return rows.map((r) => ({ id: r.id, symbol: r.symbol, name: r.name, exchange: r.exchange, isIndex: r.is_index }));
 }
 
 export type InstrumentFomeSummary = {
@@ -50,22 +61,22 @@ export type InstrumentFomeSummary = {
  * report's disclosed limitation), and when/how fresh the last analysis was.
  */
 export async function getInstrumentFomeSummary(instrumentId: string): Promise<InstrumentFomeSummary | null> {
-  const supabase = await createClient();
-  const { data: instrument, error } = await supabase
-    .from("instruments")
-    .select("id, symbol, name, exchange, is_index")
-    .eq("id", instrumentId)
-    .maybeSingle();
-  if (error) throw error;
+  await currentViewer();
+  const db = getDb();
+  const instrument = await db.one<{ id: string; symbol: string; name: string | null; exchange: string; is_index: boolean }>(
+    `select id, symbol, name, exchange, is_index from instruments where id = $1`,
+    [instrumentId],
+  );
   if (!instrument) return null;
 
-  const { data: lastRun } = await supabase
-    .from("fome_analysis_runs")
-    .select("status, derivative_eligible, derivative_source, completed_at, data_quality")
-    .eq("instrument_id", instrumentId)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const lastRun = await db.one<Pick<Tables<"fome_analysis_runs">, "status" | "derivative_eligible" | "derivative_source" | "completed_at" | "data_quality">>(
+    `select status, derivative_eligible, derivative_source, completed_at, data_quality
+       from fome_analysis_runs
+      where instrument_id = $1
+      order by created_at desc
+      limit 1`,
+    [instrumentId],
+  );
 
   return {
     id: instrument.id,
@@ -184,27 +195,20 @@ export type FomeAnalysisResult = {
 
 /** Full nested fetch for one FOME analysis run -- backs both the polling API route and any future direct-link view. */
 export async function getFomeAnalysisResult(runId: string): Promise<FomeAnalysisResult | null> {
-  const supabase = await createClient();
-  const { data: run, error } = await supabase.from("fome_analysis_runs").select("*").eq("id", runId).maybeSingle();
-  if (error) throw error;
+  await currentViewer();
+  const db = getDb();
+  const run = await db.one<Tables<"fome_analysis_runs">>(`select * from fome_analysis_runs where id = $1`, [runId]);
   if (!run) return null;
 
-  const [{ data: timeframeRows }, { data: ruleTraceRows }, { data: candidateRows }, { data: newsRows }] = await Promise.all([
-    supabase.from("fome_timeframe_results").select("*").eq("analysis_run_id", runId),
-    supabase.from("fome_rule_traces").select("*").eq("analysis_run_id", runId).order("rule_id", { ascending: true }),
-    supabase.from("fome_strategy_candidates").select("*").eq("analysis_run_id", runId).order("rank", { ascending: true }),
-    supabase.from("fome_news_items").select("*").eq("analysis_run_id", runId).order("published_at", { ascending: false }),
+  const [timeframeRows, ruleTraceRows, candidateRows, newsRows] = await Promise.all([
+    db.query<Tables<"fome_timeframe_results">>(`select * from fome_timeframe_results where analysis_run_id = $1`, [runId]),
+    db.query<Tables<"fome_rule_traces">>(`select * from fome_rule_traces where analysis_run_id = $1 order by rule_id asc`, [runId]),
+    db.query<Tables<"fome_strategy_candidates">>(`select * from fome_strategy_candidates where analysis_run_id = $1 order by rank asc`, [runId]),
+    db.query<Tables<"fome_news_items">>(`select * from fome_news_items where analysis_run_id = $1 order by published_at desc`, [runId]),
   ]);
 
-  const chartPaths = (timeframeRows ?? []).map((r) => r.chart_object_path).filter((p): p is string => Boolean(p));
-  const signedUrlByPath = new Map<string, string>();
-  if (chartPaths.length > 0) {
-    const { data: signed } = await supabase.storage.from("direction-charts").createSignedUrls(chartPaths, 60 * 60);
-    for (const s of signed ?? []) if (s.path && s.signedUrl) signedUrlByPath.set(s.path, s.signedUrl);
-  }
-
   const timeframes: Record<string, FomeTimeframeRow> = {};
-  for (const r of timeframeRows ?? []) {
+  for (const r of timeframeRows) {
     timeframes[r.timeframe] = {
       timeframe: r.timeframe as FomeTimeframeRow["timeframe"],
       latestCompletedCandleAt: r.latest_completed_candle_at,
@@ -227,7 +231,7 @@ export async function getFomeAnalysisResult(runId: string): Promise<FomeAnalysis
       reusedFromRunId: r.reused_from_run_id,
       chartObjectPath: r.chart_object_path,
       chartContentHash: r.chart_content_hash,
-      chartUrl: r.chart_object_path ? (signedUrlByPath.get(r.chart_object_path) ?? null) : null,
+      chartUrl: r.chart_object_path ? chartUrl(r.chart_object_path) : null,
     };
   }
 
@@ -255,7 +259,7 @@ export async function getFomeAnalysisResult(runId: string): Promise<FomeAnalysis
     startedAt: run.started_at,
     completedAt: run.completed_at,
     timeframes,
-    ruleTraces: (ruleTraceRows ?? []).map((t) => ({
+    ruleTraces: ruleTraceRows.map((t) => ({
       id: t.id,
       ruleId: t.rule_id,
       ruleVersion: t.rule_version,
@@ -269,7 +273,7 @@ export async function getFomeAnalysisResult(runId: string): Promise<FomeAnalysis
       sourceLocator: t.source_locator,
       explanation: t.explanation,
     })),
-    strategyCandidates: (candidateRows ?? []).map((c) => ({
+    strategyCandidates: candidateRows.map((c) => ({
       rank: c.rank,
       strategyId: c.strategy_id,
       qualificationStatus: c.qualification_status,
@@ -288,7 +292,7 @@ export async function getFomeAnalysisResult(runId: string): Promise<FomeAnalysis
       roiPct: c.roi_pct,
       finalClassification: c.final_classification,
     })),
-    news: (newsRows ?? []).map((n) => ({
+    news: newsRows.map((n) => ({
       id: n.id,
       headline: n.headline,
       source: n.source,

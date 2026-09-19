@@ -1,8 +1,14 @@
+import { cache } from "react";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
-import type { Enums } from "@/lib/database.types";
+import { serverConfig } from "./config.ts";
+import { getDb } from "./db/pool.ts";
+import { findLinkedUser } from "./auth-profile.ts";
+import { resolveSessionUser } from "./session.ts";
+import { adminAuth } from "./firebase/admin.ts";
+import type { UserRole } from "./db/visibility.ts";
 
-export type UserRole = Enums<"user_role">;
+export type { UserRole } from "./db/visibility.ts";
 
 export type CurrentUser = {
   id: string;
@@ -21,26 +27,23 @@ export function roleAtLeast(role: UserRole, minimum: UserRole) {
   return ROLE_RANK[role] >= ROLE_RANK[minimum];
 }
 
-/** Returns null when signed out. Every authenticated page/route should redirect on null. */
-export async function getCurrentUser(): Promise<CurrentUser | null> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role, email")
-    .eq("id", user.id)
-    .single();
-
-  // A signed-in auth.users row always gets a profiles row via the
-  // handle_new_user trigger, so this only happens mid-race right after signup.
-  if (!profile) return { id: user.id, email: user.email ?? "", role: "viewer" };
-
-  return { id: user.id, email: profile.email, role: profile.role };
-}
+/**
+ * The verified user for this request, or null when signed out.
+ *
+ * The browser only ever presents an opaque session cookie. It is verified here
+ * with the Admin SDK (signature, expiry AND revocation), and the role is read
+ * from our own database on every request -- nothing about identity or
+ * authorization is trusted from the client. Every authenticated page / route /
+ * repository must go through this (directly or via ../access.ts).
+ */
+export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
+  const jar = await cookies(); // first: marks the render as request-time (never prerendered)
+  const cfg = serverConfig();
+  return resolveSessionUser(jar.get(cfg.SESSION_COOKIE_NAME)?.value, {
+    verify: (cookie) => adminAuth().verifySessionCookie(cookie, true), // signature, expiry AND revocation
+    find: (uid) => findLinkedUser(getDb(), uid),
+  });
+});
 
 /** Server Action / Route Handler guard: redirects to /login if signed out, throws if under-privileged. */
 export async function requireRole(minimum: UserRole): Promise<CurrentUser> {
@@ -50,4 +53,14 @@ export async function requireRole(minimum: UserRole): Promise<CurrentUser> {
     throw new Error(`This action requires the ${minimum} role or higher.`);
   }
   return user;
+}
+
+export type ApiAuthResult = { ok: true; user: CurrentUser } | { ok: false; status: 401 | 403; error: string };
+
+/** API-route variant of requireRole: never redirects, returns the HTTP status to send instead. */
+export async function authorizeApi(minimum: UserRole): Promise<ApiAuthResult> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, status: 401, error: "Sign in required." };
+  if (!roleAtLeast(user.role, minimum)) return { ok: false, status: 403, error: `This action requires the ${minimum} role or higher.` };
+  return { ok: true, user };
 }

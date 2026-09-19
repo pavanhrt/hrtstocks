@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getLatestPublishedRun, getRuleTracePage, getInstrument, getRuleDefinitionsByIds } from "@/lib/data/runs";
 import { getDirectionForInstrument } from "@/lib/data/direction";
-import { createClient } from "@/lib/supabase/server";
+import { getInstrumentRunResult } from "@/lib/data/runs";
 import { Badge } from "../../Badge";
 import ChartPreview from "../../ChartPreview";
 import { formatTimestamp, getPublishedRunMetadata } from "@/lib/data/run-metadata";
@@ -33,15 +33,9 @@ export default async function StockDetailPage({
   }
   const runMetadata = getPublishedRunMetadata(run as unknown as Parameters<typeof getPublishedRunMetadata>[0]);
 
-  const supabase = await createClient();
-  const [tracePage, { data: result }] = await Promise.all([
+  const [tracePage, result] = await Promise.all([
     getRuleTracePage(run.id, instrumentId, requestedTracePage),
-    supabase
-      .from("instrument_run_results")
-      .select("*")
-      .eq("run_id", run.id)
-      .eq("instrument_id", instrumentId)
-      .maybeSingle(),
+    getInstrumentRunResult(run.id, instrumentId),
   ]);
   const traces = tracePage.rows;
 

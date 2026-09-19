@@ -1,52 +1,28 @@
-import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from "@/lib/env";
 
-const PUBLIC_PATHS = ["/login", "/auth/callback", "/auth/reset-password"];
+// Optimistic gate only: it runs on the Edge runtime, which cannot verify a
+// session with the Admin SDK. It just sends visitors without a session cookie
+// to /login. The AUTHORITATIVE check is server-side -- getCurrentUser() in
+// lib/auth.ts (signature, expiry, revocation, invite-only profile) is required
+// by the (app) layout, every API route and every repository. Forging a cookie
+// value gets past this file but never past those.
+// /fyers/callback: the manual FYERS token flow lands here (public, does nothing with the query string).
+const PUBLIC_PATHS = ["/login", "/api/auth/session", "/api/auth/logout", "/api/health", "/fyers/callback"];
+const SESSION_COOKIE = process.env.SESSION_COOKIE_NAME || "__session";
 
-export async function middleware(request: NextRequest) {
-  let response = NextResponse.next({ request });
+export function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+  const isPublic = PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+  if (isPublic || request.cookies.has(SESSION_COOKIE)) return NextResponse.next();
 
-  const supabase = createServerClient(
-    SUPABASE_URL,
-    SUPABASE_ANON_KEY,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
-          response = NextResponse.next({ request });
-          cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
-        },
-      },
-    }
-  );
-
-  // Refresh the session if needed -- required for Server Components, which
-  // cannot write cookies themselves. Never remove this call.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  const isPublic = PUBLIC_PATHS.some((p) => request.nextUrl.pathname.startsWith(p));
-
-  if (!user && !isPublic) {
-    const loginUrl = request.nextUrl.clone();
-    loginUrl.pathname = "/login";
-    loginUrl.searchParams.set("next", request.nextUrl.pathname);
-    return NextResponse.redirect(loginUrl);
+  if (pathname.startsWith("/api/")) {
+    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
   }
-
-  if (user && request.nextUrl.pathname === "/login") {
-    const dashboardUrl = request.nextUrl.clone();
-    dashboardUrl.pathname = "/dashboard";
-    dashboardUrl.search = "";
-    return NextResponse.redirect(dashboardUrl);
-  }
-
-  return response;
+  const loginUrl = request.nextUrl.clone();
+  loginUrl.pathname = "/login";
+  loginUrl.search = "";
+  loginUrl.searchParams.set("next", pathname);
+  return NextResponse.redirect(loginUrl);
 }
 
 export const config = {

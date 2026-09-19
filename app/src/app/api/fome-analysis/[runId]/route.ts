@@ -1,34 +1,33 @@
 import { NextResponse } from "next/server";
-import { createClient as createServiceClient } from "@supabase/supabase-js";
+import { z } from "zod";
 import { getCurrentUser } from "@/lib/auth";
+import { getDb } from "@/lib/db/pool";
 import { getFomeAnalysisResult } from "@/lib/data/fome";
-import { SUPABASE_URL } from "@/lib/env";
+import { claimNewsStage, finishNewsStage, getInstrumentForNews, insertNewsItems } from "@/lib/data/fome-runs";
 import { fetchNewsArticles } from "@/lib/news/rss";
 import { findAndClassifyInstrumentNews, classifyRunNewsRelevance, type TechnicalDirection } from "@/lib/news/fome-relevance";
 
-// GET /api/fome-analysis/{runId} -- the /fome page's polling endpoint.
+const RunId = z.string().uuid();
+
+// GET /api/fome-analysis/{runId} -- the /fome page polling endpoint.
 //
-// News hand-off (stage 7 of the page's 10-step progress, "Retrieving news"):
-// the fome-analysis Edge Function (Deno) does NOT fetch news itself -- this
-// project's existing news infrastructure (lib/news/rss.ts) depends on the
-// `rss-parser` npm package, which has no confirmed Deno-compatible
-// equivalent in this project, so re-implementing RSS parsing a second time
-// for one Edge Function was rejected in favor of reusing the existing
-// Node-side infrastructure from here instead. The first poll that observes
-// a terminal technical result (completed/partial) with `news_relevance`
-// still null claims the news step (an atomic conditional UPDATE guards
-// against two concurrent polls both fetching news), fetches + classifies +
-// persists it using the project's own service-role secret (already
-// server-only in this codebase, same key api/screening-runs/route.ts,
-// api/buy-setup-analysis/route.ts, and api/fome-analysis/route.ts already
-// hold), then serves the merged result.
-export async function GET(req: Request, { params }: { params: Promise<{ runId: string }> }) {
+// News hand-off (stage 7 of the page 10-step progress, "Retrieving news"):
+// the FOME job does not fetch news itself; the news infrastructure
+// (lib/news/rss.ts) lives in this Node app. The first poll that observes a
+// terminal technical result (completed/partial) with `news_relevance` still
+// null claims the news step (an atomic conditional UPDATE guards against two
+// concurrent polls both fetching news), fetches + classifies + persists it,
+// then serves the merged result.
+export async function GET(_req: Request, { params }: { params: Promise<{ runId: string }> }) {
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ error: "Sign in required." }, { status: 401 });
   }
 
-  const { runId } = await params;
+  const parsedId = RunId.safeParse((await params).runId);
+  if (!parsedId.success) return NextResponse.json({ error: "Analysis run not found." }, { status: 404 });
+  const runId = parsedId.data;
+
   let result = await getFomeAnalysisResult(runId);
   if (!result) {
     return NextResponse.json({ error: "Analysis run not found." }, { status: 404 });
@@ -36,7 +35,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ runId: s
 
   const technicalDone = result.status === "completed" || result.status === "partial";
   if (technicalDone && result.newsRelevance == null) {
-    const claimed = await claimNewsStage(runId);
+    const claimed = await claimNewsStage(getDb(), runId);
     if (claimed) {
       await appendNews(runId, result);
       result = await getFomeAnalysisResult(runId);
@@ -44,32 +43,6 @@ export async function GET(req: Request, { params }: { params: Promise<{ runId: s
   }
 
   return NextResponse.json({ result });
-}
-
-function serviceClient() {
-  const secretKey = process.env.SUPABASE_SECRET_KEY;
-  if (!secretKey) return null;
-  return createServiceClient(SUPABASE_URL, secretKey, { auth: { persistSession: false } });
-}
-
-/**
- * Atomic-ish claim so two near-simultaneous polls never both fetch/insert
- * news for the same run: only succeeds (returns true) when this call is the
- * one that actually flips current_stage from its post-technical-analysis
- * value to "retrieving_news" -- a second concurrent call finds the stage
- * already changed and does nothing.
- */
-async function claimNewsStage(runId: string): Promise<boolean> {
-  const service = serviceClient();
-  if (!service) return false;
-  const { data } = await service
-    .from("fome_analysis_runs")
-    .update({ current_stage: "retrieving_news" })
-    .eq("id", runId)
-    .neq("current_stage", "retrieving_news")
-    .is("news_relevance", null)
-    .select("id");
-  return (data?.length ?? 0) > 0;
 }
 
 function deriveTechnicalDirection(finalAlignment: string | null): TechnicalDirection {
@@ -80,39 +53,32 @@ function deriveTechnicalDirection(finalAlignment: string | null): TechnicalDirec
 }
 
 async function appendNews(runId: string, result: NonNullable<Awaited<ReturnType<typeof getFomeAnalysisResult>>>) {
-  const service = serviceClient();
-  if (!service) return; // no secret key configured -- leave news_relevance null; the page shows NEWS_UNAVAILABLE
-
+  const db = getDb();
   let relevance = "NEWS_UNAVAILABLE";
   try {
-    const { data: instrument } = await service
-      .from("instruments")
-      .select("id, symbol, name")
-      .eq("id", result.instrumentId)
-      .maybeSingle();
-
+    const instrument = await getInstrumentForNews(db, result.instrumentId);
     if (instrument) {
       const articles = await fetchNewsArticles();
       const direction = deriveTechnicalDirection(result.finalAlignment);
       const classified = findAndClassifyInstrumentNews(
         articles,
         { instrumentId: instrument.id, symbol: instrument.symbol, name: instrument.name },
-        direction
+        direction,
       );
-
       if (classified.length > 0) {
-        await service.from("fome_news_items").insert(
+        await insertNewsItems(
+          db,
+          runId,
           classified.map((c) => ({
-            analysis_run_id: runId,
             headline: c.headline,
             source: c.source,
-            published_at: c.publishedAt,
+            publishedAt: c.publishedAt,
             url: c.url,
-            event_category: c.eventCategory,
+            eventCategory: c.eventCategory,
             relevance: c.relevance,
             confidence: c.confidence,
             explanation: c.explanation,
-          }))
+          })),
         );
       }
       relevance = classifyRunNewsRelevance(classified);
@@ -121,9 +87,5 @@ async function appendNews(runId: string, result: NonNullable<Awaited<ReturnType<
     console.error(`[fome-analysis news] run=${runId} failed:`, err);
     relevance = "NEWS_UNAVAILABLE";
   }
-
-  await service
-    .from("fome_analysis_runs")
-    .update({ news_relevance: relevance, current_stage: "saving_and_presenting_result" })
-    .eq("id", runId);
+  await finishNewsStage(db, runId, relevance);
 }

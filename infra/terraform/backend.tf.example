@@ -1,0 +1,16 @@
+# Remote state (recommended before the first real apply). Copy to backend.tf (git-ignored is not
+# needed: it contains no secrets, but the bucket must exist and be private).
+#
+# Terraform state holds no credential (no secret value is ever written by Terraform), but it does list every
+# resource: keep the bucket private (uniform access, public access prevention), limited to the administrators.
+#
+#   gcloud storage buckets create gs://<project-id>-tfstate --location=asia-south1 \
+#     --uniform-bucket-level-access --public-access-prevention
+#   gcloud storage buckets update gs://<project-id>-tfstate --versioning
+#
+# terraform {
+#   backend "gcs" {
+#     bucket = "<project-id>-tfstate"
+#     prefix = "hrtstocks/qa"
+#   }
+# }

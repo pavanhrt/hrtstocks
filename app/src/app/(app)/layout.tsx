@@ -3,23 +3,24 @@ import { getCurrentUser } from "@/lib/auth";
 import SignOutButton from "./SignOutButton";
 import Nav from "./Nav";
 
+// Every page in this group is per-user (session-dependent) and must never be
+// prerendered or cached across users.
+export const dynamic = "force-dynamic";
+
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
   const links = [
     { href: "/dashboard", label: "Dashboard" },
-    { href: "/buy-signals", label: "Buy signals" },
     { href: "/buy-setup-analysis", label: "Buy setup analysis" },
     { href: "/fome", label: "FOME" },
-    { href: "/sell-signals", label: "Sell signals" },
     { href: "/analysis", label: "Analysis" },
     { href: "/direction", label: "Direction" },
     { href: "/indexes", label: "Indexes" },
     { href: "/stocks", label: "Stock ledger" },
     { href: "/news", label: "News" },
     { href: "/strategies", label: "Strategies" },
-    { href: "/backtests", label: "Backtests" },
     { href: "/data-health", label: "Data health" },
   ];
 

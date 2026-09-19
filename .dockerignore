@@ -1,0 +1,20 @@
+# Build context for services/pipeline/Dockerfile is the repository root: keep it small and secret-free.
+**/node_modules
+**/.next
+**/.env
+**/.env.*
+!**/.env.example
+.git
+archive
+source-documents
+references
+docs
+skills
+templates
+app
+infra
+supabase
+**/*.test.js
+**/*.test.mjs
+**/*.tfstate*
+**/*.tfvars

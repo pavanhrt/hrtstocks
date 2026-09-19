@@ -19,7 +19,7 @@ provenance:
       the explicit criteria being the component list, weights, and thresholds
       the user supplied directly in this session.
     independence_guarantee: >
-      This scoring engine (supabase/functions/fundamentals/scoring.js) takes
+      This scoring engine (services/pipeline/src/fundamentals/scoring.js) takes
       only a FundamentalMetrics object as input -- a type that has no field
       for price, volume, EMA, RSI, MACD, Bollinger Bands, DMI/ADX, Dow
       structure, chart pattern, candlestick pattern, breakout, or GUE wave

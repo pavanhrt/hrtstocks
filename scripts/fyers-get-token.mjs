@@ -12,8 +12,10 @@
 //      URL (the page itself will likely 404 -- that's fine, we only need the
 //      URL bar). Copy the full URL (or just the auth_code value).
 //   3. FYERS_APP_ID=... FYERS_SECRET_KEY=... node scripts/fyers-get-token.mjs "<paste auth_code or full redirect URL>"
-//      -> prints that day's access token. Store it as FYERS_ACCESS_TOKEN in
-//      the Supabase run-screening Edge Function secrets, then trigger a run.
+//      -> prints that day's access token. Store it as the FYERS_ACCESS_TOKEN
+//      secret (Secret Manager in deployed environments, an ignored local env
+//      file for development) -- see docs/gcp/runbooks/fyers-token.md -- then
+//      trigger a run. The token is printed once and never written to disk here.
 //
 // Endpoints per Fyers API v3 (api-t1.fyers.in) -- see
 // https://myapi.fyers.in/dashboard for app management.
@@ -42,11 +44,12 @@ export function parseAuthCode(arg) {
 async function main() {
   const appId = process.env.FYERS_APP_ID;
   const secretKey = process.env.FYERS_SECRET_KEY;
-  const redirectUri =
-    process.env.FYERS_REDIRECT_URI ?? "https://hrtstocksdev.netlify.app/auth/callback";
+  // The redirect URI must match the one registered on the FYERS app exactly;
+  // it is configuration, never a hard-coded hostname.
+  const redirectUri = process.env.FYERS_REDIRECT_URI;
 
-  if (!appId || !secretKey) {
-    console.error("Set FYERS_APP_ID and FYERS_SECRET_KEY in the environment first.");
+  if (!appId || !secretKey || !redirectUri) {
+    console.error("Set FYERS_APP_ID, FYERS_SECRET_KEY and FYERS_REDIRECT_URI (as registered on the FYERS app) in the environment first.");
     return 1;
   }
 
@@ -101,7 +104,7 @@ async function main() {
   console.log("\nAccess token (valid until end of trading day):\n");
   console.log(body.access_token);
   console.log(
-    "\nStore this as FYERS_ACCESS_TOKEN in the Supabase run-screening Edge Function secrets, then trigger a fresh run."
+    "\nStore this as the FYERS_ACCESS_TOKEN secret (see docs/gcp/runbooks/fyers-token.md), then trigger a fresh run."
   );
   return 0;
 }

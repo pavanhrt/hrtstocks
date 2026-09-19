@@ -1,11 +1,13 @@
-import { createClient } from "@/lib/supabase/server";
-import { getLatestPublishedRun } from "@/lib/data/runs";
-import { getPublishedRunMetadata } from "@/lib/data/run-metadata";
-import { FINAL_ALIGNMENT_VALUES, resolveDirectionAlignment, type FinalAlignment } from "@/lib/data/direction-shared";
+import { currentViewer } from "../access.ts";
+import { chartUrl } from "../charts.ts";
+import { getDb } from "../db/pool.ts";
+import { isStaff, runVisibleSql } from "../db/visibility.ts";
+import { getLatestPublishedRun } from "./runs.ts";
+import { getPublishedRunMetadata } from "./run-metadata.ts";
+import { FINAL_ALIGNMENT_VALUES, resolveDirectionAlignment, type FinalAlignment } from "./direction-shared.ts";
 
 export { FINAL_ALIGNMENT_VALUES, type FinalAlignment };
 
-const SIGNED_URL_TTL_SECONDS = 60 * 60; // 1 hour -- regenerated on every page load, not cached
 export const DIRECTION_PAGE_SIZE = 25;
 
 export type DirectionRow = {
@@ -73,18 +75,32 @@ export async function getDirectionPage({
   const runCutoff = getPublishedRunMetadata(
     run as unknown as Parameters<typeof getPublishedRunMetadata>[0]
   ).cutoff;
-  const supabase = await createClient();
+  const viewer = await currentViewer();
+  const staff = isStaff(viewer);
+  const db = getDb();
 
-  const [{ data: ledgerRows, error: ledgerError }, { data: alignmentRows, error: alignmentError }] = await Promise.all([
-    supabase
-      .from("instrument_run_results")
-      .select("instrument_id, terminal_state, tier, data_quality, instruments!inner(symbol, name, is_index)")
-      .eq("run_id", run.id)
-      .eq("is_index", false),
-    supabase.from("instrument_alignment").select("instrument_id, final_alignment, computed_at").eq("run_id", run.id),
+  const [ledgerRows, alignmentRows] = await Promise.all([
+    db.query<{
+      instrument_id: string;
+      terminal_state: string;
+      tier: string | null;
+      data_quality: string | null;
+      instruments: { symbol: string; name: string | null; is_index: boolean };
+    }>(
+      `select r.instrument_id, r.terminal_state, r.tier, r.data_quality,
+              json_build_object('symbol', i.symbol, 'name', i.name, 'is_index', i.is_index) as instruments
+         from instrument_run_results r
+         join instruments i on i.id = r.instrument_id
+        where r.run_id = $1 and r.is_index = false and ${runVisibleSql("r", "$2")}`,
+      [run.id, staff],
+    ),
+    db.query<{ instrument_id: string; final_alignment: FinalAlignment; computed_at: string }>(
+      `select a.instrument_id, a.final_alignment, a.computed_at
+         from instrument_alignment a
+        where a.run_id = $1 and ${runVisibleSql("a", "$2")}`,
+      [run.id, staff],
+    ),
   ]);
-  if (ledgerError) throw ledgerError;
-  if (alignmentError) throw alignmentError;
 
   type LedgerRow = {
     instrument_id: string;
@@ -94,7 +110,7 @@ export async function getDirectionPage({
     instruments: { symbol: string; name: string | null; is_index: boolean };
   };
   type AlignmentRow = { instrument_id: string; final_alignment: FinalAlignment; computed_at: string };
-  const alignmentById = new Map(((alignmentRows ?? []) as AlignmentRow[]).map((row) => [row.instrument_id, row]));
+  const alignmentById = new Map((alignmentRows as AlignmentRow[]).map((row) => [row.instrument_id, row]));
   const fallbackAlignment = (row: LedgerRow): FinalAlignment => resolveDirectionAlignment({
     persisted: alignmentById.get(row.instrument_id)?.final_alignment,
     terminalState: row.terminal_state,
@@ -102,7 +118,7 @@ export async function getDirectionPage({
     dataQuality: row.data_quality,
   });
   const normalizedQuery = query.trim().toLocaleLowerCase();
-  const filtered = ((ledgerRows ?? []) as unknown as LedgerRow[])
+  const filtered = (ledgerRows as unknown as LedgerRow[])
     .filter((row) => !row.instruments.is_index)
     .filter((row) =>
       normalizedQuery
@@ -121,31 +137,38 @@ export async function getDirectionPage({
     return { runId: run.id, runDate: run.run_date, runCutoff, rows: [], totalCount, page: safePage, pageSize: safePageSize, pageCount };
   }
 
-  const [directionResponse, waveResponse, patternResponse] = await Promise.all([
-    supabase
-      .from("instrument_direction_runs")
-      .select("instrument_id, timeframe, dow_state, chart_object_path, data_quality, computed_at")
-      .eq("run_id", run.id)
-      .in("instrument_id", instrumentIds),
-    supabase
-      .from("elliott_hypotheses")
-      .select("instrument_id, timeframe, structure_type, current_wave, wave_state, confidence, invalidation_price")
-      .eq("run_id", run.id)
-      .eq("rank", "primary")
-      .in("instrument_id", instrumentIds),
-    supabase
-      .from("pattern_detections")
-      .select("instrument_id, timeframe, pattern_name, direction, state")
-      .eq("run_id", run.id)
-      .in("instrument_id", instrumentIds)
-      .in("state", ["TRIGGERED", "OBSERVED", "MANUAL_REVIEW"]),
+  const [directionRows, waveRows, patternRows] = await Promise.all([
+    db.query<DirectionRow>(
+      `select d.instrument_id, d.timeframe, d.dow_state, d.chart_object_path, d.data_quality, d.computed_at
+         from instrument_direction_runs d
+        where d.run_id = $1 and d.instrument_id = any($2::text[]) and ${runVisibleSql("d", "$3")}`,
+      [run.id, instrumentIds, staff],
+    ),
+    db.query<{
+      instrument_id: string;
+      timeframe: string;
+      structure_type: string;
+      current_wave: string;
+      wave_state: string;
+      confidence: string;
+      invalidation_price: number | null;
+    }>(
+      `select e.instrument_id, e.timeframe, e.structure_type, e.current_wave, e.wave_state, e.confidence, e.invalidation_price
+         from elliott_hypotheses e
+        where e.run_id = $1 and e.rank = 'primary' and e.instrument_id = any($2::text[]) and ${runVisibleSql("e", "$3")}`,
+      [run.id, instrumentIds, staff],
+    ),
+    db.query<{ instrument_id: string; timeframe: string; pattern_name: string; direction: string; state: string }>(
+      `select p.instrument_id, p.timeframe, p.pattern_name, p.direction, p.state
+         from pattern_detections p
+        where p.run_id = $1 and p.instrument_id = any($2::text[])
+          and p.state in ('TRIGGERED', 'OBSERVED', 'MANUAL_REVIEW') and ${runVisibleSql("p", "$3")}`,
+      [run.id, instrumentIds, staff],
+    ),
   ]);
-  if (directionResponse.error) throw directionResponse.error;
-  if (waveResponse.error) throw waveResponse.error;
-  if (patternResponse.error) throw patternResponse.error;
 
   const waveByKey = new Map<string, DirectionRow["wave"]>();
-  for (const wave of waveResponse.data ?? []) {
+  for (const wave of waveRows) {
     waveByKey.set(`${wave.instrument_id}:${wave.timeframe}`, {
       structureType: wave.structure_type,
       currentWave: wave.current_wave,
@@ -156,30 +179,20 @@ export async function getDirectionPage({
   }
 
   const directionByInstrument = new Map<string, DirectionRow[]>();
-  for (const raw of (directionResponse.data ?? []) as unknown as DirectionRow[]) {
+  for (const raw of directionRows) {
     const row = { ...raw, wave: waveByKey.get(`${raw.instrument_id}:${raw.timeframe}`) ?? null };
     if (!directionByInstrument.has(row.instrument_id)) directionByInstrument.set(row.instrument_id, []);
     directionByInstrument.get(row.instrument_id)!.push(row);
   }
 
   const patternsByInstrument = new Map<string, StockDirection["patterns"]>();
-  for (const pattern of patternResponse.data ?? []) {
+  for (const pattern of patternRows) {
     const current = patternsByInstrument.get(pattern.instrument_id) ?? [];
     current.push({ name: pattern.pattern_name, direction: pattern.direction, state: pattern.state, timeframe: pattern.timeframe });
     patternsByInstrument.set(pattern.instrument_id, current);
   }
 
-  // Lazy charts (#25): only this page's rows ever get a signed URL request,
-  // not the whole universe's.
-  const paths = [...new Set((directionResponse.data ?? []).map((r) => r.chart_object_path).filter((p): p is string => !!p))];
-  const signedUrlByPath = new Map<string, string>();
-  if (paths.length > 0) {
-    const { data: signed } = await supabase.storage.from("direction-charts").createSignedUrls(paths, SIGNED_URL_TTL_SECONDS);
-    for (const s of signed ?? []) {
-      if (s.path && s.signedUrl) signedUrlByPath.set(s.path, s.signedUrl);
-    }
-  }
-
+  // Charts are served by the authenticated /api/charts route; only this page's rows get URLs.
   const rows: StockDirection[] = rowsIn.map((r) => {
     const timeframes: DirectionByTimeframe = { daily: null, weekly: null, monthly: null };
     const chartUrls: StockDirection["chartUrls"] = { daily: null, weekly: null, monthly: null };
@@ -187,7 +200,7 @@ export async function getDirectionPage({
 
     for (const row of directionByInstrument.get(r.instrument_id) ?? []) {
       timeframes[row.timeframe] = row;
-      chartUrls[row.timeframe] = row.chart_object_path ? signedUrlByPath.get(row.chart_object_path) ?? null : null;
+      chartUrls[row.timeframe] = row.chart_object_path ? chartUrl(row.chart_object_path) : null;
       if (!updatedAt || row.computed_at > updatedAt) updatedAt = row.computed_at;
     }
 

@@ -1,4 +1,4 @@
-// TypeScript port of supabase/functions/run-screening/pipeline/group-issues.js
+// TypeScript port of services/pipeline/src/run-screening/pipeline/group-issues.js
 // for the Data Health page -- kept as a small, independent copy rather than
 // an import across the Next.js app / Deno Edge Function boundary (different
 // module systems, different project roots). Same grouping behavior: groups

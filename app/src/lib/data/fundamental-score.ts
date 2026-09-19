@@ -1,5 +1,7 @@
-import { createClient } from "@/lib/supabase/server";
-import { getLatestPublishedRun } from "@/lib/data/runs";
+import { currentViewer } from "../access.ts";
+import { getDb } from "../db/pool.ts";
+import { isStaff } from "../db/visibility.ts";
+import { getLatestPublishedRun } from "./runs.ts";
 
 // Fundamental Analysis Score detail -- a completely independent research
 // overlay (fundamentals/fundamental-score.yaml, PROJECT_DEFAULT). This file
@@ -59,51 +61,34 @@ type AnyRow = Record<string, unknown>;
 export async function getFundamentalScoreDetail(instrumentId: string): Promise<FundamentalScoreDetail | null> {
   const run = await getLatestPublishedRun();
   if (!run) return null;
-  const supabase = await createClient();
-
-  const KNOWN_PRE_MIGRATION_CODES = new Set(["PGRST205", "42703", "42P01"]);
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- pre-type-generation: fundamental_* tables don't exist in database.types.ts until migration 0014 is applied.
-  const supabaseUntyped = supabase as any;
+  const viewer = await currentViewer();
+  const staff = isStaff(viewer);
+  const db = getDb();
 
   // Look up the immutable binding for THIS run/instrument -- not an
   // independent "latest cutoff" query -- so this can never disagree with
-  // buy_setup_analysis_ledger's own join.
-  const { data: bindingRow, error: bindingError } = await supabaseUntyped
-    .from("buy_setup_fundamental_score_bindings")
-    .select("fundamental_score_result_id")
-    .eq("run_id", run.id)
-    .eq("instrument_id", instrumentId)
-    .maybeSingle();
-  if (bindingError) {
-    if (KNOWN_PRE_MIGRATION_CODES.has(bindingError.code)) return null;
-    throw bindingError;
-  }
-  if (!bindingRow) return null; // no binding yet for this run/instrument -- genuine NO_DATA, not an error
-
-  const { data: resultRow, error: resultError } = await supabaseUntyped
-    .from("fundamental_score_results")
-    .select("*")
-    .eq("id", (bindingRow as AnyRow).fundamental_score_result_id as number)
-    .maybeSingle();
-  if (resultError) {
-    if (KNOWN_PRE_MIGRATION_CODES.has(resultError.code)) return null;
-    throw resultError;
-  }
+  // buy_setup_analysis_ledger's own join. Visibility (former RLS): the bound
+  // result must belong to a published refresh manifest unless the viewer is staff.
+  const resultRow = await db.one<AnyRow>(
+    `select r.*
+       from buy_setup_fundamental_score_bindings b
+       join fundamental_score_results r on r.id = b.fundamental_score_result_id
+       left join fundamental_refresh_manifests m on m.id = r.refresh_manifest_id
+      where b.run_id = $1 and b.instrument_id = $2
+        and ($3::boolean or m.refresh_state = 'published')`,
+    [run.id, instrumentId, staff],
+  );
+  // No binding for this run/instrument (or not visible to this viewer) --
+  // genuine NO_DATA, not an error.
   if (!resultRow) return null;
-  const result = resultRow as unknown as AnyRow;
+  const result = resultRow;
 
-  const { data: componentRows, error: componentError } = await supabaseUntyped
-    .from("fundamental_score_components")
-    .select("*")
-    .eq("score_result_id", result.id as number);
-  // Never silently swallow a real query error -- a Viewer legitimately
-  // getting zero rows back from RLS is not an error (componentError is null
-  // in that case); an actual failure must surface, not render as if the
-  // instrument simply had no components.
-  if (componentError && !KNOWN_PRE_MIGRATION_CODES.has(componentError.code)) throw componentError;
+  const componentRows = await db.query<AnyRow>(
+    `select * from fundamental_score_components where score_result_id = $1`,
+    [result.id as number],
+  );
 
-  const components: FundamentalComponentEvidence[] = ((componentRows ?? []) as unknown as AnyRow[]).map((c) => ({
+  const components: FundamentalComponentEvidence[] = componentRows.map((c) => ({
     key: c.component_key as string,
     name: c.component_name as string,
     weight: c.weight as number,

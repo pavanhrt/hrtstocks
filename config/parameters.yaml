@@ -123,7 +123,7 @@ project_defaults_requiring_backtest:
 # specific value. They were previously null under
 # project_defaults_requiring_backtest above (unresolved, no code depended on
 # them); moving them here does not change their provenance label, it only
-# resolves the number now that supabase/functions/run-screening/buy-setup/
+# resolves the number now that services/pipeline/src/run-screening/buy-setup/
 # needs one.
 buy_setup_analysis_defaults:
   # Pivot confirmation window for daily support/resistance and channel

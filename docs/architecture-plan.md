@@ -1,3 +1,6 @@
+> **Historical document.** Written before the Google Cloud port; paths such as `supabase/functions/...` and `supabase/migrations/...` refer to the original
+> hosted-platform layout, which was removed. The current locations are `services/pipeline/src/...` and `db/migrations/` ([docs/gcp/README.md](gcp/README.md)).
+
 # Direction/Analysis rebuild — lead-agent architecture plan
 
 Status: **Phase 3 (Direction intelligence rewrite) — complete; Phase 2 (durable pipeline) — 1-hour

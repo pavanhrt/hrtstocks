@@ -3,7 +3,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { searchInstruments } from "@/lib/data/fome";
 
 // GET /api/instruments/search?q=... -- backs the /fome page's autocomplete.
-// A plain Supabase ilike query, never a provider (Fyers) call.
+// A plain parameterized ilike query, never a provider (Fyers) call.
 export async function GET(req: Request) {
   const user = await getCurrentUser();
   if (!user) {
@@ -11,7 +11,7 @@ export async function GET(req: Request) {
   }
 
   const { searchParams } = new URL(req.url);
-  const q = searchParams.get("q") ?? "";
+  const q = (searchParams.get("q") ?? "").slice(0, 64);
   if (q.trim().length === 0) {
     return NextResponse.json({ results: [] });
   }

@@ -1,0 +1,17 @@
+{
+  "hosting": {
+    "site": "${FIREBASE_SITE_ID}",
+    "public": "public",
+    "cleanUrls": false,
+    "trailingSlash": false,
+    "rewrites": [
+      {
+        "source": "**",
+        "run": {
+          "serviceId": "${CLOUD_RUN_SERVICE_ID}",
+          "region": "${CLOUD_RUN_REGION}"
+        }
+      }
+    ]
+  }
+}

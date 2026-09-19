@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { getCurrentUser } from "@/lib/auth";
 import { getStockLedger } from "@/lib/data/runs";
 
@@ -9,13 +10,14 @@ function csvEscape(value: unknown): string {
 
 // GET /api/export/stocks?runId=... -- exportable complete ledger (per spec:
 // "A ranked shortlist never replaces the complete all-stock ledger", so this
-// exports every row RLS returns for the run, not just Tier A/B.
+// exports every row visible to the caller for the run, not just Tier A/B.
 export async function GET(request: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
 
-  const runId = new URL(request.url).searchParams.get("runId");
-  if (!runId) return NextResponse.json({ error: "runId is required" }, { status: 400 });
+  const parsedRunId = z.string().uuid().safeParse(new URL(request.url).searchParams.get("runId"));
+  if (!parsedRunId.success) return NextResponse.json({ error: "A valid runId is required" }, { status: 400 });
+  const runId = parsedRunId.data;
 
   const rows = await getStockLedger(runId);
 

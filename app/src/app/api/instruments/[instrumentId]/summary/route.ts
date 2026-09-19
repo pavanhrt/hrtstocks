@@ -11,6 +11,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ instrum
   }
 
   const { instrumentId } = await params;
+  if (!instrumentId || instrumentId.length > 64) return NextResponse.json({ error: "Unknown instrument." }, { status: 404 });
   const summary = await getInstrumentFomeSummary(instrumentId);
   if (!summary) {
     return NextResponse.json({ error: "Unknown instrument." }, { status: 404 });

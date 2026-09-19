@@ -1,0 +1,76 @@
+name: Deploy
+
+# Deploys CODE to Cloud Run. Infrastructure is applied separately by an administrator with
+# Terraform (infra/terraform); this workflow never creates or changes infrastructure and never touches the
+# database: schema migrations and the system seed are applied deliberately by the operator
+# (docs/gcp/runbooks/qa-deployment.md), so this identity has no database access at all.
+#
+# Authentication is Workload Identity Federation: GitHub issues a short-lived OIDC token, Google
+# exchanges it for short-lived credentials for the deployer service account. There is NO stored
+# key or secret. The provider only trusts this repository, the approved branches and jobs running in the
+# approved GitHub environment (see wif.tf).
+#
+# Configure these repository VARIABLES (not secrets; none of them is sensitive):
+#   GCP_PROJECT_ID, GCP_REGION, GCP_WORKLOAD_IDENTITY_PROVIDER, GCP_DEPLOYER_SERVICE_ACCOUNT,
+#   ARTIFACT_REPOSITORY (e.g. hrtstocks-qa), NAME_PREFIX (e.g. hrtstocks-qa),
+#   FIREBASE_API_KEY, FIREBASE_AUTH_DOMAIN (public web identifiers)
+# The `qa` environment should require a reviewer so every deploy is approved.
+on:
+  workflow_dispatch:
+  push:
+    branches: [develop_gcloud]
+
+permissions:
+  contents: read
+  id-token: write # required to mint the OIDC token used by Workload Identity Federation
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: qa
+    env:
+      REGISTRY: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.ARTIFACT_REPOSITORY }}
+      TAG: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOYER_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker "${{ vars.GCP_REGION }}-docker.pkg.dev" --quiet
+
+      - name: Build and push the pipeline image
+        run: |
+          docker build -f services/pipeline/Dockerfile -t "$REGISTRY/pipeline:$TAG" .
+          docker push "$REGISTRY/pipeline:$TAG"
+
+      - name: Build and push the web app image
+        run: |
+          docker build \
+            --build-arg NEXT_PUBLIC_FIREBASE_PROJECT_ID="${{ vars.GCP_PROJECT_ID }}" \
+            --build-arg NEXT_PUBLIC_FIREBASE_API_KEY="${{ vars.FIREBASE_API_KEY }}" \
+            --build-arg NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN="${{ vars.FIREBASE_AUTH_DOMAIN }}" \
+            -t "$REGISTRY/app:$TAG" app
+          docker push "$REGISTRY/app:$TAG"
+
+      - name: Update pipeline jobs
+        run: |
+          for job in screening buy-setup fome; do
+            gcloud run jobs update "${{ vars.NAME_PREFIX }}-$job" \
+              --region "${{ vars.GCP_REGION }}" --image "$REGISTRY/pipeline:$TAG"
+          done
+
+      - name: Deploy the web app
+        run: |
+          gcloud run deploy "${{ vars.NAME_PREFIX }}-app" \
+            --region "${{ vars.GCP_REGION }}" --image "$REGISTRY/app:$TAG"

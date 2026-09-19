@@ -1,0 +1,40 @@
+# Local development services. Nothing here touches Google Cloud, so local
+# development costs nothing and needs no cloud credentials.
+#
+#   docker compose up -d           # PostgreSQL + Cloud Storage emulator
+#   npm run db:migrate             # DATABASE_URL from .env (see app/.env.example)
+#
+# Firebase Authentication emulator (no image needed; runs via firebase-tools):
+#   npx firebase-tools emulators:start --only auth      # uses firebase.json
+name: hrtstocks
+
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: hrt
+      POSTGRES_PASSWORD: hrt_local_only # local-only throwaway credential; never reused anywhere
+      POSTGRES_DB: hrtstocks
+    ports:
+      - "127.0.0.1:5432:5432" # loopback only
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hrt -d hrtstocks"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Cloud Storage emulator (fsouza/fake-gcs-server). Point the app and jobs at it with
+  # STORAGE_EMULATOR_HOST=localhost:4443 and CHART_BUCKET=local-charts.
+  gcs:
+    image: fsouza/fake-gcs-server:1.52
+    command: ["-scheme", "http", "-port", "4443", "-public-host", "localhost:4443", "-backend", "filesystem", "-filesystem-root", "/storage", "-default-bucket", "local-charts"]
+    ports:
+      - "127.0.0.1:4443:4443"
+    volumes:
+      - gcsdata:/storage
+
+volumes:
+  pgdata:
+  gcsdata:

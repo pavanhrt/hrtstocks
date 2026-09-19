@@ -1,5 +1,8 @@
-import { createClient } from "@/lib/supabase/server";
-import { expectedAlignment, isAnalysisMember, type AnalysisHypothesis } from "@/lib/data/analysis-membership";
+import { currentViewer } from "../access.ts";
+import { chartUrl } from "../charts.ts";
+import { getDb } from "../db/pool.ts";
+import { isStaff, runVisibleSql } from "../db/visibility.ts";
+import { expectedAlignment, isAnalysisMember, type AnalysisHypothesis } from "./analysis-membership.ts";
 
 export const WBP_GATE_ORDER = ["WBP-M1", "WBP-M2", "WBP-M3", "WBP-M4", "WBP-M5", "WBP-M6", "WBP-M7", "WBP-M8"] as const;
 export const WSP_GATE_ORDER = ["WSP-S1", "WSP-S2", "WSP-S3", "WSP-S4", "WSP-S5", "WSP-S6", "WSP-S7", "WSP-S8"] as const;
@@ -7,7 +10,7 @@ export const WBP_AUTOMATED_GATES = WBP_GATE_ORDER.slice(0, 4);
 export const WSP_AUTOMATED_GATES = WSP_GATE_ORDER.slice(0, 4);
 export const ANALYSIS_PAGE_SIZE = 20;
 
-export type { AnalysisHypothesis } from "@/lib/data/analysis-membership";
+export type { AnalysisHypothesis } from "./analysis-membership.ts";
 
 export type RuleCondition = {
   ruleId: string;
@@ -82,16 +85,16 @@ type TraceRow = {
 };
 
 export async function getAnalysisCounts(runId: string): Promise<Record<AnalysisHypothesis, number>> {
-  const supabase = await createClient();
+  const viewer = await currentViewer();
   const count = async (hypothesis: AnalysisHypothesis) => {
-    const { count: total, error } = await supabase
-      .from("instrument_alignment")
-      .select("instrument_id, instruments!inner(is_index)", { count: "exact", head: true })
-      .eq("run_id", runId)
-      .eq("final_alignment", expectedAlignment(hypothesis))
-      .eq("instruments.is_index", false);
-    if (error) throw error;
-    return total ?? 0;
+    const row = await getDb().one<{ n: number }>(
+      `select count(*) as n
+         from instrument_alignment a
+         join instruments i on i.id = a.instrument_id
+        where a.run_id = $1 and a.final_alignment = $2 and i.is_index = false and ${runVisibleSql("a", "$3")}`,
+      [runId, expectedAlignment(hypothesis), isStaff(viewer)],
+    );
+    return row?.n ?? 0;
   };
   const [bullish, bearish] = await Promise.all([count("bullish"), count("bearish")]);
   return { bullish, bearish };
@@ -108,16 +111,19 @@ export async function getSwingAnalysisPage(
   requestedPage = 1,
   pageSize = ANALYSIS_PAGE_SIZE
 ): Promise<SwingCandidatePage> {
-  const supabase = await createClient();
-  const { data: memberships, error: membershipError } = await supabase
-    .from("instrument_alignment")
-    .select("instrument_id, final_alignment, instruments!inner(symbol, name, is_index)")
-    .eq("run_id", runId)
-    .eq("final_alignment", expectedAlignment(hypothesis))
-    .eq("instruments.is_index", false);
-  if (membershipError) throw membershipError;
+  const viewer = await currentViewer();
+  const staff = isStaff(viewer);
+  const db = getDb();
+  const memberships = await db.query<AlignmentMembership>(
+    `select a.instrument_id, a.final_alignment,
+            json_build_object('symbol', i.symbol, 'name', i.name, 'is_index', i.is_index) as instruments
+       from instrument_alignment a
+       join instruments i on i.id = a.instrument_id
+      where a.run_id = $1 and a.final_alignment = $2 and i.is_index = false and ${runVisibleSql("a", "$3")}`,
+    [runId, expectedAlignment(hypothesis), staff],
+  );
 
-  const eligible = ((memberships ?? []) as unknown as AlignmentMembership[])
+  const eligible = memberships
     .filter((row) => isAnalysisMember({ finalAlignment: row.final_alignment, isIndex: row.instruments.is_index }, hypothesis))
     .sort((a, b) => a.instruments.symbol.localeCompare(b.instruments.symbol));
   const safePageSize = Math.max(1, Math.min(50, pageSize));
@@ -127,47 +133,33 @@ export async function getSwingAnalysisPage(
   const instrumentIds = pageMemberships.map((row) => row.instrument_id);
   if (instrumentIds.length === 0) return { rows: [], totalCount: eligible.length, page, pageCount, pageSize: safePageSize };
 
-  const [{ data: resultData, error: resultError }, { data: dailyData, error: dailyError }] = await Promise.all([
-    supabase.from("swing_analysis_results").select("*").eq("run_id", runId).eq("hypothesis", hypothesis).in("instrument_id", instrumentIds),
-    supabase
-      .from("instrument_direction_runs")
-      .select("instrument_id, chart_object_path")
-      .eq("run_id", runId)
-      .eq("timeframe", "daily")
-      .in("instrument_id", instrumentIds),
+  const [results, dailyRows] = await Promise.all([
+    db.query<SwingRow>(
+      `select s.* from swing_analysis_results s
+        where s.run_id = $1 and s.hypothesis = $2 and s.instrument_id = any($3::text[]) and ${runVisibleSql("s", "$4")}`,
+      [runId, hypothesis, instrumentIds, staff],
+    ),
+    db.query<{ instrument_id: string; chart_object_path: string | null }>(
+      `select d.instrument_id, d.chart_object_path from instrument_direction_runs d
+        where d.run_id = $1 and d.timeframe = 'daily' and d.instrument_id = any($2::text[]) and ${runVisibleSql("d", "$3")}`,
+      [runId, instrumentIds, staff],
+    ),
   ]);
-  if (resultError) throw resultError;
-  if (dailyError) throw dailyError;
-  const results = (resultData ?? []) as unknown as SwingRow[];
   const resultByInstrument = new Map(results.map((row) => [row.instrument_id, row]));
-  const fallbackDailyPath = new Map((dailyData ?? []).map((row) => [row.instrument_id, row.chart_object_path]));
+  const fallbackDailyPath = new Map(dailyRows.map((row) => [row.instrument_id, row.chart_object_path]));
 
   const resultIds = results.map((row) => row.id);
   const tracesByResultId = new Map<number, TraceRow[]>();
   if (resultIds.length > 0) {
-    const { data: traces, error: traceError } = await supabase
-      .from("swing_analysis_rule_traces")
-      .select("*")
-      .in("analysis_result_id", resultIds);
-    if (traceError) throw traceError;
-    for (const trace of (traces ?? []) as unknown as TraceRow[]) {
+    const traces = await db.query<TraceRow>(
+      `select t.* from swing_analysis_rule_traces t where t.analysis_result_id = any($1::bigint[])`,
+      [resultIds],
+    );
+    for (const trace of traces) {
       const current = tracesByResultId.get(trace.analysis_result_id) ?? [];
       current.push(trace);
       tracesByResultId.set(trace.analysis_result_id, current);
     }
-  }
-
-  const chartPaths = new Set<string>();
-  for (const membership of pageMemberships) {
-    const row = resultByInstrument.get(membership.instrument_id);
-    const dailyPath = row?.daily_chart_object_path ?? fallbackDailyPath.get(membership.instrument_id);
-    if (dailyPath) chartPaths.add(dailyPath);
-    if (row?.hourly_chart_object_path) chartPaths.add(row.hourly_chart_object_path);
-  }
-  const signedUrlByPath = new Map<string, string>();
-  if (chartPaths.size > 0) {
-    const { data: signed } = await supabase.storage.from("direction-charts").createSignedUrls([...chartPaths], 60 * 60);
-    for (const item of signed ?? []) if (item.path && item.signedUrl) signedUrlByPath.set(item.path, item.signedUrl);
   }
 
   const automatedGates = hypothesis === "bullish" ? WBP_AUTOMATED_GATES : WSP_AUTOMATED_GATES;
@@ -207,8 +199,8 @@ export async function getSwingAnalysisPage(
       dataQuality: result?.data_quality ?? "NO_DATA",
       conditions,
       computedAt: result?.computed_at ?? null,
-      dailyChartUrl: dailyPath ? signedUrlByPath.get(dailyPath) ?? null : null,
-      hourlyChartUrl: hourlyPath ? signedUrlByPath.get(hourlyPath) ?? null : null,
+      dailyChartUrl: dailyPath ? chartUrl(dailyPath) : null,
+      hourlyChartUrl: hourlyPath ? chartUrl(hourlyPath) : null,
       hourlyOpened: automatedGates.every((gate) => gateResults[gate] === "PASS"),
     };
   });

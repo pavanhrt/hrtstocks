@@ -2,13 +2,23 @@
   "name": "stock-platform-tooling",
   "private": true,
   "type": "module",
-  "description": "Local tooling: strategy seeding and rule-engine tests. The deployable app lives in app/; the Edge Function lives in supabase/functions/.",
+  "description": "Repository tooling: database migrations/tests and the test aggregator. Deployables: app/ (Next.js on Cloud Run) and services/pipeline/ (Cloud Run Jobs).",
   "scripts": {
-    "test": "node --test supabase/functions/run-screening/rules/*.test.js supabase/functions/run-screening/features/*.test.js supabase/functions/run-screening/charts/*.test.js supabase/functions/run-screening/providers/*.test.js supabase/functions/run-screening/pipeline/*.test.js supabase/functions/run-screening/buy-setup/*.test.js supabase/functions/run-screening/fome/*.test.js supabase/functions/run-screening/*.test.js supabase/functions/fundamentals/*.test.js supabase/functions/fundamentals/providers/*.test.js",
-    "seed:strategies": "node supabase/seed/seed-strategies.mjs"
+    "test": "npm run test:db && npm run test:pipeline && npm run test:scripts",
+    "test:db": "node --test db/tests/*.test.mjs",
+    "test:pipeline": "npm --prefix services/pipeline test",
+    "test:scripts": "node --test scripts/*.test.mjs",
+    "test:smoke": "node --test db/tests/clean-db-smoke.test.mjs",
+    "smoke:qa": "node scripts/qa-smoke.mjs",
+    "db:migrate": "node db/migrate.mjs",
+    "db:status": "node db/migrate.mjs --status",
+    "seed:strategies": "npm --prefix services/pipeline run seed:strategies",
+    "seed:system": "npm --prefix services/pipeline run seed:system"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.45.4",
-    "js-yaml": "^4.1.0"
+    "pg": "^8.23.0"
+  },
+  "devDependencies": {
+    "embedded-postgres": "^17.10.0-beta.17"
   }
 }
