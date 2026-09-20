@@ -89,6 +89,7 @@ resource "google_cloud_run_v2_service" "app" {
   lifecycle {
     ignore_changes = [
       template[0].containers[0].image,
+      scaling, # service-level block the API reports as zeros; the real limits are on the template
       client,
       client_version,
     ]

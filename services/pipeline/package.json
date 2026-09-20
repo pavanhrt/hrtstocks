@@ -8,7 +8,7 @@
     "node": ">=22.18"
   },
   "scripts": {
-    "test": "node --test \"src/**/*.test.js\"",
+    "test": "node --test --test-concurrency=3 --test-timeout=420000 \"src/**/*.test.js\"",
     "job:screening": "node src/jobs/screening.mjs",
     "job:buy-setup": "node src/jobs/buy-setup.mjs",
     "job:fome": "node src/jobs/fome.mjs",

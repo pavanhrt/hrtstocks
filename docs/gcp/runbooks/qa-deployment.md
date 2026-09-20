@@ -1,7 +1,7 @@
 # Runbook: QA deployment (`https://hrtstocksqa.manaoorugpt.com`)
 
-> **Nothing has been deployed.** Phase 3 starts only after the owner sends the exact phrase `APPROVE QA DEPLOYMENT`.
-> No live data from any earlier system is migrated: QA starts from an empty database and is filled by fresh pipeline runs and invitations.
+> QA infrastructure was applied on 2026-09-19 after `APPROVE QA DEPLOYMENT` (68 resources, 0 destroyed). No live data from any earlier system is migrated:
+> QA starts from an empty database and is filled by fresh pipeline runs and invitations. Notes from the first real apply are marked **(learned)**.
 
 ```mermaid
 flowchart LR
@@ -32,7 +32,19 @@ terraform apply qa.tfplan
 terraform output dns_records_required
 ```
 
-The plan fails early if `gcp_project_number` does not match the project. **Nothing is applied without the approval phrase.**
+The plan fails early if `gcp_project_number` does not match the project. Apply exactly the saved plan file.
+
+**(learned)** Two things bit the first apply and are now handled: (1) the Google provider needs `user_project_override` (a quota project) for Identity Platform and API Keys when using user
+Application Default Credentials; (2) Cloud Run refuses a job that references `secret:latest` while the secret has **no version**, so give each FYERS secret a non-secret placeholder version
+*before* the jobs are created (step 1a). If a first apply is interrupted, `terraform untaint` resources that exist and are only invalid, rather than letting Terraform destroy and recreate them.
+
+### 1a. Placeholder secret versions (before the jobs exist, or immediately after a failed job creation)
+
+```bash
+for s in <prefix>-fyers-app-id <prefix>-fyers-access-token; do printf %s "not-configured" | gcloud secrets versions add "$s" --data-file=-; done
+```
+
+`not-configured` is not a credential. The pipeline treats it exactly like a missing value (`FyersAuthError`, "FYERS_ACCESS_TOKEN is not set"). The real token is added later as a newer version ([fyers-token.md](fyers-token.md)).
 
 ## 2. DNS (the only manual external step)
 
@@ -62,8 +74,10 @@ Schema changes are applied by the operator, never by CI or by a runtime identity
 # a) set the built-in postgres user's password out of band (it is never in Terraform, state or the repository)
 gcloud sql users set-password postgres --instance hrtstocks-qa-pg --prompt-for-password
 
-# b) start the proxy in another terminal
+# b) start the proxy in another terminal (loopback only)
 cloud-sql-proxy "$(terraform output -raw cloud_sql_connection_name)" --port 5433
+#    If the binary is not installed (e.g. Windows), any equivalent works: a small forwarder built on the
+#    repository's @google-cloud/cloud-sql-connector (getOptions().stream(), authType PASSWORD, PUBLIC ip) that listens on 127.0.0.1 only.
 
 # c) migrate, grant the runtime roles, seed (one connection string; do not put the password in shell history: use PGPASSWORD or a prompt)
 export DATABASE_URL='postgres://postgres:<password>@127.0.0.1:5433/hrtstocks'
@@ -86,6 +100,12 @@ https://hrtstocksqa.manaoorugpt.com/fyers/callback
 ```
 
 ## 5. Deploy code
+
+**Prerequisites in GitHub (manual, owner):** the `qa` environment must have **required reviewers** (Settings → Environments → qa → Required reviewers, tick "Prevent self-review" if there is more than one collaborator) and a
+deployment branch rule for `develop_gcloud`. Then add the repository *variables* (Settings → Secrets and variables → Actions → Variables): `GCP_PROJECT_ID`, `GCP_REGION`, `GCP_WORKLOAD_IDENTITY_PROVIDER`
+(`terraform output -raw github_workload_identity_provider`), `GCP_DEPLOYER_SERVICE_ACCOUNT` (deployer address from `terraform output service_accounts`), `ARTIFACT_REPOSITORY` and `NAME_PREFIX` (both `<prefix>`, e.g. `hrtstocks-qa`),
+`FIREBASE_API_KEY` (from `terraform output -json firebase_web_config`; a public identifier) and `FIREBASE_AUTH_DOMAIN` (use `<site>.firebaseapp.com`, which works before and after DNS).
+**(learned)** The *Deploy* workflow also triggers on every push to `develop_gcloud`; until those variables exist it fails harmlessly at the authentication step, having no credentials.
 
 Configure the GitHub repository variables from `terraform output` (`GCP_PROJECT_ID`, `GCP_REGION`, `GCP_WORKLOAD_IDENTITY_PROVIDER`, `GCP_DEPLOYER_SERVICE_ACCOUNT`,
 `ARTIFACT_REPOSITORY`, `NAME_PREFIX`, `FIREBASE_API_KEY`, `FIREBASE_AUTH_DOMAIN`) and a `qa` environment that requires a reviewer, then run the *Deploy* workflow.

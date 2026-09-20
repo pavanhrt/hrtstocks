@@ -16,6 +16,12 @@ export class FyersAuthError extends Error {
   }
 }
 
+/**
+ * Cloud Run cannot start a job whose secret has no version, so the secret containers are given a non-secret
+ * placeholder version at deployment. It means "not configured yet" and is treated exactly like a missing value.
+ */
+export const NOT_CONFIGURED = "not-configured";
+
 const ROTATION_HINT = "Rotate it following docs/gcp/runbooks/fyers-token.md, then re-run.";
 
 /** FYERS API error codes that mean the token is missing, expired or invalid. */
@@ -23,14 +29,14 @@ const AUTH_ERROR_CODES = new Set([-8, -15, -16, -17]);
 
 export function fyersAppId(env = process.env) {
   const appId = env.FYERS_APP_ID;
-  if (!appId) throw new FyersAuthError(`FYERS_APP_ID is not set. ${ROTATION_HINT}`);
+  if (!appId || appId === NOT_CONFIGURED) throw new FyersAuthError(`FYERS_APP_ID is not set. ${ROTATION_HINT}`);
   return appId;
 }
 
 /** Returns the token or throws a clear, actionable error. */
 export function readAccessToken(env = process.env) {
   const token = env.FYERS_ACCESS_TOKEN;
-  if (!token) throw new FyersAuthError(`FYERS_ACCESS_TOKEN is not set (the daily token was never configured or was cleared). ${ROTATION_HINT}`);
+  if (!token || token === NOT_CONFIGURED) throw new FyersAuthError(`FYERS_ACCESS_TOKEN is not set (the daily token was never configured or was cleared). ${ROTATION_HINT}`);
   return token;
 }
 

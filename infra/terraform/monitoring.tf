@@ -43,9 +43,13 @@ resource "google_billing_budget" "monthly" {
     }
   }
 
-  all_updates_rule {
-    monitoring_notification_channels = local.notification_channel_ids
-    disable_default_iam_recipients   = false
+  # Without alert_emails there is no rule: the API then keeps its default recipients (billing account admins and users).
+  dynamic "all_updates_rule" {
+    for_each = length(local.notification_channel_ids) > 0 ? [1] : []
+    content {
+      monitoring_notification_channels = local.notification_channel_ids
+      disable_default_iam_recipients   = false
+    }
   }
 
   lifecycle {

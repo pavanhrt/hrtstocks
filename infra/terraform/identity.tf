@@ -35,6 +35,11 @@ resource "google_identity_platform_config" "default" {
     var.custom_domain == null ? [] : [var.custom_domain],
   ))
 
+  lifecycle {
+    # The API echoes these disabled-by-default blocks back; they are off and this configuration never enables them.
+    ignore_changes = [multi_tenant, sign_in[0].phone_number]
+  }
+
   depends_on = [google_project_service.apis]
 }
 

@@ -87,11 +87,9 @@ describe("the built application starts against the clean database", () => {
   let server;
   let baseUrl;
 
-  before(async (t) => {
-    if (!fs.existsSync(standalone)) {
-      t.skip("app is not built (run `npm --prefix app run build` first); CI builds before this suite");
-      return;
-    }
+  before(async () => {
+    // Not built (e.g. the database-only CI job): the test below reports a skip instead of failing.
+    if (!fs.existsSync(standalone)) return;
     const port = await new Promise((resolve) => {
       const s = net.createServer().listen(0, "127.0.0.1", () => {
         const { port } = s.address();
@@ -126,7 +124,7 @@ describe("the built application starts against the clean database", () => {
   after(() => server?.kill());
 
   test("health, readiness, empty-state edge behavior, authentication enforcement and removed routes", async (t) => {
-    if (!server) return t.skip("app not built");
+    if (!server) return t.skip("app is not built (run `npm --prefix app run build` first); the app CI job builds it");
     const results = await runSmoke({ baseUrl, expectMigrations: 21 });
     const failed = results.filter((r) => !r.pass);
     assert.deepEqual(failed, [], `failed: ${failed.map((f) => f.name).join("; ")}`);
