@@ -1,8 +1,10 @@
 import { openDb } from "../db/client.js";
+import { redactSecrets, safeErrorMessage } from "../security/redact.js";
 
 /** Structured logs: Cloud Logging parses JSON lines on stdout and reads `severity`. */
 export function log(severity, message, fields = {}) {
-  console.log(JSON.stringify({ severity, message, ...fields }));
+  // Every string in a log line is redacted: a log must never carry a credential or an Authorization header.
+  console.log(JSON.stringify({ severity, message, ...fields }, (_key, value) => (typeof value === "string" ? redactSecrets(value) : value)));
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -30,7 +32,7 @@ export async function runJob(name, body, { env = process.env, exit = (code) => p
     await db.close?.();
     exit(0);
   } catch (err) {
-    log("ERROR", `job ${name} failed: ${err?.message ?? err}`, { errorName: err?.name, durationMs: Date.now() - startedAt });
+    log("ERROR", `job ${name} failed: ${safeErrorMessage(err)}`, { errorName: err?.name, durationMs: Date.now() - startedAt });
     await db?.close?.().catch(() => {});
     exit(1);
   }

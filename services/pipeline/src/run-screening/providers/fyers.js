@@ -30,7 +30,8 @@
 // but `waitForRateLimitSlot` below -- backed by provider_rate_limit_buckets,
 // migration 0007 -- is the authoritative, cross-invocation guard.
 import { waitForRateLimitSlot } from "./rate-limiter.js";
-import { assertNotAuthFailure, fyersAuthHeader } from "./fyers-credentials.js";
+import { assertNotAuthFailure, fyersFetch } from "./fyers-credentials.js";
+import { redactSecrets } from "../../security/redact.js";
 
 const DATA_BASE_URL = "https://api-t1.fyers.in/data";
 const MIN_INTERVAL_MS = 350; // ~171 req/min, ~15% under the 200/min cap
@@ -81,8 +82,6 @@ export function serializeFyersRequest(task) {
   );
   return result;
 }
-
-const authHeader = fyersAuthHeader;
 
 // Index instrumentIds (see index.js INDEX_IDS) map to Fyers' own index
 // symbols -- confirmed live on 2026-09-07. Index candles report volume: 0
@@ -159,7 +158,7 @@ async function requestHistoryOnce(url, symbol, db) {
         throw new Error(`Fyers history request for ${symbol}: cross-invocation rate limit bucket stayed full past the wait budget`);
       }
     }
-    res = await fetch(url, { headers: { Authorization: authHeader() } });
+    res = await fyersFetch(url);
     if (res.status !== 429) break;
     if (attempt >= MAX_RETRIES) {
       throw new Error(`Fyers history request failed for ${symbol}: 429 rate-limited after ${MAX_RETRIES} retries`);
@@ -175,7 +174,7 @@ async function requestHistoryOnce(url, symbol, db) {
   if (!res.ok || !body || body.s !== "ok") {
     assertNotAuthFailure(res.status, body);
     throw new Error(
-      `Fyers history request failed for ${symbol}: ${res.status} ${body ? JSON.stringify(body) : ""}`
+      `Fyers history request failed for ${symbol}: ${res.status} ${body ? redactSecrets(JSON.stringify(body)) : ""}`
     );
   }
   return body;

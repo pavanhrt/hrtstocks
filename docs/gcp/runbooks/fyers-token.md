@@ -45,6 +45,13 @@ The owner sets this on the FYERS side; **this repository does not modify the ext
 hosted-auth flow and no longer exists, so a FYERS app still pointing at it must be updated before rotating the token. Before DNS is ready the same page exists on the
 Firebase-generated URL, but FYERS will only redirect to the URI registered on the app.
 
+## Credential hygiene (learned from the first QA run)
+
+- Store each value with **no trailing newline**: `printf %s "$VALUE" | gcloud secrets versions add <secret> --data-file=-`. A value pasted through a Windows shell or the clipboard ends with CR/LF.
+- The pipeline **trims** leading/trailing whitespace on both `FYERS_APP_ID` and `FYERS_ACCESS_TOKEN` when it reads them, and refuses (naming the variable, never the value) a value that is empty, is the `not-configured` placeholder, or still contains a line break or control character inside it.
+- **Credentials can never be persisted or logged.** Every FYERS call goes through one wrapper that turns any client failure into a fixed message (HTTP clients echo the offending header value in their own error text), and a central redactor removes header values, token-shaped strings and the configured credential values from anything written to PostgreSQL (`services/pipeline/src/db/client.js`) or to a log line (`jobs/runner.js`). Tests scan every text/JSON column of every table after a failing run.
+- The first failed QA run (505 `NO_DATA`, cause: a trailing CR/LF on the App ID) had stored the header text in `data_quality_results.details`; those rows were redacted in place (audit records kept).
+
 ## How an expired token fails (clearly)
 
 - The provider boundary is `services/pipeline/src/run-screening/providers/fyers-credentials.js`.

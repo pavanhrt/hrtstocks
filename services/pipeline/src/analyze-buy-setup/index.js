@@ -43,6 +43,7 @@
 import { setTimeout as sleep } from "node:timers/promises";
 import * as ops from "../db/ops.js";
 import { FyersAuthError } from "../run-screening/providers/fyers-credentials.js";
+import { safeErrorMessage } from "../security/redact.js";
 import { acquireRunLease, heartbeatRunLease, releaseRunLease } from "../run-screening/run-lease.js";
 import { fetchFifteenMinuteOHLCV } from "../run-screening/providers/fyers.js";
 import { detectCandlestickPatterns, detectDoubleExtremePatterns, PATTERN_COVERAGE } from "../run-screening/features/patterns.js";
@@ -108,9 +109,7 @@ async function runWithConcurrencyLimit(items, limit, worker) {
 // validation_errors, hiding the real Postgres error from anyone reading the
 // manifest -- keep this tolerant of non-Error throwables).
 function errorMessage(err) {
-  if (err instanceof Error) return err.message;
-  if (err && typeof err === "object" && typeof err.message === "string") return err.message;
-  return String(err);
+  return safeErrorMessage(err);
 }
 
 async function recordPersistenceError(db, runId, instrumentId, stage, err) {

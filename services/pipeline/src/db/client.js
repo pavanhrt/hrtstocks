@@ -1,4 +1,5 @@
 import pg from "pg";
+import { redactDeep } from "../security/redact.js";
 
 /**
  * Minimal database handle for the pipeline: `query` returns rows, `one` returns
@@ -21,14 +22,18 @@ const types = {
   },
 };
 
+// Nothing that reaches the database may contain a credential: strings and JSON parameters are redacted here,
+// so error text persisted anywhere (details, messages, audit rows) is clean whatever code produced it.
+const clean = (params) => (params.length === 0 ? params : params.map((p) => redactDeep(p)));
+
 function wrap(executor) {
   return {
     async query(sql, params = []) {
-      const res = await executor.query({ text: sql, values: params, types });
+      const res = await executor.query({ text: sql, values: clean(params), types });
       return res.rows;
     },
     async one(sql, params = []) {
-      const res = await executor.query({ text: sql, values: params, types });
+      const res = await executor.query({ text: sql, values: clean(params), types });
       return res.rows[0] ?? null;
     },
     /** Escape hatch for code that needs the raw pool/client (e.g. transactions). */

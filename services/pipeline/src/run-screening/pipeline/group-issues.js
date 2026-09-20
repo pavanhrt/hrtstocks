@@ -1,3 +1,4 @@
+import { redactSecrets } from "../../security/redact.js";
 // Groups repeated Data Health rows by cause instead of rendering one row per
 // event -- a systemic issue (e.g. every time-budget-skipped instrument, or
 // every instrument hitting the same provider error) previously produced
@@ -44,8 +45,9 @@ export function groupAuditLog(rows, sampleLimit = 3) {
       groups.set(key, g);
     }
     g.count++;
-    if (r.message && g.sample_messages.length < sampleLimit && !g.sample_messages.includes(r.message)) {
-      g.sample_messages.push(r.message);
+    const sample = redactSecrets(r.message); // rows written before redaction existed are cleaned on the way out too
+    if (sample && g.sample_messages.length < sampleLimit && !g.sample_messages.includes(sample)) {
+      g.sample_messages.push(sample);
     }
     if (r.created_at < g.first_seen) g.first_seen = r.created_at;
     if (r.created_at > g.last_seen) g.last_seen = r.created_at;

@@ -16,7 +16,7 @@ locals {
 
   # Entrypoint script and limits per pipeline job (same image, different command).
   pipeline_jobs = {
-    screening = { script = "src/jobs/screening.mjs", timeout = "7200s", retries = 1 }
+    screening = { script = "src/jobs/screening.mjs", timeout = "7200s", retries = var.screening_job_max_retries }
     buy_setup = { script = "src/jobs/buy-setup.mjs", timeout = "7200s", retries = 1 }
     fome      = { script = "src/jobs/fome.mjs", timeout = "1800s", retries = 0 } # interactive: fail fast, the user can retry
   }

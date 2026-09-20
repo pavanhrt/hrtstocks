@@ -42,12 +42,12 @@
 //     either a `{d: {<symbol>: {...}}}` or a flat `{...}` shape.
 import { waitForRateLimitSlot } from "./rate-limiter.js";
 import { serializeFyersRequest } from "./fyers.js";
-import { assertNotAuthFailure, fyersAuthHeader } from "./fyers-credentials.js";
+import { assertNotAuthFailure, fyersFetch } from "./fyers-credentials.js";
+import { redactSecrets } from "../../security/redact.js";
 
 const DATA_BASE_URL = "https://api-t1.fyers.in/data";
 const SHARED_RATE_LIMIT_PER_MINUTE = 180;
 
-const authHeader = fyersAuthHeader;
 
 async function requestJson(url, db) {
   return serializeFyersRequest(async () => {
@@ -57,11 +57,11 @@ async function requestJson(url, db) {
         throw new Error(`Fyers derivative request timed out waiting for a rate-limit slot: ${url}`);
       }
     }
-    const res = await fetch(url, { headers: { Authorization: authHeader() } });
+    const res = await fyersFetch(url);
     const body = await res.json().catch(() => null);
     if (!res.ok || !body || body.s === "error") {
       assertNotAuthFailure(res.status, body);
-      throw new Error(`Fyers derivative request failed: ${res.status} ${body ? JSON.stringify(body) : ""}`);
+      throw new Error(`Fyers derivative request failed: ${res.status} ${body ? redactSecrets(JSON.stringify(body)) : ""}`);
     }
     return body;
   });

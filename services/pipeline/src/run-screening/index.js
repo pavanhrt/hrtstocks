@@ -41,6 +41,7 @@
 import { setTimeout as sleep } from "node:timers/promises";
 import * as ops from "../db/ops.js";
 import { FyersAuthError } from "./providers/fyers-credentials.js";
+import { safeErrorMessage } from "../security/redact.js";
 import { fetchIndexConstituents } from "./providers/nse-archives.js";
 import { fetchOHLCVRange, fetchHourlyOHLCV, nextIncrementalRange } from "./providers/fyers.js";
 import { validateBars } from "./quality.js";
@@ -369,7 +370,7 @@ async function runPipeline({ db, runId }) {
         await ops.update(db, "pipeline_batches", { status: "done", updated_at: new Date().toISOString() }, { id: batch.id });
       } catch (err) {
         if (err instanceof FyersAuthError) throw err; // abort with the clear cause; retrying batches cannot fix an expired token
-        const message = err instanceof Error ? err.message : String(err);
+        const message = safeErrorMessage(err);
         const gaveUp = batch.attempt >= MAX_CHUNK_ATTEMPTS;
         await ops.update(db, "pipeline_batches", { status: gaveUp ? "failed" : "pending", last_error: message, updated_at: new Date().toISOString() }, { id: batch.id });
         await logStage(
@@ -387,7 +388,7 @@ async function runPipeline({ db, runId }) {
       await heartbeatRunLease(db, RUN_TYPE, runId, { leaseDurationMs: LEASE_DURATION_MS });
     }
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+    const message = safeErrorMessage(err);
     await logStage(db, runId, "error", "failed", message);
     await ops.update(db, "screening_runs", { status: "failed", completed_at: new Date().toISOString() }, { id: runId });
     // An expired FYERS token fails the JOB (non-zero exit, clear message) so it is
@@ -794,7 +795,7 @@ async function buildUniverse(db, runId, runDate) {
         membership.get(c.instrumentId).indexIds.add(indexId);
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+      const message = safeErrorMessage(err);
       sourceErrors.push(`${indexId}: ${message}`);
       await logStage(db, runId, "universe", "failed", `${indexId} constituent fetch failed: ${message}`);
     }
@@ -1000,7 +1001,7 @@ async function evaluateInstrument({ db, runId, runDate, asOfTimestamp, instrumen
       instrument_id: instrument.instrumentId,
       check_name: "ingestion",
       result: "NO_DATA",
-      details: { error: err instanceof Error ? err.message : String(err) },
+      details: { error: safeErrorMessage(err) },
     });
     if (ingestionQualityError) throw ingestionQualityError;
   }
@@ -1056,7 +1057,7 @@ async function evaluateInstrument({ db, runId, runDate, asOfTimestamp, instrumen
           runId,
           "direction_chart",
           "warning",
-          `${instrument.instrumentId}: direction analysis failed: ${err instanceof Error ? err.message : String(err)}`
+          `${instrument.instrumentId}: direction analysis failed: ${safeErrorMessage(err)}`
         );
         return { chartsByTimeframe: {} };
       }
@@ -1099,7 +1100,7 @@ async function evaluateInstrument({ db, runId, runDate, asOfTimestamp, instrumen
         runId,
         "hourly_ingest",
         "warning",
-        `${instrument.instrumentId}: hourly bar ingestion/route detection failed: ${err instanceof Error ? err.message : String(err)}`
+        `${instrument.instrumentId}: hourly bar ingestion/route detection failed: ${safeErrorMessage(err)}`
       );
     }
   }
@@ -1125,7 +1126,7 @@ async function evaluateInstrument({ db, runId, runDate, asOfTimestamp, instrumen
       runId,
       "swing_analysis",
       "warning",
-      `${instrument.instrumentId}: swing analysis persistence failed: ${err instanceof Error ? err.message : String(err)}`
+      `${instrument.instrumentId}: swing analysis persistence failed: ${safeErrorMessage(err)}`
     );
   }
 
@@ -1438,7 +1439,7 @@ async function ingestHourlyBarsAndDetectRoutes({ db, runId, asOfTimestamp, instr
       runId,
       "hourly_chart",
       "warning",
-      `${instrument.instrumentId}: immutable hourly chart upload failed: ${err instanceof Error ? err.message : String(err)}`
+      `${instrument.instrumentId}: immutable hourly chart upload failed: ${safeErrorMessage(err)}`
     );
   }
 
@@ -1543,7 +1544,7 @@ async function upsertDirectionAnalysis({ db, runId, instrument, bars, documented
           runId,
           "direction_run",
           "warning",
-          `${instrument.instrumentId}/${timeframe}: run-scoped direction/wave persistence failed: ${err instanceof Error ? err.message : String(err)}`
+          `${instrument.instrumentId}/${timeframe}: run-scoped direction/wave persistence failed: ${safeErrorMessage(err)}`
         );
         await recordCriticalPersistenceError(db, runId, instrument.instrumentId, "direction_run", err);
       }
@@ -1568,7 +1569,7 @@ async function upsertDirectionAnalysis({ db, runId, instrument, bars, documented
           runId,
           "pattern_detection",
           "warning",
-          `${instrument.instrumentId}/${timeframe}: pattern detection persistence failed: ${err instanceof Error ? err.message : String(err)}`
+          `${instrument.instrumentId}/${timeframe}: pattern detection persistence failed: ${safeErrorMessage(err)}`
         );
         await recordCriticalPersistenceError(db, runId, instrument.instrumentId, "pattern_detection", err);
       }
@@ -1596,7 +1597,7 @@ async function upsertDirectionAnalysis({ db, runId, instrument, bars, documented
       runId,
       "final_alignment",
       "warning",
-      `${instrument.instrumentId}: final_alignment computation/persistence failed: ${err instanceof Error ? err.message : String(err)}`
+      `${instrument.instrumentId}: final_alignment computation/persistence failed: ${safeErrorMessage(err)}`
     );
     await recordCriticalPersistenceError(db, runId, instrument.instrumentId, "final_alignment", err);
   }
@@ -1817,7 +1818,7 @@ async function logStage(db, runId, stage, status, message) {
 }
 
 async function recordCriticalPersistenceError(db, runId, instrumentId, stage, err) {
-  const message = err instanceof Error ? err.message : String(err);
+  const message = safeErrorMessage(err);
   const { error } = await ops.insert(db, "pipeline_persistence_errors", {
     run_id: runId,
     instrument_id: instrumentId,

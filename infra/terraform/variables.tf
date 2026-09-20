@@ -202,6 +202,16 @@ variable "github_repository" {
   nullable    = true
 }
 
+variable "screening_job_max_retries" {
+  description = "Cloud Run retries of a FAILED screening task (0 = none). The shipped default is 1; QA sets 0 so a failing real run stops immediately instead of repeating against the data provider."
+  type        = number
+  default     = 1
+  validation {
+    condition     = var.screening_job_max_retries >= 0 && var.screening_job_max_retries <= 3
+    error_message = "screening_job_max_retries must be between 0 and 3."
+  }
+}
+
 variable "github_environment" {
   description = "GitHub Actions environment whose jobs may deploy (WIF attribute condition). Null uses the environment variable."
   type        = string

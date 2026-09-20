@@ -19,6 +19,7 @@
 
 import { insertMany, updateWhere, upsertMany } from "../db/write.js";
 import { FyersAuthError } from "../run-screening/providers/fyers-credentials.js";
+import { safeErrorMessage, safeErrorStack } from "../security/redact.js";
 import { fetchOHLCVRange, fetchFifteenMinuteOHLCV, nextIncrementalRange, toFyersSymbol } from "../run-screening/providers/fyers.js";
 import { fetchOptionChain, fetchFuturesChain, fetchMarketDepth } from "../run-screening/providers/fyers-derivatives.js";
 import { validateBars } from "../run-screening/quality.js";
@@ -309,7 +310,7 @@ async function runFomeAnalysis({ db, chartStore, runId, instrument, asOfTimestam
     });
   } catch (err) {
     // An expired FYERS token gets a clear, actionable message (never the stack).
-    const message = err instanceof FyersAuthError ? err.message : String(err?.stack ?? err);
+    const message = err instanceof FyersAuthError ? err.message : safeErrorStack(err);
     await updateWhere(db, "fome_analysis_runs", { status: "failed", error_message: message.slice(0, 4000), completed_at: new Date().toISOString() }, { id: runId });
   }
 }
@@ -553,7 +554,7 @@ async function storeChart(db, chartStore, runId, instrumentId, timeframe, svg) {
   } catch (err) {
     // Chart storage is presentation-only -- log via pipeline_audit_log-style
     // best-effort, never fail the whole analysis over a Storage outage.
-    console.error(`[fome-analysis] chart storage failed for run=${runId} timeframe=${timeframe}:`, err);
+    console.error(`[fome-analysis] chart storage failed for run=${runId} timeframe=${timeframe}: ${safeErrorMessage(err)}`);
   }
 }
 

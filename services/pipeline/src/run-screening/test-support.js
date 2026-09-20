@@ -13,16 +13,24 @@ export const toUrl = (input) => (input instanceof URL ? input : new URL(typeof i
 
 /**
  * @param {string[]} calls collects the hostnames contacted
- * @param {{ failSymbols?: Set<string>, nseStatus?: number }} [opts] injected outages: FYERS 500 for the listed symbols, NSE archive HTTP status
+ * @param {{ failSymbols?: Set<string>, nseStatus?: number, authorizations?: string[], echoHeaderOnFailure?: boolean }} [opts]
+ *   injected outages: FYERS 500 for the listed symbols, NSE archive HTTP status.
+ *   authorizations: collects the Authorization header of every FYERS request.
+ *   echoHeaderOnFailure: for the listed symbols, fail the way a real HTTP client does when it dislikes a header, with
+ *   the header VALUE inside the error message (the production incident); the pipeline must never persist that text.
+ * Like the real client, a FYERS request whose headers are not valid HTTP (for example a CR/LF in the value) is rejected.
  */
-export function fakeFetch(calls, { failSymbols = new Set(), nseStatus = 200 } = {}) {
-  return async (input) => {
+export function fakeFetch(calls, { failSymbols = new Set(), nseStatus = 200, authorizations = null, echoHeaderOnFailure = false } = {}) {
+  return async (input, init) => {
     const url = toUrl(input);
     calls.push(url.hostname);
     if (url.hostname === "nsearchives.nseindia.com") return nseStatus === 200 ? new Response(CSV, { status: 200 }) : new Response("upstream error", { status: nseStatus });
     if (url.hostname !== "api-t1.fyers.in") throw new Error(`unexpected network call to ${url.hostname}`);
 
     const symbol = (url.searchParams.get("symbol") ?? "").replace(/^NSE:/, "").replace(/-EQ$|-INDEX$/, "");
+    new Headers(init?.headers ?? {}); // throws TypeError('Headers.append: "<value>" is an invalid header value.') on CR/LF, as undici does
+    authorizations?.push(init?.headers?.Authorization);
+    if (echoHeaderOnFailure && failSymbols.has(symbol)) throw new TypeError(`Headers.append: "${init?.headers?.Authorization}" is an invalid header value.`);
     if (failSymbols.has(symbol)) return new Response(JSON.stringify({ s: "error", code: 500, message: "provider unavailable" }), { status: 500 });
     const resolution = url.searchParams.get("resolution");
     const candles = [];
