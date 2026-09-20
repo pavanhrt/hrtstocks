@@ -18,14 +18,39 @@ function freePort() {
   });
 }
 
+/**
+ * Waits until no client connection is left on the server. Stopping PostgreSQL (SIGINT, a "fast shutdown", on Linux)
+ * while a client socket is still closing makes the backend send "terminating connection due to administrator
+ * command"; pg then emits an 'error' on a client nobody listens to and Node reports an uncaught exception. Pools
+ * return from end() before their sockets are fully gone, so a stop right after end() races. Draining removes the race.
+ */
+async function drainConnections(url, timeoutMs = 5000) {
+  const c = new pg.Client({ connectionString: url });
+  c.on("error", () => {}); // this client itself must never be the one to blow up during shutdown
+  try {
+    await c.connect();
+    const deadline = Date.now() + timeoutMs;
+    for (;;) {
+      const { rows } = await c.query("select count(*)::int n from pg_stat_activity where backend_type = 'client backend' and pid <> pg_backend_pid()");
+      if (rows[0].n === 0 || Date.now() > deadline) break;
+      await new Promise((r) => setTimeout(r, 20));
+    }
+  } catch {
+    /* the server may already be gone: nothing left to drain */
+  } finally {
+    await c.end().catch(() => {});
+    await new Promise((r) => setTimeout(r, 30)); // let our own socket finish closing before the shutdown signal
+  }
+}
+
 const START_TIMEOUT_MS = 90_000;
 const START_ATTEMPTS = 3;
 
 const withTimeout = (promise, ms, what) =>
   Promise.race([promise, new Promise((_, reject) => setTimeout(() => reject(new Error(`${what} timed out after ${ms} ms`)), ms).unref())]);
 
-// The OS-chosen port is released before Postgres binds it, so a parallel test process can take it in between (and
-// Windows adds shared-memory contention). A lost race must be a retry with a fresh port and directory, never a hang.
+// The OS-chosen port is released before Postgres binds it, so a parallel test process can take it in between. A failed
+// or stalled start must be a retry with a fresh port and directory, never a hang.
 async function startOnce() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hrt-pg-"));
   const port = await freePort();
@@ -65,6 +90,7 @@ export async function startTestPostgres() {
           return c;
         },
         async stop() {
+          await drainConnections(url);
           await server.stop();
           fs.rmSync(dir, { recursive: true, force: true });
         },
